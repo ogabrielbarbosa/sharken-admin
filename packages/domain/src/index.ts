@@ -12,3 +12,6 @@ export * from './review';
 export * from './page-copy';
 export * from './page-readiness';
 export * from './fact-check';
+export * from './colors';
+export * from './site-access';
+export * from './site-content';

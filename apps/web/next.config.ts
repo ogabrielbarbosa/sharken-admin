@@ -9,6 +9,9 @@ const config: NextConfig = {
   transpilePackages: ['@lps/domain', '@lps/config', '@lps/db', '@lps/integrations'],
   outputFileTracingRoot: join(import.meta.dirname, '../..'),
   images: { unoptimized: true },
+  headers: async () => [
+    { source: '/p/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] },
+  ],
 };
 
 export default config;
