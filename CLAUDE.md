@@ -1,25 +1,26 @@
 # Prospecção de landing pages
 
-Sistema de um único usuário para encontrar negócios locais, montar uma página de exemplo e um vídeo para cada um e apoiar a abordagem pelo WhatsApp até a venda ser registrada.
+Sistema de um único usuário para encontrar negócios locais, montar uma página de exemplo e um vídeo para cada um, apoiar a abordagem pelo WhatsApp e, depois da venda, controlar clientes, serviços, contratos e cobranças.
 
 **Objetivo:** gerar caixa rápido, com pouco esforço operacional.
 
-**Status:** o spec está em `docs/superpowers/specs/2026-11-06-sistema-de-prospeccao-design.md`. Ainda não há código. Só iniciar a implementação depois de haver um plano aprovado.
+**Status:** o spec está em `docs/superpowers/specs/2026-11-06-sistema-de-prospeccao-design.md`, o plano em `docs/superpowers/plans/2026-11-06-sistema-de-prospeccao.md` e as telas em `untitled.pen`. Só iniciar a implementação depois de haver um plano aprovado.
 
 ## Decisões
 
-- **Escopo:** da busca até o registro da venda. Negociação, proposta, contrato, pagamento e entrega ficam com o Gabriel, fora do sistema.
-- **Busca:** o Gabriel escolhe região e tipo de negócio, em campos livres. Definir nichos, preços, metas e testes comerciais é com ele.
-- **Dois fluxos:** sem site (inclui site fora do ar) e melhorar site. Se o site funciona, o Gabriel avalia se está ruim; site bom sai da lista.
-- **Templates:** um único template, que se adapta a qualquer tipo de negócio.
+- **Processo:** o batch é a unidade de trabalho. Dentro dele, o lead segue Revisar → Material → Abordar → Aguardar → Conversa → Vendido.
+- **Busca:** localização e tipo de negócio em campos livres. Definir nichos, preços, metas e testes comerciais é com o Gabriel.
+- **Dois fluxos:** sem site (inclui site fora do ar) e melhorar site. O sistema analisa, e o Gabriel revisa e decide em Revisar.
+- **Comentário e motivo:** o comentário é interno. O motivo é um campo próprio, que aparece para o lead na mensagem e no vídeo.
+- **Templates:** um único template em código, que se adapta a qualquer tipo de negócio.
+- **Configuração:** roteiros, mensagens, gravações e prompts ficam em arquivos do projeto, sem tela.
 - **Primeiro contato:** WhatsApp. O app prepara o texto e o link, abre a conversa, e o Gabriel envia. Identificação clara, um follow-up no máximo e parar assim que a pessoa pedir. Sem disparo automático.
 - **Depois:** se a abordagem funcionar, o Gabriel pode fazer um CRM conectado ao WhatsApp. Não faz parte desta versão.
 - **Modo de operação:** human in the loop. A IA propõe e o Gabriel aprova ou reprova.
-- **Vídeo:** módulo próprio, afinado aos poucos com o Gabriel, sem número mínimo de testes. Roteiro por fluxo, narração gravada por ele e clone de voz nos campos variáveis. Fica no topo da página de exemplo.
-- **Duração do vídeo:** 60 a 90 segundos. O objetivo é conseguir uma resposta.
+- **Vídeo:** gerado pelo worker, com roteiro por fluxo, narração gravada pelo Gabriel e clone de voz nos campos variáveis. Fica só dentro da página de exemplo.
 - **Transparência:** o vídeo pode mostrar que a demo foi preparada para aquele negócio, mas não deve dizer que o Gabriel gravou tudo pessoalmente para ele.
-- **Sistema:** app próprio, de um único usuário, com painel para aprovar cada etapa. Construir só o que esta versão exige.
-- **Stack:** TypeScript, Next.js na Vercel, Supabase, Apify, API do Claude, ElevenLabs e Remotion (renderizando no Mac do Gabriel na primeira versão).
+- **Clientes:** um cliente tem vários serviços, com contrato pelo ZapSign e cobrança pelo Asaas.
+- **Stack:** TypeScript, Next.js na Vercel, Supabase, Apify, API do Claude, ElevenLabs, ZapSign, Asaas e Remotion (renderizando no Mac do Gabriel na primeira versão).
 
 ## Restrições do WhatsApp (verificado em 2026-11-05)
 
@@ -30,4 +31,5 @@ Sistema de um único usuário para encontrar negócios locais, montar uma págin
 
 ## Em aberto
 
-- Nome comercial usado nas mensagens e no aviso dos modelos
+- Modelo de contrato no ZapSign
+- Confirmação do nome comercial (as telas usam Sharken)
