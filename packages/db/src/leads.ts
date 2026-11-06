@@ -67,3 +67,14 @@ async function idOf(db: Db, placeId: string): Promise<string> {
   const { data } = await db.from('leads').select('id').eq('place_id', placeId).single();
   return (data as { id: string }).id;
 }
+
+export async function listEvents(db: Db, leadId: string): Promise<{ id: string; created_at: string; type: string; data: Record<string, unknown> }[]> {
+  const { data } = await db.from('events').select().eq('lead_id', leadId).order('created_at', { ascending: false });
+  return data ?? [];
+}
+
+export async function lastEventOf(db: Db, leadIds: string[], type: string): Promise<Map<string, { created_at: string; data: Record<string, unknown> }>> {
+  if (!leadIds.length) return new Map();
+  const { data } = await db.from('events').select('lead_id, created_at, data').eq('type', type).in('lead_id', leadIds).order('created_at', { ascending: true });
+  return new Map((data ?? []).map((e) => [e.lead_id as string, e]));
+}
