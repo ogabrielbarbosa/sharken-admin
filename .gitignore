@@ -6,7 +6,9 @@ dist
 coverage
 out
 .env
-.env.local
+.env.*
+!.env.*.example
+backups
 .superpowers
 .DS_Store
 *.tsbuildinfo

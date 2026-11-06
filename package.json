@@ -6,14 +6,25 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "APP_ENV=local turbo run dev",
+    "dev:remoto": "APP_ENV=dev turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "worker": "pnpm --filter @lps/worker start",
+    "worker": "APP_ENV=local pnpm --filter @lps/worker start",
+    "worker:remoto": "APP_ENV=dev pnpm --filter @lps/worker start",
     "script:list": "pnpm --filter @lps/worker script:list",
+    "setup:local": "node scripts/setup-local.mjs",
+    "user:create": "APP_ENV=local pnpm --filter @lps/worker user:create",
+    "user:create:remoto": "APP_ENV=dev pnpm --filter @lps/worker user:create",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:status": "supabase status",
+    "db:migrate": "supabase migration up --local",
+    "db:new": "supabase migration new",
+    "db:backup": "node scripts/db-backup.mjs",
     "db:link": "supabase link",
-    "db:push": "supabase db push"
+    "db:push:remoto": "supabase db push --linked"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

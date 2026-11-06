@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getEnv, requireOptional } from '../src/env';
+import { getEnv, requireOptional, webhookBaseUrl } from '../src/env';
 
 const valid = {
   NEXT_PUBLIC_SUPABASE_URL: 'https://x.supabase.co',
@@ -34,5 +34,12 @@ describe('requireOptional', () => {
 
   it('devolve a chave quando existe', () => {
     expect(requireOptional('ZAPSIGN_API_TOKEN', { ZAPSIGN_API_TOKEN: 'z' })).toBe('z');
+  });
+});
+
+describe('webhookBaseUrl', () => {
+  it('prefere a URL do túnel', () => {
+    expect(webhookBaseUrl({ APP_URL: 'http://localhost:3000', WEBHOOK_BASE_URL: 'https://t.dev' })).toBe('https://t.dev');
+    expect(webhookBaseUrl({ APP_URL: 'https://app.dev' })).toBe('https://app.dev');
   });
 });

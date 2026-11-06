@@ -1,6 +1,6 @@
 import { computeSiteSignals, interpretAttempt, type SiteData, type SiteSignal } from '@lps/domain';
 import type { Page } from 'playwright';
-import { getBrowser } from './browser';
+import { newContext } from './browser';
 
 const TIMEOUT_MS = 20_000;
 
@@ -30,8 +30,7 @@ export async function extractSiteData(page: Page): Promise<SiteData> {
 
 export async function probeSite(url: string): Promise<ProbeResult> {
   const target = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-  const browser = await getBrowser();
-  const context = await browser.newContext();
+  const context = await newContext();
   const page = await context.newPage();
   const started = Date.now();
   try {

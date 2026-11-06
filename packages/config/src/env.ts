@@ -12,6 +12,7 @@ const schema = z.object({
   CRON_SECRET: z.string().min(1),
   ANTHROPIC_MODEL: z.string().default('claude-opus-5-5'),
   COMMERCIAL_NAME: z.string().default('Sharken'),
+  WEBHOOK_BASE_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -25,6 +26,11 @@ export function getEnv(source: Source = process.env): Env {
     throw new Error(`Variáveis de ambiente ausentes ou inválidas: ${names}`);
   }
   return parsed.data;
+}
+
+/** Serviços externos não alcançam localhost: em ambiente local, use a URL de um túnel. */
+export function webhookBaseUrl(env: Pick<Env, 'APP_URL' | 'WEBHOOK_BASE_URL'>): string {
+  return env.WEBHOOK_BASE_URL ?? env.APP_URL;
 }
 
 export type OptionalKey =

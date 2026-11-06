@@ -4,3 +4,4 @@ export * from './page-copy';
 export * from './lead-analysis';
 export * from './storage';
 export * from './pexels';
+export * from './elevenlabs';

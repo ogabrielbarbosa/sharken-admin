@@ -1,4 +1,4 @@
-import { chromium, type Browser } from 'playwright';
+import { chromium, type Browser, type BrowserContextOptions } from 'playwright';
 
 let browser: Browser | null = null;
 
@@ -10,4 +10,12 @@ export async function getBrowser(): Promise<Browser> {
 export async function closeBrowser() {
   await browser?.close();
   browser = null;
+}
+
+/** O tsx embrulha funções com o helper __name, que não existe na página aberta. */
+export async function newContext(options?: BrowserContextOptions) {
+  const browser = await getBrowser();
+  const context = await browser.newContext(options);
+  await context.addInitScript('globalThis.__name = (target) => target;');
+  return context;
 }

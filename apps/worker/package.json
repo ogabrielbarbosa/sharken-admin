@@ -7,14 +7,22 @@
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "script:list": "tsx src/script-list.ts",
-    "test": "vitest run --passWithNoTests",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest run --passWithNoTests && tsx tests/site-probe.mts",
+    "typecheck": "tsc --noEmit",
+    "user:create": "tsx src/create-user.ts"
   },
   "dependencies": {
     "@lps/config": "workspace:*",
     "@lps/db": "workspace:*",
     "@lps/domain": "workspace:*",
     "@lps/integrations": "workspace:*",
-    "playwright": "^1.65.0"
+    "@lps/video": "workspace:*",
+    "@remotion/bundler": "4.0.541",
+    "@remotion/renderer": "4.0.541",
+    "music-metadata": "^12.3.5",
+    "playwright": "^1.65.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "4.0.541"
   }
 }

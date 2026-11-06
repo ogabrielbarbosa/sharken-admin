@@ -1,11 +1,11 @@
-import { getEnv } from '@lps/config';
+import { getEnv, webhookBaseUrl } from '@lps/config';
 import { createAdminClient, enqueueJob, getBatch, importLeads, listLeads, updateBatch, updateLead } from '@lps/db';
 import { mapPlaceToLead, type ApifyPlace, type Batch } from '@lps/domain';
 import { buildInstagramInput, buildMapsInput, fetchDataset, INSTAGRAM_ACTOR, latestPostDate, MAPS_ACTOR, startActorRun, usernameFromUrl, type InstagramProfile } from '@lps/integrations';
 
 function webhookUrl(batchId: string, kind: 'maps' | 'instagram') {
   const env = getEnv();
-  const url = new URL('/api/webhooks/apify', env.APP_URL);
+  const url = new URL('/api/webhooks/apify', webhookBaseUrl(env));
   url.searchParams.set('secret', env.WEBHOOK_SECRET);
   url.searchParams.set('batch', batchId);
   url.searchParams.set('kind', kind);

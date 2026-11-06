@@ -19,3 +19,4 @@ export * from './material';
 export * from './messages';
 export * from './contact-rules';
 export * from './video-timing';
+export * from './script';
