@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+  - packages/*
+onlyBuiltDependencies:
+  - supabase
+  - esbuild
+  - sharp
+  - "@remotion/compositor-darwin-arm64"

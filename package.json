@@ -1,0 +1,26 @@
+{
+  "name": "landing-page-system",
+  "private": true,
+  "packageManager": "pnpm@10.34.7",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "worker": "pnpm --filter @lps/worker start",
+    "script:list": "pnpm --filter @lps/worker script:list",
+    "db:link": "supabase link",
+    "db:push": "supabase db push"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "supabase": "^3.0.0",
+    "tsx": "^4.23.15",
+    "turbo": "^2.11.10",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
