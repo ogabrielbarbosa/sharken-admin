@@ -98,6 +98,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@lps/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@supabase/supabase-js':
         specifier: ^2.119.0
         version: 2.119.0
@@ -108,7 +111,14 @@ importers:
 
   packages/domain: {}
 
-  packages/integrations: {}
+  packages/integrations:
+    dependencies:
+      '@lps/config':
+        specifier: workspace:*
+        version: link:../config
+      '@lps/domain':
+        specifier: workspace:*
+        version: link:../domain
 
   packages/video: {}
 

@@ -1,0 +1,69 @@
+import { assertTransition, classifyLink, dedupeLeads, mergeLeadOnReimport, type Lead, type LeadStage, type NewLead } from '@lps/domain';
+import type { Db } from './client';
+
+export async function getLead(db: Db, id: string): Promise<Lead | null> {
+  const { data } = await db.from('leads').select().eq('id', id).maybeSingle();
+  return data as Lead | null;
+}
+
+export async function listLeads(db: Db, batchId: string, stages?: LeadStage[]): Promise<Lead[]> {
+  let query = db.from('leads').select().eq('batch_id', batchId);
+  if (stages) query = query.in('stage', stages);
+  const { data, error } = await query.order('score', { ascending: false, nullsFirst: false });
+  if (error) throw new Error(error.message);
+  return data as Lead[];
+}
+
+export async function listBatchStages(db: Db): Promise<{ batch_id: string; stage: LeadStage }[]> {
+  const { data, error } = await db.from('leads').select('batch_id, stage').not('batch_id', 'is', null);
+  if (error) throw new Error(error.message);
+  return data as { batch_id: string; stage: LeadStage }[];
+}
+
+export async function updateLead(db: Db, id: string, patch: Partial<Lead>) {
+  const { error } = await db.from('leads').update(patch).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function logEvent(db: Db, leadId: string, type: string, data: object = {}) {
+  await db.from('events').insert({ lead_id: leadId, type, data });
+}
+
+/** Única forma de mudar a etapa: valida a transição e registra o evento. */
+export async function moveLead(db: Db, lead: Pick<Lead, 'id' | 'stage'>, to: LeadStage, patch: Partial<Lead> = {}, eventData: object = {}) {
+  assertTransition(lead.stage, to);
+  await updateLead(db, lead.id, { ...patch, stage: to });
+  await logEvent(db, lead.id, `etapa_${to}`, eventData);
+}
+
+/** Insere os novos e atualiza os que já existem, sem mexer no andamento deles. */
+export async function importLeads(db: Db, leads: NewLead[]): Promise<{ inserted: number; updated: number }> {
+  const unique = dedupeLeads(leads);
+  if (!unique.length) return { inserted: 0, updated: 0 };
+  const { data, error } = await db.from('leads').select().in('place_id', unique.map((l) => l.place_id));
+  if (error) throw new Error(error.message);
+  const existing = new Map((data as Lead[]).map((l) => [l.place_id, l]));
+
+  let updated = 0;
+  const fresh = [];
+  for (const lead of unique) {
+    const current = existing.get(lead.place_id);
+    if (current) {
+      await updateLead(db, current.id, mergeLeadOnReimport(current, lead));
+      updated += 1;
+    } else {
+      fresh.push({ ...lead, instagram_url: classifyLink(lead.website_url).instagramUrl });
+    }
+  }
+  if (fresh.length) {
+    const { error: insertError } = await db.from('leads').insert(fresh);
+    if (insertError) throw new Error(insertError.message);
+    for (const lead of fresh) await logEvent(db, await idOf(db, lead.place_id), 'encontrado', { batch_id: lead.batch_id });
+  }
+  return { inserted: fresh.length, updated };
+}
+
+async function idOf(db: Db, placeId: string): Promise<string> {
+  const { data } = await db.from('leads').select('id').eq('place_id', placeId).single();
+  return (data as { id: string }).id;
+}

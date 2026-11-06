@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@lps/domain": "workspace:*",
     "@supabase/supabase-js": "^2.119.0"
   },
   "devDependencies": {

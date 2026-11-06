@@ -95,6 +95,7 @@ create table jobs (
   created_at timestamptz not null default now(),
   type text not null,
   payload jsonb not null default '{}',
+  dedupe_key text unique,
   status text not null default 'pendente' check (status in ('pendente', 'executando', 'concluido', 'erro')),
   attempts int not null default 0,
   run_after timestamptz not null default now(),
