@@ -1,4 +1,4 @@
-import { createAdminClient, listBatches, listBatchStages } from '@lps/db';
+import { listBatches, listBatchStages } from '@lps/db';
 import { PROCESS_STEPS, stagesOf, summarizeBatch, type Batch, type ProcessStep } from '@lps/domain';
 import { ChevronRight, Plus, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
@@ -6,6 +6,7 @@ import { NewBatchDrawer } from '@/components/batches/new-batch-drawer';
 import { Topbar } from '@/components/layout/topbar';
 import { Button, Card, EmptyState, LinkButton, PageHeader, Status, Table, type Tone } from '@/components/ui';
 import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
+import { authedDb } from '@/lib/auth';
 import { retryBatchAction } from './actions';
 
 const STATUS: Record<Batch['status'], { label: string; tone: Tone; detail: string }> = {
@@ -19,7 +20,7 @@ const ABBR: Record<ProcessStep, string> = { revisar: 'REV', material: 'MAT', abo
 
 export default async function BatchesPage({ searchParams }: { searchParams: Promise<{ novo?: string; local?: string; etapa?: string }> }) {
   const { novo, local, etapa } = await searchParams;
-  const db = createAdminClient();
+  const db = await authedDb();
   const [batches, stages] = await Promise.all([listBatches(db), listBatchStages(db)]);
   const locations = [...new Map(batches.map((b) => [b.location_key, b.location])).entries()];
 

@@ -9,5 +9,12 @@
     "script:list": "tsx src/script-list.ts",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@lps/config": "workspace:*",
+    "@lps/db": "workspace:*",
+    "@lps/domain": "workspace:*",
+    "@lps/integrations": "workspace:*",
+    "playwright": "^1.65.0"
   }
 }

@@ -1,14 +1,15 @@
 'use server';
 
-import { createAdminClient, createBatch, getBatch } from '@lps/db';
+import { createBatch, getBatch } from '@lps/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { authedDb } from '@/lib/auth';
 import { startMapsSearch } from '@/lib/capture';
 
 const num = (form: FormData, key: string) => Number(String(form.get(key) ?? '').replace(',', '.'));
 
 export async function createBatchAction(form: FormData) {
-  const db = createAdminClient();
+  const db = await authedDb();
   const batch = await createBatch(db, {
     location: String(form.get('location')),
     businessType: String(form.get('businessType')),
@@ -27,7 +28,7 @@ export async function createBatchAction(form: FormData) {
 }
 
 export async function retryBatchAction(form: FormData) {
-  const db = createAdminClient();
+  const db = await authedDb();
   const batch = await getBatch(db, String(form.get('id')));
   if (batch) await startMapsSearch(batch);
   revalidatePath('/painel/batches');

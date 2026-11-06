@@ -10,7 +10,7 @@ const schema = z.object({
   APP_URL: z.string().url(),
   CAPTURE_TOKEN: z.string().min(1),
   CRON_SECRET: z.string().min(1),
-  ANTHROPIC_MODEL: z.string().default('claude-sonnet-5-5'),
+  ANTHROPIC_MODEL: z.string().default('claude-opus-5-5'),
   COMMERCIAL_NAME: z.string().default('Sharken'),
 });
 

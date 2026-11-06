@@ -22,7 +22,7 @@ describe('getEnv', () => {
   it('devolve os valores validados e aplica os padrões', () => {
     const env = getEnv(valid);
     expect(env.APIFY_TOKEN).toBe('apify');
-    expect(env.ANTHROPIC_MODEL).toBe('claude-sonnet-5-5');
+    expect(env.ANTHROPIC_MODEL).toBe('claude-opus-5-5');
     expect(env.COMMERCIAL_NAME).toBe('Sharken');
   });
 });

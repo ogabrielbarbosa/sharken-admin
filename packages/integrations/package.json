@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "@lps/config": "workspace:*",
+    "@lps/db": "workspace:*",
     "@lps/domain": "workspace:*"
   }
 }
