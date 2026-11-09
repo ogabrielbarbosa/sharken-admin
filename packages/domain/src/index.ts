@@ -24,3 +24,5 @@ export * from './client-form';
 export * from './lead-actions';
 export * from './finance';
 export * from './billing-status';
+export * from './metrics';
+export * from './retention';

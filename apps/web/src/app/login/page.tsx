@@ -3,7 +3,7 @@ import { signIn } from './actions';
 
 const messages: Record<string, string> = {
   credenciais: 'E-mail ou senha incorretos.',
-  config: 'Configure as chaves do Supabase no arquivo .env.',
+  config: 'Faltam as chaves do Supabase. Rode pnpm setup:local e reinicie o servidor.',
 };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {

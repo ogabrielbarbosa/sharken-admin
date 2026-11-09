@@ -4,7 +4,9 @@ Sistema de um único usuário para encontrar negócios locais, montar uma págin
 
 **Objetivo:** gerar caixa rápido, com pouco esforço operacional.
 
-**Status:** o spec está em `docs/superpowers/specs/2026-11-06-sistema-de-prospeccao-design.md`, o plano em `docs/superpowers/plans/2026-11-06-sistema-de-prospeccao.md` e as telas em `untitled.pen`. Só iniciar a implementação depois de haver um plano aprovado.
+**Status:** primeira versão implementada. Spec em `docs/superpowers/specs/2026-11-06-sistema-de-prospeccao-design.md`, plano em `docs/superpowers/plans/2026-11-06-sistema-de-prospeccao.md`, telas em `untitled.pen`. Ambientes e comandos em `docs/ambientes.md`.
+
+**Banco local:** nunca rodar `supabase db reset`, `supabase stop --no-backup` ou `supabase stop --all` sem o Gabriel pedir. Os dados locais devem ser preservados, e há outros projetos Supabase na máquina.
 
 ## Decisões
 

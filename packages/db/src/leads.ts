@@ -1,5 +1,6 @@
 import { assertTransition, classifyLink, dedupeLeads, mergeLeadOnReimport, type Lead, type LeadStage, type NewLead } from '@lps/domain';
 import type { Db } from './client';
+import { fetchAll } from './fetch-all';
 
 export async function getLead(db: Db, id: string): Promise<Lead | null> {
   const { data } = await db.from('leads').select().eq('id', id).maybeSingle();
@@ -15,9 +16,7 @@ export async function listLeads(db: Db, batchId: string, stages?: LeadStage[]): 
 }
 
 export async function listBatchStages(db: Db): Promise<{ batch_id: string; stage: LeadStage }[]> {
-  const { data, error } = await db.from('leads').select('batch_id, stage').not('batch_id', 'is', null);
-  if (error) throw new Error(error.message);
-  return data as { batch_id: string; stage: LeadStage }[];
+  return fetchAll((from, to) => db.from('leads').select('batch_id, stage').not('batch_id', 'is', null).order('id').range(from, to)) as Promise<{ batch_id: string; stage: LeadStage }[]>;
 }
 
 export async function updateLead(db: Db, id: string, patch: Partial<Lead>) {
