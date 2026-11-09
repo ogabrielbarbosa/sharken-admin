@@ -12,7 +12,7 @@ describe('checkReadiness', () => {
     expect(out.missing).toEqual(['nome', 'telefone', 'endereço', 'serviço']);
   });
   it('aceita a categoria como serviço', () => {
-    expect(checkReadiness({ ...noDescriptionLead, description: null }).ready).toBe(true);
+    expect(checkReadiness(noDescriptionLead).ready).toBe(true);
   });
 });
 
