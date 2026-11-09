@@ -1,5 +1,23 @@
 # Ambientes: local e dev
 
+## Os dois comandos
+
+| Comando | O que faz |
+|---|---|
+| `pnpm local` | Sobe tudo na sua máquina: instala o que falta, abre o Docker, liga o banco local, aplica migrações, prepara o `.env.local`, cria o seu usuário na primeira vez e inicia o painel e o worker |
+| `pnpm producao` | Publica na nuvem: confere o `.env.dev`, aplica as migrações no Supabase da nuvem, cria o usuário se faltar, envia as variáveis e faz o deploy na Vercel, e liga o worker usando o banco da nuvem |
+
+Os dois podem ser rodados quantas vezes quiser: só fazem o que falta e nunca apagam dados. `pnpm local:check` faz a preparação sem iniciar o painel.
+
+## Onde ficam as chaves
+
+Na raiz do projeto, em dois arquivos que começam com ponto:
+
+- `.env.local`: chaves do ambiente local. O `pnpm local` preenche o banco e os segredos; você preenche `ANTHROPIC_API_KEY` e `APIFY_TOKEN`.
+- `.env.dev`: chaves da nuvem. Os segredos já estão gerados; você preenche Supabase, `APP_URL`, `ANTHROPIC_API_KEY` e `APIFY_TOKEN`.
+
+Arquivos com ponto no começo ficam ocultos no Finder. Para vê-los, aperte `Cmd + Shift + .` na pasta do projeto, ou abra a pasta no VS Code. Eles não vão para o git.
+
 São só dois ambientes:
 
 | Ambiente | Banco | Arquivo de chaves | Para quê |
@@ -9,7 +27,7 @@ São só dois ambientes:
 
 Os dois arquivos ficam na raiz do projeto e não vão para o git. O app e o worker leem o mesmo arquivo, escolhido pela variável `APP_ENV` (`local` por padrão).
 
-## Primeira vez no local
+## Passo a passo manual (o que o pnpm local faz)
 
 Precisa de Docker aberto e Node 22.
 

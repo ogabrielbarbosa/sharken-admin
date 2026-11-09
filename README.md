@@ -15,6 +15,11 @@ Monorepo com Turborepo e pnpm.
 
 Novos apps, como uma API ou um worker de mensagens, entram em `apps/` e reaproveitam os pacotes. A fila `jobs` é genérica: um novo worker só precisa tratar novos valores de `type`.
 
+```bash
+pnpm local      # roda tudo na sua máquina
+pnpm producao   # publica na nuvem
+```
+
 - Como rodar e os ambientes: [docs/ambientes.md](docs/ambientes.md)
 - Vídeo, mensagens e contrato: [docs/operacao.md](docs/operacao.md)
 - Spec e plano: `docs/superpowers/`
