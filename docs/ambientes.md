@@ -27,12 +27,12 @@ Depois, abra o `.env.local` e preencha pelo menos `ANTHROPIC_API_KEY` e `APIFY_T
 
 ```bash
 pnpm db:start   # se o Docker foi reiniciado
-pnpm dev        # painel em http://localhost:3000 e worker juntos
+pnpm dev        # painel em http://localhost:3010 e worker juntos
 ```
 
 | Endereço | O que é |
 |---|---|
-| http://localhost:3000 | Painel |
+| http://localhost:3010 | Painel |
 | http://127.0.0.1:57323 | Supabase Studio, para ver as tabelas |
 | http://127.0.0.1:57324 | Caixa de e-mails do Supabase local |
 
@@ -75,7 +75,7 @@ Nunca edite uma migração que já foi aplicada no dev: crie uma nova.
 Apify, ZapSign e Asaas não conseguem chamar `localhost`. Para receber os retornos deles no local, abra um túnel e coloque a URL dele em `WEBHOOK_BASE_URL`:
 
 ```bash
-cloudflared tunnel --url http://localhost:3000
+cloudflared tunnel --url http://localhost:3010
 ```
 
 Sem túnel, a busca no Apify roda, mas o resultado não volta para o local.
