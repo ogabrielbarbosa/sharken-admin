@@ -1,9 +1,12 @@
 import './env';
+import { getEnv } from '@lps/config';
 import { claimNextJob, completeJob, createAdminClient, failJob, retryJob, type Job } from '@lps/db';
+import { pollPendingRuns, shouldPollRuns } from '@lps/integrations';
 import { closeBrowser } from './browser';
 import { handlers, JobFailure, Reschedule } from './jobs';
 
 const POLL_MS = 5_000;
+const RUNS_POLL_MS = 20_000;
 const MAX_ATTEMPTS = 3;
 
 async function runJob(job: Job) {
@@ -35,8 +38,19 @@ async function runJob(job: Job) {
 let running = true;
 async function loop() {
   const db = createAdminClient();
+  const pollRuns = shouldPollRuns(getEnv());
+  let lastRunsPoll = 0;
   console.log('Worker iniciado. Aguardando tarefas…');
+  if (pollRuns) console.log('Sem endereço público: o worker vai buscar o resultado do Apify a cada 20 s.');
   while (running) {
+    if (pollRuns && Date.now() - lastRunsPoll > RUNS_POLL_MS) {
+      lastRunsPoll = Date.now();
+      try {
+        await pollPendingRuns();
+      } catch (err) {
+        console.error(`[apify] ${(err as Error).message}`);
+      }
+    }
     try {
       const job = await claimNextJob(db);
       if (job) {

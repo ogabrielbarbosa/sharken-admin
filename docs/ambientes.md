@@ -96,7 +96,7 @@ Apify, ZapSign e Asaas não conseguem chamar `localhost`. Para receber os retorn
 cloudflared tunnel --url http://localhost:3010
 ```
 
-Sem túnel, a busca no Apify roda, mas o resultado não volta para o local.
+Sem túnel, o worker busca o resultado do Apify sozinho a cada 20 segundos, então a busca funciona no local mesmo assim. O túnel só é necessário para receber os retornos do ZapSign e do Asaas.
 
 ## Levar para o dev
 

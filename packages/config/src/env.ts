@@ -20,7 +20,9 @@ export type Env = z.infer<typeof schema>;
 type Source = Record<string, string | undefined>;
 
 export function getEnv(source: Source = process.env): Env {
-  const parsed = schema.safeParse(source);
+  // Linhas como `CHAVE=` no arquivo chegam como texto vazio: valem como não preenchidas.
+  const cleaned = Object.fromEntries(Object.entries(source).filter(([, v]) => v !== undefined && v.trim() !== ''));
+  const parsed = schema.safeParse(cleaned);
   if (!parsed.success) {
     const names = parsed.error.issues.map((i) => i.path.join('.')).join(', ');
     throw new Error(`Variáveis de ambiente ausentes ou inválidas: ${names}`);

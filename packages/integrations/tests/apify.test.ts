@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildInstagramInput, buildMapsInput, buildRunUrl, parseWebhookEvent, usernameFromUrl } from '../src/apify';
+import { buildInstagramInput, buildMapsInput, buildRunUrl, parseWebhookEvent, runOutcome, shouldPollRuns, usernameFromUrl } from '../src/apify';
 
 describe('buildMapsInput', () => {
   it('monta exatamente a entrada do ator', () => {
@@ -37,5 +37,22 @@ describe('parseWebhookEvent', () => {
     expect(parseWebhookEvent({ eventType: 'ACTOR.RUN.FAILED', resource: { defaultDatasetId: 'd1', id: 'r1' } })).toEqual({
       succeeded: false, datasetId: 'd1', runId: 'r1',
     });
+  });
+});
+
+describe('consulta do resultado sem webhook', () => {
+  it('só consulta em ambiente local sem túnel', () => {
+    expect(shouldPollRuns({ APP_URL: 'http://localhost:3010' })).toBe(true);
+    expect(shouldPollRuns({ APP_URL: 'http://127.0.0.1:3010' })).toBe(true);
+    expect(shouldPollRuns({ APP_URL: 'http://localhost:3010', WEBHOOK_BASE_URL: 'https://t.dev' })).toBe(false);
+    expect(shouldPollRuns({ APP_URL: 'https://painel.app' })).toBe(false);
+  });
+  it('lê o status da execução', () => {
+    expect(runOutcome('RUNNING')).toBe('pending');
+    expect(runOutcome('READY')).toBe('pending');
+    expect(runOutcome('SUCCEEDED')).toBe('succeeded');
+    expect(runOutcome('FAILED')).toBe('failed');
+    expect(runOutcome('TIMED-OUT')).toBe('failed');
+    expect(runOutcome('ABORTED')).toBe('failed');
   });
 });

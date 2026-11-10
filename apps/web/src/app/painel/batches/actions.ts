@@ -4,7 +4,7 @@ import { createBatch, getBatch } from '@lps/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { authedDb } from '@/lib/auth';
-import { startMapsSearch } from '@/lib/capture';
+import { startMapsSearch } from '@lps/integrations';
 
 const num = (form: FormData, key: string) => Number(String(form.get(key) ?? '').replace(',', '.'));
 

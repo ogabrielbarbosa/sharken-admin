@@ -19,6 +19,11 @@ describe('getEnv', () => {
     expect(() => getEnv(rest)).toThrow(/ANTHROPIC_API_KEY/);
   });
 
+  it('trata campo opcional vazio como ausente', () => {
+    expect(getEnv({ ...valid, WEBHOOK_BASE_URL: '' }).WEBHOOK_BASE_URL).toBeUndefined();
+    expect(getEnv({ ...valid, ANTHROPIC_MODEL: '', COMMERCIAL_NAME: '' }).ANTHROPIC_MODEL).toBe('claude-opus-5-5');
+  });
+
   it('devolve os valores validados e aplica os padrões', () => {
     const env = getEnv(valid);
     expect(env.APIFY_TOKEN).toBe('apify');

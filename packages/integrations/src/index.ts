@@ -8,3 +8,4 @@ export * from './elevenlabs';
 export * from './reply-suggestions';
 export * from './zapsign';
 export * from './asaas';
+export * from './capture';

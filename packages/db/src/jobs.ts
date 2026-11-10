@@ -50,3 +50,9 @@ export async function countOpenJobs(db: Db, type: string, batchId: string): Prom
     .in('status', ['pendente', 'executando']);
   return count ?? 0;
 }
+
+/** Conta tarefas de um batch em qualquer status. */
+export async function countJobs(db: Db, type: string, batchId: string): Promise<number> {
+  const { count } = await db.from('jobs').select('id', { count: 'exact', head: true }).eq('type', type).eq('payload->>batch_id', batchId);
+  return count ?? 0;
+}

@@ -80,3 +80,22 @@ export function latestPostDate(profile: InstagramProfile): string | null {
   const dates = (profile.latestPosts ?? []).map((p) => p.timestamp).filter((t): t is string => !!t).sort();
   return dates.at(-1) ?? null;
 }
+
+/** Sem um endereço público, o webhook do Apify não chega: o worker consulta o resultado. */
+export function shouldPollRuns(env: { APP_URL: string; WEBHOOK_BASE_URL?: string }): boolean {
+  if (env.WEBHOOK_BASE_URL) return false;
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(env.APP_URL);
+}
+
+export function runOutcome(status: string): 'pending' | 'succeeded' | 'failed' {
+  if (status === 'SUCCEEDED') return 'succeeded';
+  if (['FAILED', 'TIMED-OUT', 'ABORTED'].includes(status)) return 'failed';
+  return 'pending';
+}
+
+export async function getRun(runId: string): Promise<{ status: string; defaultDatasetId: string | null }> {
+  const res = await fetch(`${BASE}/actor-runs/${runId}?token=${token()}`);
+  if (!res.ok) throw new Error(`Não foi possível consultar a busca no Apify (${res.status}).`);
+  const { data } = (await res.json()) as { data: { status: string; defaultDatasetId?: string } };
+  return { status: data.status, defaultDatasetId: data.defaultDatasetId ?? null };
+}

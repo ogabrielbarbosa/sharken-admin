@@ -1,6 +1,6 @@
 import { secretMatches } from '@lps/config';
 import { parseWebhookEvent } from '@lps/integrations';
-import { handleInstagramResult, handleMapsResult } from '@/lib/capture';
+import { handleInstagramResult, handleMapsResult } from '@lps/integrations';
 
 export async function POST(request: Request) {
   const url = new URL(request.url);

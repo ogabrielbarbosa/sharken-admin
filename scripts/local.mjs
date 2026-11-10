@@ -43,7 +43,6 @@ const env = readEnv('.env.local');
 ok('.env.local pronto na raiz do projeto');
 const missing = FOR_SEARCH.filter((k) => !env[k]);
 if (missing.length) warn(`Para buscar leads, preencha no .env.local: ${missing.join(', ')}. O painel funciona sem elas.`);
-if (!env.WEBHOOK_BASE_URL) warn('Sem túnel, o resultado das buscas do Apify não volta para o local. Veja docs/ambientes.md.');
 
 say('Usuário do painel');
 if ((await countUsers(env)) === 0) {

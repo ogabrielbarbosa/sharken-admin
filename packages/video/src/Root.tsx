@@ -19,7 +19,7 @@ export function Root() {
       fps={30}
       durationInFrames={30}
       defaultProps={defaults}
-      calculateMetadata={({ props }) => ({ durationInFrames: props.durationInFrames })}
+      calculateMetadata={({ props }: { props: ProposalVideoProps }) => ({ durationInFrames: props.durationInFrames })}
     />
   );
 }

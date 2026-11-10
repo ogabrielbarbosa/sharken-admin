@@ -1,7 +1,7 @@
 import { getEnv, webhookBaseUrl } from '@lps/config';
-import { createAdminClient, enqueueJob, getBatch, importLeads, listLeads, updateBatch, updateLead } from '@lps/db';
+import { countJobs, createAdminClient, enqueueJob, getBatch, importLeads, listBatches, listLeads, updateBatch, updateLead } from '@lps/db';
 import { mapPlaceToLead, type ApifyPlace, type Batch } from '@lps/domain';
-import { buildInstagramInput, buildMapsInput, fetchDataset, INSTAGRAM_ACTOR, latestPostDate, MAPS_ACTOR, startActorRun, usernameFromUrl, type InstagramProfile } from '@lps/integrations';
+import { buildInstagramInput, buildMapsInput, fetchDataset, getRun, INSTAGRAM_ACTOR, latestPostDate, MAPS_ACTOR, runOutcome, startActorRun, usernameFromUrl, type InstagramProfile } from './apify';
 
 function webhookUrl(batchId: string, kind: 'maps' | 'instagram') {
   const env = getEnv();
@@ -94,3 +94,18 @@ export async function handleInstagramResult(batchId: string, event: { datasetId:
   await enqueueAnalysis(batchId);
 }
 
+
+/** Consulta as buscas em andamento quando o webhook não alcança este ambiente. */
+export async function pollPendingRuns() {
+  const db = createAdminClient();
+  for (const batch of await listBatches(db)) {
+    if (batch.status === 'buscando' && batch.apify_run_id) {
+      const run = await getRun(batch.apify_run_id);
+      const outcome = runOutcome(run.status);
+      if (outcome !== 'pending') await handleMapsResult(batch.id, { succeeded: outcome === 'succeeded', datasetId: run.defaultDatasetId });
+    } else if (batch.status === 'analisando' && batch.instagram_run_id && (await countJobs(db, 'analyze_lead', batch.id)) === 0) {
+      const run = await getRun(batch.instagram_run_id);
+      if (runOutcome(run.status) !== 'pending') await handleInstagramResult(batch.id, { datasetId: run.defaultDatasetId });
+    }
+  }
+}
