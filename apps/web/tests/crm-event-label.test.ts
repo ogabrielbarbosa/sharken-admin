@@ -24,3 +24,31 @@ it('contato_<status> vira o nome do status; desconhecido fica de fora', () => {
   expect(label('contato_xyz')).toBeNull();
   expect(label('erro_pagina')).toBeNull();
 });
+
+import { HIDDEN_EVENTS } from '@/lib/crm';
+
+// Todo tipo de evento gravado por logEvent (ou pelo SQL), com `kind` quando o texto depende dele.
+const EMITTED: [string, Record<string, unknown>?][] = [
+  ['encontrado'], ['abertura'], ['modelo_removido'], ['pagina_gerada'], ['erro_pagina'], ['erro_analise'], ['erro_video'],
+  ['video_convertido'], ['video_renderizado'],
+  ['mensagem_enviada', { kind: 'primeiro' }], ['mensagem_enviada', { kind: 'follow_up' }], ['mensagem_enviada', { kind: 'normal' }],
+  ['mensagem_recebida'], ['pedido_parar'], ['pediu_para_parar'], ['numero_invalido'], ['conversa_aberta'], ['contato_enviado'], ['follow_up_enviado'],
+  ['contato_criado'], ['contato_ligado', { vinculado: true }],
+  ['contato_novo'], ['contato_contatado'], ['contato_follow_up'], ['contato_em_conversa'], ['contato_fechado'], ['contato_perdido'], ['contato_nao_contatar'],
+  ['contrato_criado'], ['contrato_assinado'], ['pagamento_recebido'],
+  ['etapa_analisando'], ['etapa_revisar'], ['etapa_completar'], ['etapa_gerando_material'], ['etapa_revisar_material'], ['etapa_crm'],
+  ['etapa_vendido'], ['etapa_descartado'], ['etapa_sem_interesse'], ['etapa_nao_contatar'],
+];
+
+it('todo evento gravado tem rótulo ou está em HIDDEN_EVENTS (e nunca os dois)', () => {
+  for (const [type, data = {}] of EMITTED) {
+    const labeled = eventLabel({ type, data }) !== null;
+    expect(labeled !== HIDDEN_EVENTS.has(type), `${type} ${JSON.stringify(data)}`).toBe(true);
+  }
+});
+it('novos rótulos', () => {
+  expect(label('mensagem_enviada', { kind: 'normal' })).toBe('Mensagem enviada');
+  expect(label('numero_invalido')).toBe('Número sem WhatsApp');
+  expect(label('etapa_vendido')).toBe('Vendido');
+  expect(label('pediu_para_parar')).toBe('Pediu para parar');
+});

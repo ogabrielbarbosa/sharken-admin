@@ -27,7 +27,7 @@ import type { LegacyLine, ThreadMessage } from '@/components/crm/thread';
 import { CrmRealtime } from '@/components/crm/use-crm-realtime';
 import { Topbar } from '@/components/layout/topbar';
 import { authedDb } from '@/lib/auth';
-import { composerDraft, eventLabel, pageLink, STATUS_LABEL, stopRequestPending, timeUntil } from '@/lib/crm';
+import { composerDraft, eventLabel, pageLink, stopRequestPending, timeUntil } from '@/lib/crm';
 import { flowLabel } from '@/lib/lead-labels';
 
 const BOXES: CrmBox[] = ['hoje', 'novos', 'aguardando', 'em_conversa', 'fechados', 'perdidos', 'todos'];

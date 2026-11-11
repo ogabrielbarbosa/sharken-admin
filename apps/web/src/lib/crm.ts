@@ -82,14 +82,29 @@ export function timeUntil(iso: string, now: Date): string {
   return h >= 48 ? `${Math.ceil(h / 24)} dias` : `${h} h`;
 }
 
+/** Eventos gravados que ficam fora do histórico de propósito (internos, de erro ou de andamento do batch). */
+export const HIDDEN_EVENTS: ReadonlySet<string> = new Set([
+  'encontrado', 'mensagem_recebida', 'erro_analise', 'erro_pagina', 'erro_video', 'video_convertido', 'video_renderizado',
+  'etapa_analisando', 'etapa_revisar', 'etapa_gerando_material', 'etapa_revisar_material',
+]);
+
 export type CrmEvent = { type: string; data: Record<string, unknown> };
 
 /** Texto do histórico do contato para cada evento do lead. Eventos internos, sem texto, ficam de fora (null). */
 export function eventLabel(e: CrmEvent): string | null {
   switch (e.type) {
     case 'abertura': return 'Página aberta';
-    case 'mensagem_enviada': return e.data.kind === 'primeiro' ? 'Primeiro contato enviado' : e.data.kind === 'follow_up' ? 'Follow-up enviado' : null;
-    case 'pedido_parar': return 'Pediu para parar';
+    case 'mensagem_enviada': return e.data.kind === 'primeiro' ? 'Primeiro contato enviado' : e.data.kind === 'follow_up' ? 'Follow-up enviado' : e.data.kind === 'normal' ? 'Mensagem enviada' : null;
+    case 'pedido_parar':
+    case 'pediu_para_parar': return 'Pediu para parar';
+    case 'numero_invalido': return 'Número sem WhatsApp';
+    case 'conversa_aberta': return 'Conversa aberta';
+    case 'contato_enviado': return 'Primeiro contato enviado';
+    case 'follow_up_enviado': return 'Follow-up enviado';
+    case 'etapa_vendido': return 'Vendido';
+    case 'etapa_sem_interesse': return 'Sem interesse';
+    case 'etapa_nao_contatar': return 'Não contatar';
+    case 'etapa_descartado': return 'Descartado';
     case 'modelo_removido': return 'Página removida';
     case 'pagina_gerada': return 'Página gerada';
     case 'etapa_crm': return 'Material aprovado';
