@@ -77,9 +77,19 @@ describe('validateCloseDeal', () => {
     (input.service as { kind: string }).kind = 'mensal';
     expect(Object.keys(validateCloseDeal(input)).sort()).toEqual(['first_due_date', 'kind', 'start_date']);
   });
-  it('aceita CNPJ alfanumérico', () => {
+  it('aceita CNPJ alfanumérico válido e recusa o inválido', () => {
+    const dv = (chars: string, weights: number[]) => {
+      const rest = [...chars].reduce((sum, ch, i) => sum + (ch.charCodeAt(0) - 48) * weights[i], 0) % 11;
+      return rest < 2 ? 0 : 11 - rest;
+    };
+    const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const base = '12ABC34501DE';
+    const d1 = dv(base, w1);
+    const cnpj = `${base}${d1}${dv(base + d1, [6, ...w1])}`;
     const input = valid();
-    input.client.document = '12ABC34501DE' + '00';
+    input.client.document = cnpj;
+    expect(validateCloseDeal(input).document).toBeUndefined();
+    input.client.document = base + '00';
     expect(validateCloseDeal(input).document).toBeDefined();
   });
 });

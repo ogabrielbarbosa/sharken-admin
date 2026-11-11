@@ -1,5 +1,5 @@
 import { getClient, getLead, listCharges, listContracts, listServices } from '@lps/db';
-import { clientStanding, formatBRL, summarizeCharges, type ChargeStatus, type ContractStatus } from '@lps/domain';
+import { clientStanding, formatBRL, formatDocument, summarizeCharges, type ChargeStatus, type ContractStatus } from '@lps/domain';
 import { ArrowLeft, Plus, Send } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -78,7 +78,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
             <h2 className="mb-4 font-medium">Dados do cliente</h2>
             <dl className="grid gap-4 sm:grid-cols-2">
               <Datum label="Nome ou razão social">{client.legal_name}</Datum>
-              <Datum label="CPF/CNPJ">{client.document}</Datum>
+              <Datum label="CPF/CNPJ">{formatDocument(client.document)}</Datum>
               <Datum label="Responsável">{client.contact_name ?? '—'}</Datum>
               <Datum label="E-mail">{client.email ?? '—'}</Datum>
               <Datum label="Telefone">{client.phone ?? '—'}</Datum>

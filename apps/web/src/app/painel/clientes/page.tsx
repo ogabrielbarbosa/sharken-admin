@@ -1,5 +1,5 @@
 import { listCharges, listClients, listContracts, listServices } from '@lps/db';
-import { clientStanding, formatBRL, summarizeCharges } from '@lps/domain';
+import { clientStanding, formatBRL, normalizeDocument, summarizeCharges } from '@lps/domain';
 import { Plus, Search } from 'lucide-react';
 import Link from 'next/link';
 import { ClientDrawer } from '@/components/clients/client-drawer';
@@ -36,7 +36,8 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
     return { client, summary: summarizeCharges(own), standing: clientStanding(own), servicesCount: ownServices.length, contractLabel };
   }).filter(({ client, standing }) => {
     if (situacao === 'em_atraso' && standing !== 'em_atraso') return false;
-    return !q || `${client.legal_name} ${client.contact_name ?? ''} ${client.document}`.toLowerCase().includes(q.toLowerCase());
+    const nq = normalizeDocument(q ?? '');
+    return !q || `${client.legal_name} ${client.contact_name ?? ''}`.toLowerCase().includes(q.toLowerCase()) || (!!nq && normalizeDocument(client.document).includes(nq));
   });
 
   return (

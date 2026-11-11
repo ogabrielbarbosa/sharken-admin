@@ -4,7 +4,7 @@ import {
   createClient, createService, getCharge, getClient, getContract, getLead, getService, insertCharge,
   updateCharge, updateClient, updateContract, updateService,
 } from '@lps/db';
-import { parseBRLToCents, validateDocument, type ChargeMethod } from '@lps/domain';
+import { normalizeDocument, parseBRLToCents, validateDocument, type ChargeMethod } from '@lps/domain';
 import { createCustomer, createPayment, createSubscription, deletePayment, deleteSubscription, getContractProvider, type AsaasCycle } from '@lps/integrations';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -17,7 +17,7 @@ const refresh = () => revalidatePath('/painel', 'layout');
 function clientFields(form: FormData) {
   return {
     legal_name: text(form, 'legal_name'),
-    document: text(form, 'document'),
+    document: normalizeDocument(text(form, 'document')),
     contact_name: text(form, 'contact_name') || null,
     email: text(form, 'email') || null,
     phone: text(form, 'phone') || null,

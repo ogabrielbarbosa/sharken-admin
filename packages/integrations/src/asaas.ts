@@ -1,5 +1,5 @@
 import { requireOptional } from '@lps/config';
-import type { ChargeMethod } from '@lps/domain';
+import { normalizeDocument, type ChargeMethod } from '@lps/domain';
 
 type ClientFields = { id: string; legal_name: string; document: string; email: string | null; phone: string | null };
 type ChargeFields = { id: string; description: string; amount_cents: number; due_date: string; method: ChargeMethod };
@@ -11,7 +11,7 @@ const digits = (v: string) => v.replace(/\D/g, '');
 export function buildCustomerPayload(client: ClientFields) {
   return {
     name: client.legal_name,
-    cpfCnpj: digits(client.document),
+    cpfCnpj: normalizeDocument(client.document),
     email: client.email ?? undefined,
     mobilePhone: client.phone ? digits(client.phone).replace(/^55(?=\d{10,11}$)/, '') : undefined,
     externalReference: client.id,

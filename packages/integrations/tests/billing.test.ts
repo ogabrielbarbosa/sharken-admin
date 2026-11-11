@@ -24,6 +24,12 @@ describe('Asaas', () => {
   });
 });
 
+describe('Asaas, CNPJ alfanumérico', () => {
+  it('manda o documento em maiúsculas, sem pontuação', () => {
+    expect(buildCustomerPayload({ ...client, document: '12.abc.345/01de-35' }).cpfCnpj).toBe('12ABC34501DE35');
+  });
+});
+
 describe('ZapSign', () => {
   it('monta o documento do modelo sem enviar e-mails', () => {
     const body = buildContractPayload(client, service, 'tpl', 'ctr1');
