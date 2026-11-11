@@ -15,6 +15,6 @@
     "@lps/config": "workspace:*",
     "@lps/db": "workspace:*",
     "@lps/domain": "workspace:*",
-    "unpdf": "^2.1.0"
+    "unpdf": "^1.9.1"
   }
 }

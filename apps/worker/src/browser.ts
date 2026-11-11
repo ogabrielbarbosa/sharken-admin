@@ -16,6 +16,11 @@ export async function closeBrowser() {
 export async function newContext(options?: BrowserContextOptions) {
   const browser = await getBrowser();
   const context = await browser.newContext(options);
-  await context.addInitScript('globalThis.__name = (target) => target;');
+  try {
+    await context.addInitScript('globalThis.__name = (target) => target;');
+  } catch (err) {
+    await context.close().catch(() => {});
+    throw err;
+  }
   return context;
 }

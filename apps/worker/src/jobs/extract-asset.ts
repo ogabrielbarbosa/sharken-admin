@@ -8,16 +8,15 @@ const BUCKET = 'lead-assets';
 const MAX_IMAGES = 8;
 const NAV_TIMEOUT_MS = 30_000;
 
-async function copyImages(db: Db, leadId: string, urls: string[]): Promise<string[]> {
-  const stamp = Date.now();
+async function copyImages(db: Db, leadId: string, assetId: string, urls: string[]): Promise<string[]> {
   const copied = await Promise.all(
     urls.slice(0, MAX_IMAGES).map(async (url, i) => {
       try {
         const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
         const type = (res.headers.get('content-type') ?? '').split(';')[0];
         if (!res.ok || !type.startsWith('image/')) return null;
-        const ext = type.split('/')[1]?.replace(/[^a-z0-9]/gi, '') || 'jpg';
-        const path = `${leadId}/extraidas/${stamp}-${i}.${ext}`;
+        const ext = type === 'image/svg+xml' ? 'svg' : type.split('/')[1]?.replace(/[^a-z0-9]/gi, '') || 'jpg';
+        const path = `${leadId}/extraidas/${assetId}-${i}.${ext}`;
         const { error } = await db.storage.from(BUCKET).upload(path, Buffer.from(await res.arrayBuffer()), { contentType: type, upsert: true });
         return error ? null : path;
       } catch {
@@ -26,6 +25,16 @@ async function copyImages(db: Db, leadId: string, urls: string[]): Promise<strin
     }),
   );
   return copied.filter((p): p is string => !!p);
+}
+
+/** Só http e https: file://, chrome:// e afins não podem ser abertos pelo worker. */
+export function isHttpUrl(url: string): boolean {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 function isInstagram(url: string): boolean {
@@ -47,7 +56,8 @@ async function extractWebPage(url: string) {
   const context = await newContext();
   try {
     const page = await context.newPage();
-    await page.goto(url, { timeout: NAV_TIMEOUT_MS, waitUntil: 'load' });
+    const res = await page.goto(url, { timeout: NAV_TIMEOUT_MS, waitUntil: 'load' });
+    if (!res || res.status() >= 400) throw new JobFailure(`O site respondeu com erro (${res?.status() ?? 'sem resposta'}).`);
     return extractHtmlText(await page.content(), page.url());
   } finally {
     await context.close();
@@ -78,9 +88,10 @@ export const extractAssetJob: Handler = async (db, job) => {
   let images: string[] = [];
   if (asset.kind === 'link') {
     if (!asset.url) throw new JobFailure('Link sem endereço.');
+    if (!isHttpUrl(asset.url)) throw new JobFailure('Link inválido: use um endereço http ou https.');
     const found = isInstagram(asset.url) ? await extractInstagram(asset.url) : await extractWebPage(asset.url);
     text = found.text;
-    images = await copyImages(db, asset.lead_id, found.images);
+    images = await copyImages(db, asset.lead_id, asset.id, found.images);
   } else if (asset.kind === 'arquivo') {
     const found = await extractFile(db, asset);
     text = found.text;
