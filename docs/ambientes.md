@@ -79,7 +79,7 @@ Todas ficam no `.env.local` e no `.env.dev`. As da Evolution e o `PAGES_HOST` s�
 2. Rode `pnpm whatsapp:webhook` (no dev, `pnpm whatsapp:webhook:remoto`). Ele registra na instância o webhook `/api/webhooks/whatsapp` com os eventos de mensagem e de conexão. Rode de novo se a URL do app mudar.
 3. No painel, abra o CRM e conecte o número pelo QR Code.
 
-Para baixar fotos, áudios, vídeos e documentos recebidos, a Evolution precisa guardar as mensagens (`DATABASE_SAVE_DATA_NEW_MESSAGE=true` no servidor dela) ou mandar a mídia em base64 no webhook. O `pnpm whatsapp:webhook` já liga o base64; se a mídia não baixar, confira essas duas opções.
+Para baixar fotos, áudios, vídeos e documentos recebidos, o worker baixa a mídia da Evolution, e isso exige que ela guarde as mensagens (`DATABASE_SAVE_DATA_NEW_MESSAGE=true` no servidor dela). O `pnpm whatsapp:webhook` registra o webhook sem base64, porque a Vercel limita o corpo a 4,5 MB; se a mídia não baixar, confira essa opção e se o worker está rodando.
 
 No local, o webhook precisa do túnel descrito abaixo, porque a Evolution não alcança `localhost`.
 

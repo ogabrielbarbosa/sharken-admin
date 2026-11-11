@@ -15,10 +15,10 @@ async function post(body: unknown) {
   return fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body) });
 }
 
-const flat = { enabled: true, url, webhookByEvents: false, webhookBase64: true, events };
+const flat = { enabled: true, url, webhookByEvents: false, webhookBase64: false, events };
 let res = await post(flat);
 // Versões mais novas da Evolution v2 esperam o objeto dentro de `webhook`.
-if (!res.ok) res = await post({ webhook: { enabled: true, url, byEvents: false, base64: true, events } });
+if (!res.ok) res = await post({ webhook: { enabled: true, url, byEvents: false, base64: false, events } });
 if (!res.ok) {
   console.error(`A Evolution recusou o webhook (${res.status}): ${(await res.text()).split(secret).join('***').slice(0, 300)}`);
   process.exit(1);

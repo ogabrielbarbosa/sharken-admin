@@ -34,7 +34,7 @@ export async function isWhatsAppConnected(db: Db): Promise<boolean> {
 export const FOLLOW_UP_LIMIT_MESSAGE = 'Já foi enviado um follow-up sem resposta.';
 
 /** Mensagens do painel já aceitas pelo WhatsApp. Contatos migrados da v1 contam pelo que o contato já registra. */
-async function outreachCount(db: Db, contact: Contact): Promise<number> {
+export async function outreachCount(db: Db, contact: Contact): Promise<number> {
   const { data, error } = await db
     .from('messages')
     .select('id')
@@ -83,7 +83,7 @@ export async function sendMessage(
   const previous = await findByClientId(db, input.clientMessageId);
   if (previous) return previous;
 
-  const kind = outreachKind(!!contact.responded_at, await outreachCount(db, contact));
+  const kind = outreachKind(contact.status, !!contact.responded_at, await outreachCount(db, contact));
   const blocked = sendBlockReason(contact, {
     doNotContact: await isDoNotContact(db, contact.phone_e164),
     connected: await isWhatsAppConnected(db),

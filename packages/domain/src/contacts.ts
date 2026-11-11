@@ -88,7 +88,9 @@ export function followUpDueAt(sentAt: Date): Date {
  * Política de alcance: enquanto a pessoa não respondeu, a 1ª mensagem é o primeiro contato, a 2ª é o único
  * follow-up e a 3ª em diante é bloqueada. Depois da resposta não há limite.
  */
-export function outreachKind(responded: boolean, sentCount: number): SendKind | 'bloqueado' {
+export function outreachKind(status: ContactStatus, responded: boolean, sentCount: number): SendKind | 'bloqueado' {
+  // Cliente fechado ou conversa em andamento: nunca é prospecção fria, sem limite nem efeitos de primeiro contato.
+  if (status === 'fechado' || status === 'em_conversa') return 'normal';
   if (responded) return 'normal';
   if (sentCount <= 0) return 'primeiro';
   if (sentCount === 1) return 'follow_up';

@@ -261,4 +261,17 @@ describe('retryMessage', () => {
     const m = await send(c.id);
     await expect(retryMessage(db, ok(), m.id, `r-${++n}`, now)).rejects.toThrow('com erro');
   });
+
+  it('contato fechado recebe 3 ou mais mensagens, sem follow-up agendado', async () => {
+    const c = await mk('fechado');
+    for (let i = 0; i < 4; i++) await send(c.id);
+    const after = (await getContact(db, c.id))!;
+    expect(after.status).toBe('fechado');
+    expect(after.first_contact_at).toBeNull();
+    expect(after.follow_up_at).toBeNull();
+    expect(after.follow_ups_without_reply).toBe(0);
+    expect(await listMessages(db, c.id)).toHaveLength(4);
+    const { rows } = await pg.query('select 1 from crm_hoje_ids() as id where id = $1', [c.id]);
+    expect(rows).toHaveLength(0);
+  });
 });

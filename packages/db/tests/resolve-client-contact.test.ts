@@ -30,7 +30,7 @@ describe('resolveClientContact', () => {
     const out = await resolveClientContact(db, client);
     if (!('contactId' in out)) throw new Error('esperava contato');
     const contact = await getContact(db, out.contactId);
-    expect(contact).toMatchObject({ phone_e164: '5519981342207', origin: 'manual', status: 'novo', name: 'Carla' });
+    expect(contact).toMatchObject({ phone_e164: '5519981342207', origin: 'manual', status: 'fechado', name: 'Carla' });
     expect((await getClient(db, client.id))?.contact_id).toBe(out.contactId);
   });
   it('reaproveita contato existente pelo celular', async () => {

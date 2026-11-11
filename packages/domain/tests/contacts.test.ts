@@ -94,13 +94,21 @@ describe('textos', () => {
 import { outreachKind } from '../src/contacts';
 describe('outreachKind', () => {
   it('0 enviadas é o primeiro contato, 1 é o follow-up, 2 ou mais bloqueia', () => {
-    expect(outreachKind(false, 0)).toBe('primeiro');
-    expect(outreachKind(false, 1)).toBe('follow_up');
-    expect(outreachKind(false, 2)).toBe('bloqueado');
-    expect(outreachKind(false, 7)).toBe('bloqueado');
+    expect(outreachKind('novo', false, 0)).toBe('primeiro');
+    expect(outreachKind('contatado', false, 1)).toBe('follow_up');
+    expect(outreachKind('follow_up', false, 2)).toBe('bloqueado');
+    expect(outreachKind('follow_up', false, 7)).toBe('bloqueado');
   });
   it('depois da resposta não há limite', () => {
-    expect(outreachKind(true, 0)).toBe('normal');
-    expect(outreachKind(true, 9)).toBe('normal');
+    expect(outreachKind('contatado', true, 0)).toBe('normal');
+    expect(outreachKind('contatado', true, 9)).toBe('normal');
+  });
+});
+
+describe('outreachKind, cliente fechado e em conversa', () => {
+  it('nunca limita nem trata como primeiro contato', () => {
+    expect(outreachKind('fechado', false, 0)).toBe('normal');
+    expect(outreachKind('fechado', false, 5)).toBe('normal');
+    expect(outreachKind('em_conversa', false, 5)).toBe('normal');
   });
 });

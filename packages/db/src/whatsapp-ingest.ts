@@ -63,7 +63,7 @@ async function applyInboundStatus(db: Db, contact: Contact, now: Date): Promise<
   const to = statusAfterInbound(contact);
   const respondedAt = contact.responded_at ?? now.toISOString();
   if (to === contact.status) {
-    if (!contact.responded_at && contact.status === 'em_conversa') await updateContact(db, contact.id, { responded_at: respondedAt });
+    if (!contact.responded_at) await updateContact(db, contact.id, { responded_at: respondedAt });
     return;
   }
   const patch: Partial<Contact> = { responded_at: respondedAt, follow_up_at: null };

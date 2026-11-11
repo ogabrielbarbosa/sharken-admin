@@ -66,6 +66,7 @@ export async function retryMessageAction(messageId: string, clientMessageId: str
 export async function setStatusAction(contactId: string, to: string) {
   return guarded(async () => {
     if (!STATUSES.includes(to as ContactStatus)) throw new Error('Status inválido.');
+    if (to === 'fechado') throw new Error('Use "Fechar negócio" para fechar.');
     const db = await authedDb();
     const contact = await getContact(db, contactId);
     if (!contact) throw new Error('Contato não encontrado.');

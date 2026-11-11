@@ -157,4 +157,12 @@ describe('ingestEvent', () => {
     const rows = (await pg.query('select state from whatsapp_connection')).rows as { state: string }[];
     expect(rows).toEqual([{ state: 'desconectado' }]);
   });
+
+  it('resposta em contato fechado marca responded_at e mantém o status', async () => {
+    const c = await mk('fechado');
+    await ingestEvent(db, msg({ phoneE164: c.phone_e164 }), now);
+    const after = (await getContact(db, c.id))!;
+    expect(after.status).toBe('fechado');
+    expect(after.responded_at).not.toBeNull();
+  });
 });

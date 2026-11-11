@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildCustomerPayload, buildPaymentPayload, buildSubscriptionPayload, toAsaasBillingType } from '../src/asaas';
 import { buildContractPayload, requireTemplateId } from '../src/zapsign';
-import { buildReplyPrompt } from '../src/reply-suggestions';
-import { completeLead } from '../../domain/tests/fixtures/leads';
 
 const client = { id: 'c1', legal_name: 'Amigo Fiel Ltda', document: '11.222.333/0001-81', contact_name: 'Marcos', email: 'm@x.com', phone: '(19) 99123-4567' };
 const service = { id: 's1', name: 'Site', amount_cents: 120000, start_date: '2026-11-03', kind: 'unico' as const };
@@ -46,20 +44,5 @@ describe('ZapSign', () => {
   });
   it('avisa quando falta o modelo de contrato', () => {
     expect(() => requireTemplateId({})).toThrow(/modelo/i);
-  });
-});
-
-describe('buildReplyPrompt', () => {
-  const out = buildReplyPrompt({ ...completeLead, comment: 'Dona Carla' }, 'Quanto custa?');
-  it('inclui os dados e a mensagem recebida', () => {
-    expect(out.user).toContain('Pet Shop Patinhas');
-    expect(out.user).toContain('Quanto custa?');
-  });
-  it('não inclui o comentário interno', () => {
-    expect(out.user).not.toContain('Carla');
-  });
-  it('proíbe promessa de preço e orienta o campo [valor]', () => {
-    expect(out.system).toMatch(/Nunca prometa preço/);
-    expect(out.system).toContain('[valor]');
   });
 });

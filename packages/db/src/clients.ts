@@ -134,7 +134,7 @@ export async function resolveClientContact(db: Db, client: Pick<ClientRecord, 'i
     if (!owner) await updateClient(db, client.id, { contact_id: existing.id });
     return { contactId: existing.id };
   }
-  const created = await createContact(db, { name: client.contact_name || client.legal_name, phone_e164: phone, origin: 'manual', status: 'novo' });
+  const created = await createContact(db, { name: client.contact_name || client.legal_name, phone_e164: phone, origin: 'manual', status: 'fechado' });
   await updateClient(db, client.id, { contact_id: created.id });
   return { contactId: created.id };
 }

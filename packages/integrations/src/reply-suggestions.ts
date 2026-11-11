@@ -2,17 +2,6 @@ import { REPLY_SYSTEM } from '@lps/config';
 import { buildSourceText, type Lead, type Message } from '@lps/domain';
 import { generateText } from './anthropic';
 
-export function buildReplyPrompt(lead: Lead, incomingText: string): { system: string; user: string } {
-  return {
-    system: REPLY_SYSTEM,
-    user: `Dados do negócio:\n<dados>\n${buildSourceText(lead)}\n</dados>\n\nMensagem recebida da pessoa:\n<mensagem>\n${incomingText}\n</mensagem>\n\nEscreva só o texto da resposta.`,
-  };
-}
-
-export function suggestReply(lead: Lead, incomingText: string): Promise<string> {
-  return generateText(buildReplyPrompt(lead, incomingText));
-}
-
 const HISTORY_LIMIT = 20;
 
 /** Conversa com as últimas 20 mensagens de texto, da mais antiga para a mais nova. */

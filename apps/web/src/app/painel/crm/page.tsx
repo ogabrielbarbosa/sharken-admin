@@ -1,6 +1,7 @@
 import { getEnv } from '@lps/config';
 import {
   clientByContact,
+  FOLLOW_UP_LIMIT_MESSAGE,
   countBoxes,
   firstContactsToday,
   getBatch,
@@ -12,9 +13,10 @@ import {
   listEvents,
   listMessages,
   markStalePending,
+  outreachCount,
   type CrmBox,
 } from '@lps/db';
-import { closeDealDefaults, firstContactText, followUpText, phoneMatchCandidates, sendBlockReason, type Contact, type CloseDealInput } from '@lps/domain';
+import { closeDealDefaults, firstContactText, followUpText, outreachKind, phoneMatchCandidates, sendBlockReason, type Contact, type CloseDealInput } from '@lps/domain';
 import { MessageCircle } from 'lucide-react';
 import { ReconnectDrawer } from '@/components/crm/reconnect-drawer';
 import { ConnectionBadge } from '@/components/crm/connection-badge';
@@ -120,7 +122,8 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     templates.push({ label: 'Follow-up', text: followUpText(link) });
   }
 
-  const blockReason = sendBlockReason(selected as Contact, { doNotContact: !!dnc.data?.length, connected: connection !== 'desconectado', kind: 'normal' });
+  const blockReason = sendBlockReason(selected as Contact, { doNotContact: !!dnc.data?.length, connected: connection !== 'desconectado', kind: 'normal' })
+    ?? (outreachKind(selected.status, !!selected.responded_at, await outreachCount(db, selected as Contact)) === 'bloqueado' ? FOLLOW_UP_LIMIT_MESSAGE : null);
   const flow = lead ? flowLabel(lead).label : null;
   const videoLabel = video && video.status === 'pronto' ? `${video.source === 'gravado' ? 'Gravado' : 'IA'}${video.duration_seconds ? ` · ${Math.floor(video.duration_seconds / 60)}:${String(Math.round(video.duration_seconds % 60)).padStart(2, '0')}` : ''}` : null;
   const origin = selected.origin === 'batch'

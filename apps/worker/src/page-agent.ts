@@ -26,6 +26,15 @@ function guard(dir: string): CanUseTool {
   };
 }
 
+/** Só o necessário para o agente: a chave da API e o básico do sistema, sem o resto do ambiente do Mac. */
+export function agentEnv(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (value !== undefined && (key.startsWith('ANTHROPIC_') || ['PATH', 'HOME', 'TMPDIR'].includes(key))) out[key] = value;
+  }
+  return out;
+}
+
 export type AgentRun = { error: string | null; costUsd: number };
 
 /**
@@ -55,7 +64,7 @@ export async function runPageAgent(dir: string, prompt: string, model: string): 
         systemPrompt: SYSTEM_PROMPT,
         abortController: abort,
         env: {
-          ...process.env,
+          ...agentEnv(),
           // Chave de usuário (sk-ant-usr…) precisa dizer o workspace em cada chamada.
           ...(workspace ? { ANTHROPIC_CUSTOM_HEADERS: `anthropic-workspace-id: ${workspace}` } : {}),
         },
