@@ -179,3 +179,20 @@ export async function saveLeadCommentAction(contactId: string, comment: string) 
     await updateLead(db, leadId, { comment: text(comment) || null });
   });
 }
+
+/** QR da Evolution para reconectar. `qr` vem nulo quando a instância já está conectada. */
+export async function connectionQrAction(): Promise<{ ok: true; qr: string | null } | { ok: false; error: string }> {
+  try {
+    await authedDb();
+    let provider;
+    try {
+      provider = getWhatsAppProvider();
+    } catch {
+      return { ok: false, error: 'Configure EVOLUTION_URL, EVOLUTION_API_KEY e EVOLUTION_INSTANCE para conectar.' };
+    }
+    return { ok: true, qr: await provider.connectionQr() };
+  } catch (err) {
+    unstable_rethrow(err);
+    return fail(err);
+  }
+}

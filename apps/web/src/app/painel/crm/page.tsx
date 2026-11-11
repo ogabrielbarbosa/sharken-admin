@@ -15,6 +15,7 @@ import {
 } from '@lps/db';
 import { firstContactText, followUpText, phoneMatchCandidates, sendBlockReason, type Contact } from '@lps/domain';
 import { MessageCircle } from 'lucide-react';
+import { ReconnectDrawer } from '@/components/crm/reconnect-drawer';
 import { ConnectionBadge } from '@/components/crm/connection-badge';
 import { ContactList } from '@/components/crm/contact-list';
 import { ContactPanel, type HistoryItem } from '@/components/crm/contact-panel';
@@ -28,7 +29,7 @@ import { composerDraft, pageLink, STATUS_LABEL, stopRequestPending, timeUntil } 
 import { flowLabel } from '@/lib/lead-labels';
 
 const BOXES: CrmBox[] = ['hoje', 'novos', 'aguardando', 'em_conversa', 'fechados', 'perdidos', 'todos'];
-type Params = { caixa?: string; contato?: string; texto?: string; q?: string };
+type Params = { caixa?: string; contato?: string; texto?: string; q?: string; conexao?: string };
 type EventRow = Awaited<ReturnType<typeof listEvents>>[number];
 
 function eventLabel(e: EventRow): string | null {
@@ -79,6 +80,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     <div className="flex h-[calc(100vh-1rem)] flex-col max-lg:h-screen">
       <Topbar crumbs={[{ label: 'CRM' }]} />
       <CrmRealtime contactId={selected?.id ?? null} />
+      {params.conexao && connection !== 'conectado' && <ReconnectDrawer closeHref={base + (selected ? `&contato=${selected.id}` : '')} />}
       <div className="grid min-h-0 flex-1 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_320px]">{children}</div>
     </div>
   );
