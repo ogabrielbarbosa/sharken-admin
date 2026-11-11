@@ -5,14 +5,15 @@ alter table leads
   add column loom_url text,
   add column stage_changed_at timestamptz not null default now();
 
+-- Sem disparar o trigger de updated_at, para não apagar a data real de cada lead.
+alter table leads disable trigger leads_updated_at;
 update leads set stage_changed_at = updated_at;
+alter table leads enable trigger leads_updated_at;
 
 alter table leads drop constraint leads_stage_check;
 
 -- A 0002 já converteu as etapas da v1 (abordar, aguardando, follow_up_feito, conversa).
--- Se algum lead voltou a elas depois, vai para o CRM antes de o check ser recriado.
 update leads set stage = 'pagina' where stage in ('gerando_material', 'revisar_material');
-update leads set stage = 'crm' where stage in ('abordar', 'aguardando', 'follow_up_feito', 'conversa');
 
 alter table leads add constraint leads_stage_check check (stage in (
   'analisando', 'revisar', 'completar', 'pagina', 'video', 'vendido', 'crm',
