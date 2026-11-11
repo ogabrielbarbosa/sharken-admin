@@ -4,8 +4,10 @@ import { useState } from 'react';
 import { saveNotesAction } from '@/lib/common-lead-actions';
 import { Input } from '@/components/ui';
 
-export function NoteField({ leadId, field, initial, placeholder, label }: {
+export function NoteField({ leadId, field, initial, placeholder, label, save }: {
   leadId: string; field: 'comment' | 'reason'; initial: string | null; placeholder: string; label?: string;
+  /** Ação própria de gravação, para telas que validam a etapa do lead. */
+  save?: (leadId: string, field: 'comment' | 'reason', value: string) => Promise<unknown>;
 }) {
   const [value, setValue] = useState(initial ?? '');
   const [saved, setSaved] = useState(initial ?? '');
@@ -17,7 +19,8 @@ export function NoteField({ leadId, field, initial, placeholder, label }: {
       onChange={(e) => setValue(e.target.value)}
       onBlur={async () => {
         if (value === saved) return;
-        await saveNotesAction(leadId, { [field]: value });
+        if (save) await save(leadId, field, value);
+        else await saveNotesAction(leadId, { [field]: value });
         setSaved(value);
       }}
     />

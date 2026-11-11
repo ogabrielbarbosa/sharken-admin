@@ -31,3 +31,4 @@ export * from './review-filter';
 export * from './contacts';
 export * from './stop-words';
 export * from './whatsapp';
+export * from './completar';
