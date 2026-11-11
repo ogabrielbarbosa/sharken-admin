@@ -25,8 +25,8 @@ describe('migrações', () => {
        where n.nspname='public' and c.relkind='r' order by relname`,
     );
     expect(rows.map((r) => r.relname)).toEqual([
-      'batches', 'charges', 'clients', 'contracts', 'do_not_contact', 'events',
-      'jobs', 'leads', 'services', 'sites', 'videos',
+      'batches', 'charges', 'clients', 'contacts', 'contracts', 'do_not_contact', 'events',
+      'jobs', 'lead_assets', 'leads', 'messages', 'services', 'sites', 'videos', 'whatsapp_connection',
     ]);
     expect(rows.every((r) => r.relrowsecurity)).toBe(true);
   });
@@ -54,5 +54,27 @@ describe('migrações', () => {
   it('recusa telefone repetido em do_not_contact', async () => {
     await db.query(`insert into do_not_contact (phone_e164) values ('5511987654321')`);
     await expect(db.query(`insert into do_not_contact (phone_e164) values ('5511987654321')`)).rejects.toThrow();
+  });
+
+  it('converte leads da v1 em contatos', async () => {
+    await db.query(`insert into leads (place_id, name, phone_e164, stage, contacted_at) values
+      ('v1a', 'Aguardando', '5511900000001', 'aguardando', now()),
+      ('v1b', 'Conversa', '5511900000002', 'conversa', now())`);
+    await db.query(`select migrate_v1_leads_to_contacts()`);
+    const { rows } = await db.query<{ phone_e164: string; status: string; origin: string }>(
+      `select phone_e164, status, origin from contacts where phone_e164 in ('5511900000001','5511900000002') order by phone_e164`,
+    );
+    expect(rows).toEqual([
+      { phone_e164: '5511900000001', status: 'contatado', origin: 'batch' },
+      { phone_e164: '5511900000002', status: 'em_conversa', origin: 'batch' },
+    ]);
+    const leads = await db.query<{ stage: string }>(`select stage from leads where place_id in ('v1a','v1b')`);
+    expect(leads.rows.map((r) => r.stage)).toEqual(['crm', 'crm']);
+  });
+
+  it('recusa status de contato desconhecido', async () => {
+    await expect(
+      db.query(`insert into contacts (name, phone_e164, origin, status) values ('x', '5511900000009', 'manual', 'invalido')`),
+    ).rejects.toThrow();
   });
 });
