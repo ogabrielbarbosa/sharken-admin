@@ -49,6 +49,13 @@ describe('listReadyToCharge', () => {
     expect(rows.map((r) => r.client.legal_name)).toEqual(['Pronto']);
     expect(rows[0].service.id).toBe(ready.service.id);
   });
+  it('serviço cujas cobranças foram todas canceladas volta a ficar pronto', async () => {
+    const { service } = await setup('Cancelou', { contract: 'assinado' });
+    await charge(service.id, { status: 'cancelado' });
+    expect((await listReadyToCharge(db)).some((r) => r.service.id === service.id)).toBe(true);
+    await charge(service.id);
+    expect((await listReadyToCharge(db)).some((r) => r.service.id === service.id)).toBe(false);
+  });
   it('serviço sem contrato assinado não aparece mesmo sem cobrança', async () => {
     const { service } = await setup('Só rascunho');
     expect((await listReadyToCharge(db)).some((r) => r.service.id === service.id)).toBe(false);

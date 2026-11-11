@@ -154,12 +154,13 @@ async function withClients(db: Db, charges: ChargeRecord[]): Promise<ChargeWithC
   });
 }
 
-/** Serviços com contrato assinado e sem cobrança emitida (nem avulsa nem assinatura). Sem contrato assinado, fora. */
+/** Serviços com contrato assinado e sem cobrança emitida (nem avulsa nem assinatura; cobrança cancelada não conta). Sem contrato assinado, fora. */
 export async function listReadyToCharge(db: Db): Promise<ContractWithClient[]> {
   const signed = (await listContractsWithClient(db, 'assinado')).filter((r) => r.service.status === 'ativo' && !r.service.asaas_subscription_id);
   if (!signed.length) return [];
-  const charged = new Set(unwrap<{ service_id: string }[]>(await db.from('charges').select('service_id').in('service_id', signed.map((r) => r.service.id))).map((c) => c.service_id));
-  return signed.filter((r) => !charged.has(r.service.id)).sort((a, b) => a.contract.status_at.localeCompare(b.contract.status_at));
+  const rows = unwrap<{ service_id: string; status: ChargeStatus }[]>(await db.from('charges').select('service_id, status').in('service_id', signed.map((r) => r.service.id)));
+  const charged = new Set(rows.filter((c) => c.status !== 'cancelado').map((c) => c.service_id));
+  return signed.filter((r) => !charged.has(r.service.id)).sort((a, b) => +new Date(a.contract.status_at) - +new Date(b.contract.status_at));
 }
 
 /** Cobranças pendentes e vencidas: vencidas primeiro, depois pelo vencimento. */
@@ -173,7 +174,7 @@ export async function listOpenCharges(db: Db): Promise<ChargeWithClient[]> {
 export async function listPaidCharges(db: Db, since: Date): Promise<ChargeWithClient[]> {
   const charges = unwrap<ChargeRecord[]>(await db.from('charges').select().eq('status', 'pago'));
   const when = (c: ChargeRecord) => c.paid_at ?? c.created_at;
-  const recent = charges.filter((c) => new Date(when(c)) >= since).sort((a, b) => when(b).localeCompare(when(a)));
+  const recent = charges.filter((c) => new Date(when(c)) >= since).sort((a, b) => +new Date(when(b)) - +new Date(when(a)));
   return withClients(db, recent);
 }
 

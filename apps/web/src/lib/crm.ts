@@ -81,3 +81,28 @@ export function timeUntil(iso: string, now: Date): string {
   const h = Math.ceil(ms / 3_600_000);
   return h >= 48 ? `${Math.ceil(h / 24)} dias` : `${h} h`;
 }
+
+export type CrmEvent = { type: string; data: Record<string, unknown> };
+
+/** Texto do histórico do contato para cada evento do lead. Eventos internos, sem texto, ficam de fora (null). */
+export function eventLabel(e: CrmEvent): string | null {
+  switch (e.type) {
+    case 'abertura': return 'Página aberta';
+    case 'mensagem_enviada': return e.data.kind === 'primeiro' ? 'Primeiro contato enviado' : e.data.kind === 'follow_up' ? 'Follow-up enviado' : null;
+    case 'pedido_parar': return 'Pediu para parar';
+    case 'modelo_removido': return 'Página removida';
+    case 'pagina_gerada': return 'Página gerada';
+    case 'etapa_crm': return 'Material aprovado';
+    case 'etapa_completar': return 'Lead avançado';
+    case 'contrato_criado': return 'Contrato criado';
+    case 'contrato_assinado': return 'Contrato assinado';
+    case 'pagamento_recebido': return 'Pagamento recebido';
+    case 'contato_criado': return 'Contato criado';
+    case 'contato_ligado': return e.data.vinculado === false ? null : 'Contato ligado ao lead';
+  }
+  if (e.type.startsWith('contato_')) {
+    const status = STATUS_LABEL[e.type.slice(8) as ContactStatus];
+    return status ? `Status: ${status.label}` : null;
+  }
+  return null;
+}

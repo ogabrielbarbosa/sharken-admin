@@ -27,27 +27,11 @@ import type { LegacyLine, ThreadMessage } from '@/components/crm/thread';
 import { CrmRealtime } from '@/components/crm/use-crm-realtime';
 import { Topbar } from '@/components/layout/topbar';
 import { authedDb } from '@/lib/auth';
-import { composerDraft, pageLink, STATUS_LABEL, stopRequestPending, timeUntil } from '@/lib/crm';
+import { composerDraft, eventLabel, pageLink, STATUS_LABEL, stopRequestPending, timeUntil } from '@/lib/crm';
 import { flowLabel } from '@/lib/lead-labels';
 
 const BOXES: CrmBox[] = ['hoje', 'novos', 'aguardando', 'em_conversa', 'fechados', 'perdidos', 'todos'];
 type Params = { caixa?: string; contato?: string; texto?: string; q?: string; conexao?: string; fechar?: string };
-type EventRow = Awaited<ReturnType<typeof listEvents>>[number];
-
-function eventLabel(e: EventRow): string | null {
-  if (e.type === 'abertura') return 'Página aberta';
-  if (e.type === 'mensagem_enviada') return e.data.kind === 'primeiro' ? 'Primeiro contato enviado' : e.data.kind === 'follow_up' ? 'Follow-up enviado' : null;
-  if (e.type === 'pedido_parar') return 'Pediu para parar';
-  if (e.type === 'modelo_removido') return 'Página removida';
-  if (e.type === 'etapa_crm') return 'Material aprovado';
-  if (e.type === 'etapa_completar') return 'Lead avançado';
-  if (e.type === 'contrato_criado') return 'Contrato criado';
-  if (e.type.startsWith('contato_')) {
-    const status = STATUS_LABEL[e.type.slice(8) as keyof typeof STATUS_LABEL];
-    return status ? `Status: ${status.label}` : null;
-  }
-  return null;
-}
 
 async function mediaUrls(db: Awaited<ReturnType<typeof authedDb>>, messages: ThreadMessage[]) {
   const paths = messages.map((m) => m.media_path).filter((p): p is string => !!p);

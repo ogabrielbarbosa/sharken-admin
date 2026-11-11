@@ -23,6 +23,13 @@ export async function POST(request: Request) {
     await insertCharge(db, plan.row);
     if (plan.row.status === 'pago') paidChargeId = (await chargeByPayment(db, body.payment.id))?.id ?? null;
   }
-  if (paidChargeId) await recordChargePaid(db, paidChargeId, paidAt);
+  if (paidChargeId) {
+    try {
+      await recordChargePaid(db, paidChargeId, paidAt);
+    } catch (err) {
+      // O status já foi gravado; sem isto a falha ficaria invisível (paid_at, serviço ou evento sem registrar).
+      console.error(`asaas webhook: falha ao registrar o pagamento da cobrança ${paidChargeId}`, err instanceof Error ? err.message : err);
+    }
+  }
   return Response.json({ ok: true });
 }
