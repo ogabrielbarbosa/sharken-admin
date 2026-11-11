@@ -18,4 +18,16 @@ describe('fetchTemplateHtml', () => {
   it('exceção de rede vira error', async () => {
     expect((await fetchTemplateHtml(url, '', stub(new Error('boom')))).kind).toBe('error');
   });
+  it('redirecionamento 307 vira error e não é seguido', async () => {
+    let init: RequestInit | undefined;
+    const spy = (async (_u: unknown, i?: RequestInit) => { init = i; return new Response(null, { status: 307, headers: { location: 'https://vercel.com/sso' } }); }) as unknown as typeof fetch;
+    expect((await fetchTemplateHtml(url, '', spy)).kind).toBe('error');
+    expect(init?.redirect).toBe('manual');
+  });
+  it('tempo esgotado vira error e o sinal de timeout é passado', async () => {
+    let signal: AbortSignal | null | undefined;
+    const spy = (async (_u: unknown, i?: RequestInit) => { signal = i?.signal; throw new DOMException('timeout', 'AbortError'); }) as unknown as typeof fetch;
+    expect((await fetchTemplateHtml(url, '', spy, 10)).kind).toBe('error');
+    expect(signal).toBeInstanceOf(AbortSignal);
+  });
 });

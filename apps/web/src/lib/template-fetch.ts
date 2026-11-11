@@ -8,7 +8,9 @@ export async function fetchTemplateHtml(
   timeoutMs = 5000,
 ): Promise<TemplateResult> {
   try {
-    const res = await fetchImpl(url, { headers: { cookie }, cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) });
+    const res = await fetchImpl(url, { headers: { cookie }, cache: 'no-store', redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
+    // Proteção da Vercel responde com redirecionamento para a página de login: nunca seguir.
+    if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) return { kind: 'error' };
     if (res.status === 404) return { kind: 'missing' };
     if (!res.ok) return { kind: 'error' };
     return { kind: 'html', body: await res.text(), status: res.status };
