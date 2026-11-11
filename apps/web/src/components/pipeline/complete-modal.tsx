@@ -36,7 +36,7 @@ export function CompleteModal({ lead, assets, position, prevHref, nextHref, clos
   lead: Lead; assets: LeadAsset[]; position: string; prevHref: string | null; nextHref: string | null; closeHref: string; workerStale: boolean;
 }) {
   const router = useRouter();
-  const { pending, notice, run } = useStageAction();
+  const { pending, notice, run } = useStageAction(closeHref);
   const links = assets.filter((a) => a.kind === 'link');
   const files = assets.filter((a) => a.kind === 'arquivo');
   const text = assets.find((a) => a.kind === 'texto');

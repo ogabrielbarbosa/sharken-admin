@@ -18,7 +18,7 @@ import { siteLabel, leadMeta, instagramLabel } from '@/lib/lead-labels';
  */
 export function LeadDrawer({ lead, position, prevHref, nextHref, closeHref }: { lead: Lead; position: string; prevHref: string | null; nextHref: string | null; closeHref: string }) {
   const router = useRouter();
-  const { pending, notice, run } = useStageAction();
+  const { pending, notice, run } = useStageAction(closeHref);
   // Depois de decidir, passa para o próximo da coluna, ou fecha.
   const decide = (fn: typeof qualifyAction) =>
     run(() => fn([lead.id]), (r) => { if (r.ok) router.replace(nextHref ?? prevHref ?? closeHref, { scroll: false }); });

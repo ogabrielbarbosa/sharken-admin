@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { Button, Input, LinkButton } from '@/components/ui';
 import { discardAction, saveLoomUrlAction, savePageUrlAction, stepBackAction } from '@/app/painel/batches/[id]/actions';
 import { leadMeta } from '@/lib/lead-labels';
-import { Notice, useStageAction } from './board';
+import { Notice, useStageAction, withNotice } from './board';
 import { Modal } from './modal';
 
 const COPY = {
@@ -21,11 +21,8 @@ export function LinkModal({ kind, lead, closeHref }: { kind: 'pagina' | 'video';
   const copy = COPY[kind];
   const current = kind === 'pagina' ? lead.page_url : lead.loom_url;
   const [value, setValue] = useState(current ?? '');
-  const { pending, notice, run } = useStageAction();
-  const close = (warning?: string) => {
-    const href = warning ? `${closeHref}${closeHref.includes('?') ? '&' : '?'}aviso=${encodeURIComponent(warning)}` : closeHref;
-    router.replace(href, { scroll: false });
-  };
+  const { pending, notice, run } = useStageAction(closeHref);
+  const close = (warning?: string) => router.replace(warning ? withNotice(closeHref, warning) : closeHref, { scroll: false });
   const save = () => {
     if (!value.trim()) return;
     run(() => (kind === 'pagina' ? savePageUrlAction : saveLoomUrlAction)(lead.id, value), (r) => { if (r.ok) close(r.warning); });

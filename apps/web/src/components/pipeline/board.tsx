@@ -25,14 +25,29 @@ export function boardHref(batchId: string, query: string, leadId: string | null)
   return `/painel/batches/${batchId}${text ? `?${text}` : ''}`;
 }
 
-/** Aviso mostrado depois de uma ação: erro, lead que já mudou ou alerta. */
-export function useStageAction() {
+/** Mesmo texto de `STALE` em `@lps/db` (o teste confere); o pacote do banco não entra no cliente. */
+export const STALE_NOTICE = 'Este lead já mudou de etapa.';
+
+/** `href` com um aviso para o quadro mostrar depois que o modal fecha. */
+export function withNotice(href: string, text: string): string {
+  return `${href}${href.includes('?') ? '&' : '?'}aviso=${encodeURIComponent(text)}`;
+}
+
+/**
+ * Roda uma ação de etapa e guarda o aviso. Com `closeHref` (modais), um lead que já mudou de etapa
+ * fecha o modal e leva o aviso ao quadro pela URL, porque o modal pode ser trocado por outro na recarga.
+ */
+export function useStageAction(closeHref?: string) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [notice, setNotice] = useState<{ tone: 'error' | 'warning'; text: string } | null>(null);
   const run = (fn: () => Promise<PipelineResult>, after?: (r: PipelineResult) => void) =>
     start(async () => {
       const result = await fn();
+      if (!result.ok && result.error === STALE_NOTICE && closeHref) {
+        router.replace(withNotice(closeHref, STALE_NOTICE), { scroll: false });
+        return;
+      }
       if (!result.ok) {
         setNotice({ tone: 'error', text: result.error });
         router.refresh();

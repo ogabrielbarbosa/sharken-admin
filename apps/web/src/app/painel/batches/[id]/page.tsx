@@ -127,8 +127,8 @@ export default async function PipelinePage({ params, searchParams }: { params: P
     const i = open ? list.findIndex((l) => l.id === open.id) : -1;
     return { position: `${i + 1} de ${list.length}`, prevHref: i > 0 ? href(list[i - 1].id) : null, nextHref: i >= 0 && i < list.length - 1 ? href(list[i + 1].id) : null };
   };
-  const notice = query.aviso && NOTICES.includes(query.aviso) ? query.aviso
-    : query.lead && (!open || openColumn === 'pronto') ? STALE : null;
+  // Lead de um link compartilhado que não está (mais) neste batch. Os outros casos chegam por `aviso`.
+  const notice = query.aviso && NOTICES.includes(query.aviso) ? query.aviso : query.lead && !open ? STALE : null;
 
   let modal: React.ReactNode = null;
   if (open && (open.stage === 'revisar' || openColumn === 'descartados')) {
@@ -138,7 +138,7 @@ export default async function PipelinePage({ params, searchParams }: { params: P
     const stale = (assets[open.id] ?? []).some((a) => a.status === 'extraindo') && (await workerLooksStale(db));
     modal = <CompleteModal key={open.id} lead={open} assets={assets[open.id] ?? []} closeHref={closeHref} workerStale={stale} {...siblings(qualified)} />;
   } else if (open && (open.stage === 'pagina' || open.stage === 'video')) {
-    modal = <LinkModal key={open.id} kind={open.stage} lead={open} closeHref={closeHref} />;
+    modal = <LinkModal key={`${open.id}-${open.stage}`} kind={open.stage} lead={open} closeHref={closeHref} />;
   }
 
   return (
