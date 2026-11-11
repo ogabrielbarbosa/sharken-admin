@@ -26,7 +26,7 @@ function Instagram({ lead }: { lead: Lead }) {
   );
 }
 
-export function LeadTable({ leads, batchId, openId, hrefFor }: { leads: Lead[]; batchId: string; openId?: string; hrefFor: (leadId: string) => string }) {
+export function LeadTable({ leads, batchId, openId, hrefs }: { leads: Lead[]; batchId: string; openId?: string; hrefs: Record<string, string> }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const allSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -55,7 +55,7 @@ export function LeadTable({ leads, batchId, openId, hrefFor }: { leads: Lead[]; 
                     <input type="checkbox" aria-label={`Selecionar ${lead.name}`} checked={selected.has(lead.id)} onChange={() => toggle(lead.id)} className="size-4 accent-neutral-200" />
                   </td>
                   <td className="px-3 py-2.5">
-                    <Link href={hrefFor(lead.id)} scroll={false} className="font-medium hover:underline">{lead.name}</Link>
+                    <Link href={hrefs[lead.id]} scroll={false} className="font-medium hover:underline">{lead.name}</Link>
                     <p className="text-xs text-muted-foreground">{leadMeta(lead)}</p>
                   </td>
                   <td className="px-3 py-2.5">

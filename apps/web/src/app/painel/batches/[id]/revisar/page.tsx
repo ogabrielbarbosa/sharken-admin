@@ -99,7 +99,7 @@ export default async function RevisarPage({ params, searchParams }: { params: Pr
       <ActiveFilters batchId={id} filter={filter} shown={leads.length} total={allLeads.length} />
       {leads.length === 0
         ? <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">Nenhum lead bate com esse filtro.</p>
-        : <LeadTable leads={leads} batchId={id} openId={open?.id} hrefFor={hrefFor} />}
+        : <LeadTable leads={leads} batchId={id} openId={open?.id} hrefs={Object.fromEntries(leads.map((l) => [l.id, hrefFor(l.id)]))} />}
       {open && (
         <LeadDrawer
           lead={open}
