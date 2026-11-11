@@ -157,7 +157,7 @@ export default async function CompletarPage({ params, searchParams }: { params: 
           </section>
         </div>
 
-        <GenerateBar leadId={current.id} batchId={id} ids={ids} hint={hint} canSkip={pending.length > 1} />
+        <GenerateBar leadId={current.id} batchId={id} ids={ids.length ? ids : queue.map((l) => l.id)} hint={hint} canSkip={pending.length > 1} />
       </div>
     </div>
   );

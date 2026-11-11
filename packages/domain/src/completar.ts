@@ -56,3 +56,14 @@ export function normalizeLinkUrl(raw: string): string | null {
     return null;
   }
 }
+
+/** Próximo da fila, depois do atual e dando a volta, que ainda está pendente. */
+export function nextPending(order: string[], currentId: string, pending: Set<string>): string | null {
+  const list = order.includes(currentId) ? order : [...order, currentId];
+  const start = list.indexOf(currentId);
+  for (let i = 1; i < list.length; i++) {
+    const id = list[(start + i) % list.length];
+    if (pending.has(id)) return id;
+  }
+  return null;
+}

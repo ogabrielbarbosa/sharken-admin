@@ -1,7 +1,7 @@
 'use server';
 
-import { addAsset, deleteAsset, enqueueJob, getAsset, getLead, listAssets, moveLead, updateAsset, updateLead, type Db } from '@lps/db';
-import { canGenerateMaterial, canTransition, isAcceptedMime, MAX_ASSET_BYTES, normalizeLinkUrl, sanitizeFileName, type Lead } from '@lps/domain';
+import { addAsset, deleteAsset, enqueueJob, getAsset, getLead, listAssets, listLeads, moveLead, updateAsset, updateLead, type Db } from '@lps/db';
+import { canGenerateMaterial, canTransition, isAcceptedMime, MAX_ASSET_BYTES, nextPending, normalizeLinkUrl, sanitizeFileName, type Lead } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { authedDb } from '@/lib/auth';
@@ -64,7 +64,7 @@ export async function createUploadUrlAction(leadId: string, fileName: string, mi
 export async function confirmUploadAction(leadId: string, path: string, fileName: string, mime: string): Promise<Result> {
   const db = await authedDb();
   if (!(await completing(db, leadId))) return gone;
-  if (!path.startsWith(`${leadId}/`) || !isAcceptedMime(mime)) return { error: 'Arquivo inválido.' };
+  if (!path.startsWith(`${leadId}/`) || path.split('/').includes('..') || !isAcceptedMime(mime)) return { error: 'Arquivo inválido.' };
   const asset = await addAsset(db, { lead_id: leadId, kind: 'arquivo', storage_path: path, mime_type: mime, label: fileName });
   await enqueueJob(db, { type: 'extract_asset', payload: { asset_id: asset.id }, dedupeKey: `extract_asset:${asset.id}` });
   refresh();
@@ -101,15 +101,11 @@ export async function saveLeadFieldAction(leadId: string, field: 'reason' | 'com
 
 const base = (batchId: string) => `/painel/batches/${batchId}/completar`;
 
-/** Próximo da fila (depois do atual, dando a volta) que ainda está em Completar. */
+/** Sem `ids` na URL, a fila é o conjunto de leads do batch em Completar. */
 async function nextInQueue(db: Db, batchId: string, currentId: string, ids: string[]): Promise<string | null> {
-  const order = ids.includes(currentId) ? ids : [...ids, currentId];
-  const start = order.indexOf(currentId);
-  for (let i = 1; i < order.length; i++) {
-    const candidate = await completing(db, order[(start + i) % order.length], batchId);
-    if (candidate) return candidate.id;
-  }
-  return null;
+  const pending = await listLeads(db, batchId, ['completar']);
+  const order = ids.length ? ids : pending.map((l) => l.id);
+  return nextPending(order, currentId, new Set(pending.map((l) => l.id)));
 }
 
 function queueUrl(batchId: string, ids: string[], leadId: string | null) {
