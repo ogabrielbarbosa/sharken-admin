@@ -1,6 +1,5 @@
 'use server';
 
-import { getEnv } from '@lps/config';
 import {
   closeDeal,
   createContact,
@@ -11,15 +10,16 @@ import {
   getLead,
   INVALID_NUMBER_MESSAGE,
   listMessages,
-  logEvent,
   markRead,
+  saveLoomUrl,
+  savePageUrl,
   retryMessage,
   sendMessage,
   setContactStatus,
   updateContact,
   updateLead,
 } from '@lps/db';
-import { normalizeDocument, renewExpiry, toMobileE164, validateCloseDeal, type CloseDealInput, type ContactStatus } from '@lps/domain';
+import { normalizeDocument, toMobileE164, validateCloseDeal, type CloseDealInput, type ContactStatus } from '@lps/domain';
 import { getWhatsAppProvider, suggestConversationReply } from '@lps/integrations';
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
@@ -49,7 +49,7 @@ export async function sendMessageAction(contactId: string, body: string, clientM
   return guarded(async () => {
     if (!contactId || !text(body) || !clientMessageId) throw new Error('Escreva a mensagem antes de enviar.');
     const db = await authedDb();
-    const message = await sendMessage(db, getWhatsAppProvider(), { contactId, text: body, clientMessageId }, new Date(), { pageTtlHours: getEnv().PAGE_TTL_HOURS });
+    const message = await sendMessage(db, getWhatsAppProvider(), { contactId, text: body, clientMessageId }, new Date());
     return { messageId: message.id };
   });
 }
@@ -58,7 +58,7 @@ export async function retryMessageAction(messageId: string, clientMessageId: str
   return guarded(async () => {
     if (!messageId || !clientMessageId) throw new Error('Mensagem não encontrada.');
     const db = await authedDb();
-    const message = await retryMessage(db, getWhatsAppProvider(), messageId, clientMessageId, new Date(), { pageTtlHours: getEnv().PAGE_TTL_HOURS });
+    const message = await retryMessage(db, getWhatsAppProvider(), messageId, clientMessageId, new Date());
     return { messageId: message.id };
   });
 }
@@ -89,34 +89,21 @@ export async function saveFollowUpAction(contactId: string, date: string | null,
   });
 }
 
-async function siteOf(db: Awaited<ReturnType<typeof authedDb>>, contactId: string) {
+async function leadOf(db: Awaited<ReturnType<typeof authedDb>>, contactId: string) {
   const contact = await getContact(db, contactId);
   if (!contact?.lead_id) throw new Error('Este contato não tem página.');
   return contact.lead_id;
 }
 
-export async function renewPageAction(contactId: string) {
+/** Link da página ou do Loom do lead ligado ao contato. Em `crm` só grava o link, sem mudar de etapa. */
+export async function updateContactLinkAction(contactId: string, kind: 'pagina' | 'video', url: string) {
   return guarded(async () => {
+    if (kind !== 'pagina' && kind !== 'video') throw new Error('Tipo de link inválido.');
     const db = await authedDb();
-    const leadId = await siteOf(db, contactId);
-    const { data, error } = await db
-      .from('sites')
-      .update({ expires_at: renewExpiry(new Date(), getEnv().PAGE_TTL_HOURS).toISOString() })
-      .eq('lead_id', leadId)
-      .eq('status', 'modelo')
-      .select('lead_id');
-    if (error) throw new Error(error.message);
-    if (!(data as unknown[] | null)?.length) throw new Error('Não há página ativa para renovar.');
-  });
-}
-
-export async function removePageAction(contactId: string) {
-  return guarded(async () => {
-    const db = await authedDb();
-    const leadId = await siteOf(db, contactId);
-    const { error } = await db.from('sites').update({ status: 'removido' }).eq('lead_id', leadId);
-    if (error) throw new Error(error.message);
-    await logEvent(db, leadId, 'modelo_removido');
+    const leadId = await leadOf(db, contactId);
+    const out = kind === 'pagina' ? await savePageUrl(db, leadId, url) : await saveLoomUrl(db, leadId, url);
+    if (!out.ok) throw new Error(out.error);
+    return out.warning ? { warning: out.warning } : {};
   });
 }
 
@@ -179,7 +166,7 @@ export async function markReadAction(contactId: string): Promise<void> {
 export async function saveLeadCommentAction(contactId: string, comment: string) {
   return guarded(async () => {
     const db = await authedDb();
-    const leadId = await siteOf(db, contactId);
+    const leadId = await leadOf(db, contactId);
     await updateLead(db, leadId, { comment: text(comment) || null });
   });
 }

@@ -7,7 +7,7 @@ import { useState, useTransition } from 'react';
 import { saveLeadCommentAction, setStatusAction } from '@/app/painel/crm/actions';
 import { ErrorNote } from '@/components/ui';
 import { FollowUpBlock } from './follow-up-block';
-import { PageBlock, type PageInfo } from './page-block';
+import { LinksBlock } from './links-block';
 import { Row, Section } from './panel-parts';
 
 export type HistoryItem = { at: string; label: string };
@@ -15,9 +15,7 @@ export type PanelProps = {
   contact: Contact;
   lead: Lead | null;
   origin: { label: string; href: string | null };
-  page: PageInfo | null;
   flowLabel: string | null;
-  videoLabel: string | null;
   history: HistoryItem[];
   closeHref: string;
 };
@@ -45,7 +43,7 @@ function LeadComment({ contactId, initial }: { contactId: string; initial: strin
   );
 }
 
-export function ContactPanel({ contact, lead, origin, page, flowLabel, videoLabel, history, closeHref }: PanelProps) {
+export function ContactPanel({ contact, lead, origin, flowLabel, history, closeHref }: PanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const ended = contact.status === 'nao_contatar';
@@ -64,13 +62,12 @@ export function ContactPanel({ contact, lead, origin, page, flowLabel, videoLabe
           </p>
         </div>
 
-        {page && <PageBlock contactId={contact.id} page={page} />}
+        {lead && <LinksBlock key={`${lead.page_url}|${lead.loom_url}`} contactId={contact.id} links={{ page: lead.page_url, loom: lead.loom_url }} />}
 
         {lead && (
           <Section icon={<Target />} title="Lead">
             {flowLabel && <Row label="Fluxo">{flowLabel}</Row>}
             {lead.score !== null && <Row label="Pontuação">{lead.score} / 100</Row>}
-            {videoLabel && <Row label="Vídeo">{videoLabel}</Row>}
             {lead.reason && <p className="text-xs italic text-muted-foreground">“{lead.reason}”</p>}
             <LeadComment contactId={contact.id} initial={lead.comment ?? ''} />
           </Section>

@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, Calendar, Check, CheckCheck, Clock, Eye, FileText, RotateCcw } from 'lucide-react';
+import { AlertCircle, Calendar, Check, CheckCheck, Clock, FileText, RotateCcw } from 'lucide-react';
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { Message } from '@lps/domain';
 import { clock, dayKey, dayLabel } from '@/lib/crm';
@@ -62,11 +62,9 @@ function Bubble({ m, onRetry }: { m: ThreadMessage; onRetry: (m: ThreadMessage) 
   );
 }
 
-export function Thread({ messages, legacy, pageOpens, expiresIn, now, onRetry }: {
+export function Thread({ messages, legacy, now, onRetry }: {
   messages: ThreadMessage[];
   legacy: LegacyLine[];
-  pageOpens: number;
-  expiresIn: string | null;
   now: Date;
   onRetry: (m: ThreadMessage) => void;
 }) {
@@ -74,19 +72,15 @@ export function Thread({ messages, legacy, pageOpens, expiresIn, now, onRetry }:
   const last = messages[messages.length - 1];
   useEffect(() => { end.current?.scrollIntoView?.({ block: 'end' }); }, [messages.length, last?.status, last?.id]);
 
-  const firstSent = messages.findIndex((m) => m.direction === 'saida');
   let lastDay = '';
   const items: ReactNode[] = [];
-  messages.forEach((m, i) => {
+  messages.forEach((m) => {
     const day = dayKey(new Date(m.at));
     if (day !== lastDay) {
       lastDay = day;
       items.push(<Pill key={`d-${m.id}`} icon={<Calendar />}>{dayLabel(m.at, now)}{m.is_first_contact ? ' · primeiro contato' : ''}</Pill>);
     }
     items.push(<div key={m.id} className="my-1"><Bubble m={m} onRetry={onRetry} /></div>);
-    if (i === firstSent && pageOpens > 0) {
-      items.push(<Pill key="opens" icon={<Eye />}>Página aberta {pageOpens} {pageOpens === 1 ? 'vez' : 'vezes'}{expiresIn ? ` · expira em ${expiresIn}` : ''}</Pill>);
-    }
   });
 
   return (

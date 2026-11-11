@@ -53,14 +53,15 @@ describe('sendMessage', () => {
     expect(new Date(after.follow_up_at!).getTime()).toBe(now.getTime() + 3 * day);
   });
 
-  it('primeiro envio grava sent_at e expires_at (+24 h) da página do lead, uma vez só', async () => {
+  it('primeiro envio não toca em sites e define contacted_at do lead uma vez só', async () => {
     const lead = (await pg.query<{ id: string }>(`insert into leads (place_id, name, stage) values ($1, 'Padaria', 'crm') returning id`, [`p-send-${++n}`])).rows[0]!;
-    await pg.query(`insert into sites (lead_id, slug, content, status, published_at) values ($1, $2, '{}', 'modelo', $3)`, [lead.id, `s${++n}`, now.toISOString()]);
     const c = await mk('novo', { lead_id: lead.id });
-    await send(c.id);
-    const site = (await pg.query(`select sent_at, expires_at from sites where lead_id = $1`, [lead.id])).rows[0] as { sent_at: Date; expires_at: Date };
-    expect(site.sent_at.getTime()).toBe(now.getTime());
-    expect(site.expires_at.getTime()).toBe(now.getTime() + 24 * 3600_000);
+    const touched: string[] = [];
+    const spy = new Proxy(db, { get: (t, k, r) => (k === 'from' ? (table: string) => (touched.push(table), t.from(table)) : Reflect.get(t, k, r)) }) as typeof db;
+    await sendMessage(spy, ok(), { contactId: c.id, text: 'Oi!', clientMessageId: `c-${++n}` }, now);
+    expect(touched).not.toContain('sites');
+    const row = (await pg.query(`select contacted_at from leads where id = $1`, [lead.id])).rows[0] as { contacted_at: Date };
+    expect(row.contacted_at.getTime()).toBe(now.getTime());
   });
 
   it('falha do provedor: mensagem erro e status do contato intacto', async () => {

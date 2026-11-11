@@ -1,5 +1,4 @@
 import {
-  expiryAfterSend,
   followUpDueAt,
   outreachKind,
   phoneMatchCandidates,
@@ -16,7 +15,6 @@ import { logEvent } from './leads';
 import { insertMessage } from './messages';
 
 export const INVALID_NUMBER_MESSAGE = 'Número sem WhatsApp';
-export const DEFAULT_PAGE_TTL_HOURS = 24;
 
 export async function isDoNotContact(db: Db, phoneE164: string): Promise<boolean> {
   const { data, error } = await db.from('do_not_contact').select('phone_e164').in('phone_e164', phoneMatchCandidates(phoneE164)).limit(1);
@@ -63,14 +61,13 @@ const isUniqueViolation = (e: { message: string; code?: string }) => e.code === 
 
 /**
  * Envio de uma mensagem, um contato por vez. Grava `pendente` antes de chamar o provedor (o eco do
- * webhook procura essa linha) e só mexe no contato e na página depois que o provedor aceitou.
+ * webhook procura essa linha) e só mexe no contato e no lead depois que o provedor aceitou.
  */
 export async function sendMessage(
   db: Db,
   provider: Pick<WhatsAppProvider, 'sendText'>,
   input: { contactId: string; text: string; clientMessageId: string },
   now: Date,
-  opts: { pageTtlHours?: number } = {},
 ): Promise<Message> {
   const text = input.text.trim();
   if (!text) throw new Error('Escreva a mensagem antes de enviar.');
@@ -130,7 +127,7 @@ export async function sendMessage(
     console.error('send-message: ligar external_id falhou', err);
   }
   try {
-    await applySendEffects(db, contact, pending.id, kind as SendKind, now, opts.pageTtlHours ?? DEFAULT_PAGE_TTL_HOURS);
+    await applySendEffects(db, contact, pending.id, kind as SendKind, now);
   } catch (err) {
     console.error('send-message: efeitos do envio falharam', err);
   }
@@ -141,7 +138,7 @@ export async function sendMessage(
   }
 }
 
-async function applySendEffects(db: Db, contact: Contact, messageId: string, kind: SendKind, now: Date, ttlHours: number) {
+async function applySendEffects(db: Db, contact: Contact, messageId: string, kind: SendKind, now: Date) {
   const patch: Partial<Contact> = {};
   let status = statusAfterSend(contact, kind);
   if (kind === 'follow_up' && ['novo', 'contatado', 'follow_up'].includes(contact.status)) status = 'follow_up';
@@ -176,13 +173,6 @@ async function applySendEffects(db: Db, contact: Contact, messageId: string, kin
   if (kind === 'primeiro') {
     const lead = await db.from('leads').update({ contacted_at: now.toISOString() }).eq('id', contact.lead_id).is('contacted_at', null);
     if (lead.error) throw new Error(lead.error.message);
-    const { error } = await db
-      .from('sites')
-      .update({ sent_at: now.toISOString(), expires_at: expiryAfterSend(now, ttlHours).toISOString() })
-      .eq('lead_id', contact.lead_id)
-      .eq('status', 'modelo')
-      .is('sent_at', null);
-    if (error) throw new Error(error.message);
   }
 }
 
@@ -193,9 +183,8 @@ export async function retryMessage(
   messageId: string,
   newClientMessageId: string,
   now: Date,
-  opts: { pageTtlHours?: number } = {},
 ): Promise<Message> {
   const old = await getMessage(db, messageId);
   if (old.status !== 'erro' || old.direction !== 'saida' || !old.body) throw new Error('Só dá para tentar de novo uma mensagem com erro.');
-  return sendMessage(db, provider, { contactId: old.contact_id, text: old.body, clientMessageId: newClientMessageId }, now, opts);
+  return sendMessage(db, provider, { contactId: old.contact_id, text: old.body, clientMessageId: newClientMessageId }, now);
 }

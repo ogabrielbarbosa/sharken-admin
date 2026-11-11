@@ -11,11 +11,6 @@ export const STATUS_LABEL: Record<ContactStatus, { label: string; tone: Tone }> 
   nao_contatar: { label: 'Não contatar', tone: 'danger' },
 };
 
-/** Link público da página modelo: domínio próprio quando há, senão a rota interna. */
-export function pageLink(slug: string, env: { pagesHost?: string; appUrl: string }): string {
-  return env.pagesHost ? `https://${env.pagesHost}/${slug}` : `${env.appUrl.replace(/\/$/, '')}/p/${slug}`;
-}
-
 export function isFollowUpDue(c: Pick<Contact, 'status' | 'follow_up_at'>, now: Date): boolean {
   return !!c.follow_up_at && new Date(c.follow_up_at).getTime() <= now.getTime() && c.status !== 'perdido' && c.status !== 'nao_contatar' && c.status !== 'fechado';
 }
@@ -73,13 +68,6 @@ export function listTime(iso: string | null, now: Date): string {
   if (days === 1) return 'ontem';
   if (days < 7) return d.toLocaleDateString('pt-BR', { weekday: 'short', timeZone: TZ }).replace('.', '');
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: TZ });
-}
-
-export function timeUntil(iso: string, now: Date): string {
-  const ms = new Date(iso).getTime() - now.getTime();
-  if (ms <= 0) return 'expirada';
-  const h = Math.ceil(ms / 3_600_000);
-  return h >= 48 ? `${Math.ceil(h / 24)} dias` : `${h} h`;
 }
 
 /** Eventos gravados que ficam fora do histórico de propósito (internos, de erro ou de andamento do batch). */

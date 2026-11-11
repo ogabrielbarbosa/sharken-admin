@@ -13,6 +13,10 @@ const now = new Date('2026-11-11T15:00:00Z');
 const base = { blockReason: null, templates: [], firstContact: false, dailyCount: 0, dailyLimit: 20, onSend: vi.fn(async () => {}), onSuggest: vi.fn(async () => ({})) };
 
 describe('composerDraft', () => {
+  it('sem link da página devolve vazio, sem erro', () => {
+    expect(composerDraft({ contact: { status: 'novo', follow_up_at: null }, lead: { ...lead, page_url: null } as Lead, link: null, now })).toBe('');
+  });
+
   it('em novo vem a mensagem de primeiro contato com o link', () => {
     const text = composerDraft({ contact: { status: 'novo', follow_up_at: null }, lead, link: LINK, now });
     expect(text).toContain('Pet Shop Feliz');

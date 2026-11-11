@@ -17,8 +17,6 @@ export type ConversationProps = {
   contact: Contact;
   messages: ThreadMessage[];
   legacy: LegacyLine[];
-  pageOpens: number;
-  expiresIn: string | null;
   now: Date;
   draft: string;
   templates: Template[];
@@ -29,7 +27,7 @@ export type ConversationProps = {
   dailyLimit: number;
 };
 
-export function Conversation({ contact, messages, legacy, pageOpens, expiresIn, now, draft, templates, blockReason, backHref, stopRequest, dailyCount, dailyLimit }: ConversationProps) {
+export function Conversation({ contact, messages, legacy, now, draft, templates, blockReason, backHref, stopRequest, dailyCount, dailyLimit }: ConversationProps) {
   const router = useRouter();
   const [optimistic, setOptimistic] = useState<ThreadMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +112,7 @@ export function Conversation({ contact, messages, legacy, pageOpens, expiresIn, 
       )}
       {error && <div className="px-4 pt-3"><ErrorNote>{error}</ErrorNote></div>}
 
-      <Thread messages={shown} legacy={legacy} pageOpens={pageOpens} expiresIn={expiresIn} now={now} onRetry={(m) => void retry(m)} />
+      <Thread messages={shown} legacy={legacy} now={now} onRetry={(m) => void retry(m)} />
 
       <Composer
         key={contact.id}

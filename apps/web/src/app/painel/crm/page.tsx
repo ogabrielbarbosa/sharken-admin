@@ -7,8 +7,6 @@ import {
   getBatch,
   getContact,
   getLead,
-  getSite,
-  getVideo,
   listContacts,
   listEvents,
   listMessages,
@@ -29,7 +27,7 @@ import type { LegacyLine, ThreadMessage } from '@/components/crm/thread';
 import { CrmRealtime } from '@/components/crm/use-crm-realtime';
 import { Topbar } from '@/components/layout/topbar';
 import { authedDb } from '@/lib/auth';
-import { composerDraft, eventLabel, pageLink, stopRequestPending, timeUntil } from '@/lib/crm';
+import { composerDraft, eventLabel, stopRequestPending } from '@/lib/crm';
 import { flowLabel } from '@/lib/lead-labels';
 
 const BOXES: CrmBox[] = ['hoje', 'novos', 'aguardando', 'em_conversa', 'fechados', 'perdidos', 'todos'];
@@ -90,10 +88,8 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
   }
 
   const closing = params.fechar === '1' && selected.status !== 'nao_contatar';
-  const [lead, site, video, messages, dnc, existingClient] = await Promise.all([
+  const [lead, messages, dnc, existingClient] = await Promise.all([
     selected.lead_id ? getLead(db, selected.lead_id) : null,
-    selected.lead_id ? getSite(db, selected.lead_id) : null,
-    selected.lead_id ? getVideo(db, selected.lead_id) : null,
     listMessages(db, selected.id, 200),
     db.from('do_not_contact').select('phone_e164').in('phone_e164', phoneMatchCandidates(selected.phone_e164)).limit(1),
     closing ? clientByContact(db, selected.id) : null,
@@ -104,10 +100,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     mediaUrls(db, messages as ThreadMessage[]),
   ]);
 
-  const activeSite = site?.status === 'modelo' ? site : null;
-  const link = activeSite ? pageLink(activeSite.slug, { pagesHost: process.env.PAGES_HOST, appUrl: env.APP_URL }) : null;
-  const opens = events.filter((e) => e.type === 'abertura').length;
-  const expiresIn = activeSite?.expires_at && new Date(activeSite.expires_at) > now ? timeUntil(activeSite.expires_at, now) : null;
+  const link = lead?.page_url ?? null;
 
   const threadMessages: ThreadMessage[] = messages.map((m) => ({ ...m, mediaUrl: m.media_path ? (urls.get(m.media_path) ?? null) : null }));
   const firstAt = messages[0]?.at;
@@ -125,7 +118,6 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
   const blockReason = sendBlockReason(selected as Contact, { doNotContact: !!dnc.data?.length, connected: connection !== 'desconectado', kind: 'normal' })
     ?? (outreachKind(selected.status, !!selected.responded_at, await outreachCount(db, selected as Contact)) === 'bloqueado' ? FOLLOW_UP_LIMIT_MESSAGE : null);
   const flow = lead ? flowLabel(lead).label : null;
-  const videoLabel = video && video.status === 'pronto' ? `${video.source === 'gravado' ? 'Gravado' : 'IA'}${video.duration_seconds ? ` · ${Math.floor(video.duration_seconds / 60)}:${String(Math.round(video.duration_seconds % 60)).padStart(2, '0')}` : ''}` : null;
   const origin = selected.origin === 'batch'
     ? { label: batch ? `Batch ${batch.location} · ${batch.business_type}` : 'Batch', href: batch ? `/painel/batches/${batch.id}` : null }
     : { label: selected.origin === 'whatsapp_direto' ? 'WhatsApp direto' : 'Contato manual', href: null };
@@ -152,8 +144,6 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           contact={selected}
           messages={threadMessages}
           legacy={legacy}
-          pageOpens={opens}
-          expiresIn={expiresIn}
           now={now}
           draft={composerDraft({ contact: selected, lead, link, texto: params.texto, now })}
           templates={templates}
@@ -169,9 +159,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           contact={selected}
           lead={lead}
           origin={origin}
-          page={activeSite && link ? { link, expiresLabel: activeSite.expires_at ? (expiresIn ? `Expira em ${expiresIn}` : 'Página expirada') : activeSite.sent_at ? null : 'Sem prazo até o envio', expired: !expiresIn && !!activeSite.expires_at, opens, ttlHours: env.PAGE_TTL_HOURS } : null}
           flowLabel={flow}
-          videoLabel={videoLabel}
           history={history}
           closeHref={`${base}&contato=${selected.id}&fechar=1`}
         />
