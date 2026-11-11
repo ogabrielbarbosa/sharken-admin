@@ -1,10 +1,9 @@
 import { canTransition, type LeadStage } from './stages';
 
-export type LeadAction = 'respondeu' | 'descartar' | 'nao_contatar' | 'remover_modelo';
+export type LeadAction = 'descartar' | 'nao_contatar' | 'remover_modelo';
 
 export function availableActions(lead: { stage: LeadStage }): LeadAction[] {
   const actions: LeadAction[] = [];
-  if (canTransition(lead.stage, 'conversa')) actions.push('respondeu');
   if (canTransition(lead.stage, 'descartado')) actions.push('descartar');
   if (canTransition(lead.stage, 'nao_contatar')) actions.push('nao_contatar');
   actions.push('remover_modelo');
@@ -16,10 +15,8 @@ const LABELS: Record<string, string> = {
   etapa_revisar: 'Análise concluída',
   etapa_gerando_material: 'Avançado na revisão',
   etapa_revisar_material: 'Material pronto para revisão',
-  etapa_abordar: 'Material aprovado',
-  etapa_aguardando: 'Enviado para Aguardar',
-  etapa_follow_up_feito: 'Follow-up concluído',
-  etapa_conversa: 'Respondeu no WhatsApp',
+  etapa_completar: 'Enviado para Completar',
+  etapa_crm: 'Material aprovado, no CRM',
   etapa_vendido: 'Venda registrada',
   etapa_sem_interesse: 'Sem interesse',
   etapa_descartado: 'Descartado',

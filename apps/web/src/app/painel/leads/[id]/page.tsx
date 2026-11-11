@@ -1,6 +1,6 @@
 import { clientsByLead, getBatch, getLead, getSite, listBatchStages, listEvents, getVideo } from '@lps/db';
 import { availableActions, describeEvent, PROCESS_STEPS, stepOf, summarizeBatch } from '@lps/domain';
-import { ArrowLeft, Check, ExternalLink, EyeOff, MessageSquareReply, Play, X } from 'lucide-react';
+import { ArrowLeft, Check, ExternalLink, EyeOff, Play, X } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Topbar } from '@/components/layout/topbar';
@@ -11,12 +11,12 @@ import { Badge, Button, Card, LinkButton, Status } from '@/components/ui';
 import { authedDb } from '@/lib/auth';
 import { batchLabel } from '@/lib/batch-context';
 import { flowLabel, formatDateTime, leadMeta, siteLabel } from '@/lib/lead-labels';
-import { removeModelAction, respondedFromLeadAction } from './actions';
+import { removeModelAction } from './actions';
 
 const Datum = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="flex justify-between gap-4 py-2 text-sm"><dt className="text-muted-foreground">{label}</dt><dd className="text-right">{children}</dd></div>
 );
-const STAGES_WITH_REASON = ['revisar', 'gerando_material', 'revisar_material', 'abordar'];
+const STAGES_WITH_REASON = ['revisar', 'completar', 'gerando_material', 'revisar_material', 'crm'];
 
 export default async function LeadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -64,9 +64,6 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                 <input type="hidden" name="leadId" value={id} />
                 <Button type="submit" variant="ghost"><EyeOff />Remover modelo</Button>
               </form>
-            )}
-            {actions.includes('respondeu') && (
-              <form action={respondedFromLeadAction}><input type="hidden" name="leadId" value={id} /><Button type="submit"><MessageSquareReply />Respondeu</Button></form>
             )}
           </div>
         </div>

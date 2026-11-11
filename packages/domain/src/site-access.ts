@@ -7,7 +7,7 @@ export function getSiteAccess(site: SiteRow, now: Date): 'ok' | 'indisponivel' {
   return new Date(site.expires_at) > now ? 'ok' : 'indisponivel';
 }
 
-const CONTACTED: LeadStage[] = ['aguardando', 'follow_up_feito', 'conversa', 'vendido'];
+const CONTACTED: LeadStage[] = ['crm', 'vendido'];
 
 export function shouldRecordOpen(ctx: { stage: LeadStage; isAdmin: boolean; isCapture: boolean }): boolean {
   return !ctx.isAdmin && !ctx.isCapture && CONTACTED.includes(ctx.stage);

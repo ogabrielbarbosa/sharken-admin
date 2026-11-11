@@ -142,7 +142,7 @@ export default async function RevisarPage({ params, searchParams }: { params: Pr
     return (
       <>
         {progress}
-        <PageHeader title="Revisar" description="Nenhum lead aguardando revisão." />
+        <PageHeader title="Leads" description="Nenhum lead aguardando revisão." />
         <EmptyState
           icon={<Inbox />}
           title="Nenhum lead para revisar"
@@ -157,7 +157,7 @@ export default async function RevisarPage({ params, searchParams }: { params: Pr
     <>
       {progress}
       <PageHeader
-        title="Revisar"
+        title="Leads"
         description={`${allLeads.length} ${allLeads.length === 1 ? 'lead analisado aguardando' : 'leads analisados aguardando'} sua revisão. Avance os bons e descarte o resto.`}
         actions={<ReviewFilters batchId={id} filter={filter} counts={countByOption(allLeads, now)} shown={leads.length} total={allLeads.length} />}
       />

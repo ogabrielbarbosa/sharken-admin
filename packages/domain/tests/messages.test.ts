@@ -49,30 +49,30 @@ describe('selectFirstMessage', () => {
 });
 
 describe('canContact', () => {
-  const lead = { ...completeLead, stage: 'abordar' as const };
+  const lead = { ...completeLead, stage: 'crm' as const };
   const ctx = { blocked: false, now, lastContactAt: null };
-  it('libera lead em Abordar', () => expect(canContact(lead, ctx).allowed).toBe(true));
+  it('libera lead em CRM', () => expect(canContact(lead, ctx).allowed).toBe(true));
   it('nega lead bloqueado', () => expect(canContact(lead, { ...ctx, blocked: true }).allowed).toBe(false));
-  it('nega fora de Abordar', () => expect(canContact({ ...lead, stage: 'revisar' }, ctx).allowed).toBe(false));
+  it('nega fora de CRM', () => expect(canContact({ ...lead, stage: 'revisar' }, ctx).allowed).toBe(false));
   it('nega sem celular', () => expect(canContact({ ...lead, phone_e164: null }, ctx).allowed).toBe(false));
   it('nega quando o mesmo telefone foi contatado há menos de 180 dias', () => {
     expect(canContact(lead, { ...ctx, lastContactAt: new Date(hoursAgo(24 * 179)) }).allowed).toBe(false);
     expect(canContact(lead, { ...ctx, lastContactAt: new Date(hoursAgo(24 * 181)) }).allowed).toBe(true);
   });
-  it('libera follow-up de lead aguardando', () => {
-    expect(canContact({ ...lead, stage: 'aguardando' }, ctx, 'follow_up').allowed).toBe(true);
-    expect(canContact({ ...lead, stage: 'follow_up_feito' }, ctx, 'follow_up').allowed).toBe(false);
+  it('libera follow-up de lead no CRM', () => {
+    expect(canContact({ ...lead, stage: 'crm' }, ctx, 'follow_up').allowed).toBe(true);
+    expect(canContact({ ...lead, stage: 'vendido' }, ctx, 'follow_up').allowed).toBe(false);
   });
 });
 
 describe('isFollowUpDue', () => {
-  const aguardando = { stage: 'aguardando' as const };
+  const aguardando = { stage: 'crm' as const };
   it('vence ao completar 3 dias', () => {
     expect(isFollowUpDue({ ...aguardando, contacted_at: hoursAgo(71) }, now)).toBe(false);
     expect(isFollowUpDue({ ...aguardando, contacted_at: hoursAgo(72) }, now)).toBe(true);
   });
   it('não vence em outras etapas', () => {
-    for (const stage of ['follow_up_feito', 'conversa', 'nao_contatar'] as const) {
+    for (const stage of ['vendido', 'revisar', 'nao_contatar'] as const) {
       expect(isFollowUpDue({ stage, contacted_at: hoursAgo(200) }, now)).toBe(false);
     }
   });

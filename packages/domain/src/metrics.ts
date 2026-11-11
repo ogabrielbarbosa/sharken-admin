@@ -59,20 +59,20 @@ export function summarizeResults(rows: ResultRow[]) {
   };
 }
 
-export type Pendency = { kind: 'follow_up' | 'revisar' | 'abordar' | 'conversa' | 'cobranca'; label: string; count: number; batchIds: string[]; step?: ProcessStep };
+export type Pendency = { kind: 'follow_up' | 'revisar' | 'completar' | 'crm' | 'cobranca'; label: string; count: number; batchIds: string[]; step?: ProcessStep };
 type PendingLead = { batch_id: string | null; stage: LeadStage; contacted_at: string | null };
 
 export function buildPendencies(input: { leads: PendingLead[]; overdueCharges: number; now: Date }): Pendency[] {
-  const group = (kind: Pendency['kind'], label: string, step: ProcessStep, list: PendingLead[]): Pendency | null => {
+  const group = (kind: Pendency['kind'], label: string, step: ProcessStep | undefined, list: PendingLead[]): Pendency | null => {
     if (!list.length) return null;
     return { kind, label, step, count: list.length, batchIds: [...new Set(list.map((l) => l.batch_id).filter((b): b is string => !!b))] };
   };
   const inStep = (step: ProcessStep, only?: LeadStage) => input.leads.filter((l) => (only ? l.stage === only : stagesOf(step).includes(l.stage)));
   const list = [
-    group('follow_up', 'Follow-ups vencidos', 'aguardar', input.leads.filter((l) => isFollowUpDue(l, input.now))),
+    group('follow_up', 'Follow-ups vencidos', undefined, input.leads.filter((l) => isFollowUpDue(l, input.now))),
     group('revisar', 'Leads para revisar', 'revisar', inStep('revisar')),
-    group('abordar', 'Leads para abordar', 'abordar', inStep('abordar')),
-    group('conversa', 'Respostas em Conversa', 'conversa', inStep('conversa')),
+    group('completar', 'Leads para completar', 'completar', inStep('completar')),
+    group('crm', 'Leads no CRM', undefined, input.leads.filter((l) => l.stage === 'crm')),
   ].filter((p): p is Pendency => !!p);
   if (input.overdueCharges) list.push({ kind: 'cobranca', label: 'Cobranças vencidas', count: input.overdueCharges, batchIds: [] });
   return list;
@@ -80,5 +80,6 @@ export function buildPendencies(input: { leads: PendingLead[]; overdueCharges: n
 
 export function pendencyHref(p: Pendency): string {
   if (p.kind === 'cobranca') return '/painel/clientes?situacao=em_atraso';
+  if (!p.step) return '/painel/crm';
   return p.batchIds.length === 1 ? `/painel/batches/${p.batchIds[0]}/${p.step}` : `/painel/batches?etapa=${p.step}`;
 }

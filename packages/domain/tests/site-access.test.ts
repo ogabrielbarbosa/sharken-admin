@@ -19,13 +19,13 @@ describe('shouldRecordOpen', () => {
   const base = { isAdmin: false, isCapture: false };
   it('só conta depois do envio', () => {
     expect(shouldRecordOpen({ ...base, stage: 'revisar_material' })).toBe(false);
-    expect(shouldRecordOpen({ ...base, stage: 'abordar' })).toBe(false);
-    expect(shouldRecordOpen({ ...base, stage: 'aguardando' })).toBe(true);
-    expect(shouldRecordOpen({ ...base, stage: 'conversa' })).toBe(true);
+    expect(shouldRecordOpen({ ...base, stage: 'completar' })).toBe(false);
+    expect(shouldRecordOpen({ ...base, stage: 'crm' })).toBe(true);
+    expect(shouldRecordOpen({ ...base, stage: 'vendido' })).toBe(true);
   });
   it('ignora o próprio Gabriel e a captura do vídeo', () => {
-    expect(shouldRecordOpen({ stage: 'aguardando', isAdmin: true, isCapture: false })).toBe(false);
-    expect(shouldRecordOpen({ stage: 'aguardando', isAdmin: false, isCapture: true })).toBe(false);
+    expect(shouldRecordOpen({ stage: 'crm', isAdmin: true, isCapture: false })).toBe(false);
+    expect(shouldRecordOpen({ stage: 'crm', isAdmin: false, isCapture: true })).toBe(false);
   });
 });
 

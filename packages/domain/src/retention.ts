@@ -7,7 +7,7 @@ const RETENTION_DAYS = 180;
 type RetentionInput = Pick<Lead, 'stage' | 'created_at' | 'contacted_at' | 'follow_up_at' | 'responded_at'> & { hasClient: boolean };
 
 export function shouldDeleteLead(lead: RetentionInput, now: Date): boolean {
-  if (lead.hasClient || lead.responded_at || lead.stage === 'conversa' || lead.stage === 'vendido') return false;
+  if (lead.hasClient || lead.responded_at || lead.stage === 'vendido') return false;
   const reference = lead.follow_up_at ?? lead.contacted_at ?? lead.created_at;
   return now.getTime() - new Date(reference).getTime() >= RETENTION_DAYS * DAY;
 }

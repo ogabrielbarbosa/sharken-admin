@@ -1,6 +1,6 @@
 'use server';
 
-import { addToDoNotContact, getContactContext, getLead, logEvent, moveLead } from '@lps/db';
+import { addToDoNotContact, getContactContext, getLead, logEvent, moveLead, updateLead } from '@lps/db';
 import { blockEntry, canContact, type ContactKind } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
 import { authedDb } from '@/lib/auth';
@@ -17,7 +17,7 @@ async function loadChecked(leadId: string, kind: ContactKind) {
   return { db, lead } as const;
 }
 
-/** Registra que a conversa foi aberta. A etapa só muda com a confirmação de envio. */
+/** Registra que a conversa foi aberta. O envio só é registrado na confirmação. */
 export async function recordOpenedAction(leadId: string, kind: ContactKind): Promise<{ error?: string }> {
   const out = await loadChecked(leadId, kind);
   if ('error' in out) return { error: out.error };
@@ -31,10 +31,10 @@ export async function confirmSentAction(leadId: string, kind: ContactKind, text:
   const { db, lead } = out;
   const now = new Date().toISOString();
   if (kind === 'first') {
-    await moveLead(db, lead, 'aguardando', { contacted_at: now });
+    await updateLead(db, lead.id, { contacted_at: now });
     await logEvent(db, leadId, 'contato_enviado', { text });
   } else {
-    await moveLead(db, lead, 'follow_up_feito', { follow_up_at: now });
+    await updateLead(db, lead.id, { follow_up_at: now });
     await logEvent(db, leadId, 'follow_up_enviado', { text });
   }
   refresh();
@@ -64,6 +64,6 @@ export async function respondedAction(form: FormData) {
   const db = await authedDb();
   const lead = await getLead(db, String(form.get('leadId')));
   if (!lead) return;
-  await moveLead(db, lead, 'conversa', { responded_at: new Date().toISOString() });
+  await updateLead(db, lead.id, { responded_at: new Date().toISOString() });
   refresh();
 }

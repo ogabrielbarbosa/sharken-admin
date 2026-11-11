@@ -31,11 +31,11 @@ export function rowsFromEvents(leads: OverviewLead[], events: OverviewEvent[]): 
       flow: lead.flow,
       business_type: lead.business_type,
       found: types.has('etapa_revisar'),
-      advanced: types.has('etapa_gerando_material'),
-      approved: types.has('etapa_abordar'),
+      advanced: types.has('etapa_completar'),
+      approved: types.has('etapa_crm'),
       contacted: types.has('contato_enviado'),
       opened: types.has('abertura'),
-      replied: types.has('etapa_conversa'),
+      replied: types.has('mensagem_recebida'),
       sold: types.has('etapa_vendido'),
     }];
   });

@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest';
 import { availableActions, describeEvent } from '../src/lead-actions';
 
-it('oferece as ações de quem está aguardando', () => {
-  expect(availableActions({ stage: 'aguardando' })).toEqual(expect.arrayContaining(['respondeu', 'descartar', 'nao_contatar', 'remover_modelo']));
+it('oferece as ações de quem está no CRM', () => {
+  expect(availableActions({ stage: 'crm' })).toEqual(expect.arrayContaining(['descartar', 'nao_contatar', 'remover_modelo']));
 });
 it('não permite descartar um lead vendido', () => {
   const actions = availableActions({ stage: 'vendido' });

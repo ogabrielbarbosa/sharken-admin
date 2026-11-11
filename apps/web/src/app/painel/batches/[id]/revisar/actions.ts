@@ -1,6 +1,6 @@
 'use server';
 
-import { enqueueJob, getLead, moveLead, type Db } from '@lps/db';
+import { getLead, moveLead, type Db } from '@lps/db';
 import { canAdvance, type Lead } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -8,8 +8,7 @@ import { authedDb } from '@/lib/auth';
 
 async function advance(db: Db, lead: Lead): Promise<boolean> {
   if (lead.stage !== 'revisar' || !canAdvance(lead).allowed) return false;
-  await moveLead(db, lead, 'gerando_material', { error: null });
-  await enqueueJob(db, { type: 'generate_page', payload: { lead_id: lead.id }, dedupeKey: `generate_page:${lead.id}` });
+  await moveLead(db, lead, 'completar', { error: null });
   return true;
 }
 

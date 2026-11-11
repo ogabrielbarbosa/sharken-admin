@@ -9,7 +9,7 @@ const refresh = () => revalidatePath('/painel', 'layout');
 export async function approveMaterialAction(form: FormData) {
   const db = await authedDb();
   const lead = await getLead(db, String(form.get('leadId')));
-  if (lead) await moveLead(db, lead, 'abordar');
+  if (lead) await moveLead(db, lead, 'crm');
   refresh();
 }
 

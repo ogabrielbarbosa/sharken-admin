@@ -26,7 +26,7 @@ export async function markSoldAction(form: FormData) {
   if (!lead) return;
   await moveLead(db, lead, 'vendido', { sold_at: new Date().toISOString() });
   revalidatePath('/painel', 'layout');
-  redirect(`/painel/batches/${lead.batch_id}/vendido`);
+  redirect('/painel/crm');
 }
 
 export async function markNoInterestAction(form: FormData) {

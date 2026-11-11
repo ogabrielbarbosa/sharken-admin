@@ -3,28 +3,25 @@ import { assertTransition, canTransition, InvalidTransitionError, stepOf, type L
 
 const allowed: [LeadStage, LeadStage][] = [
   ['analisando', 'revisar'],
-  ['revisar', 'gerando_material'],
+  ['revisar', 'completar'],
+  ['completar', 'gerando_material'],
   ['gerando_material', 'revisar_material'],
   ['revisar_material', 'gerando_material'],
-  ['revisar_material', 'abordar'],
-  ['abordar', 'aguardando'],
-  ['aguardando', 'follow_up_feito'],
-  ['aguardando', 'conversa'],
-  ['follow_up_feito', 'conversa'],
-  ['conversa', 'vendido'],
-  ['conversa', 'sem_interesse'],
+  ['revisar_material', 'crm'],
+  ['crm', 'vendido'],
+  ['crm', 'sem_interesse'],
   ['analisando', 'descartado'],
-  ['abordar', 'descartado'],
-  ['conversa', 'nao_contatar'],
+  ['completar', 'descartado'],
+  ['crm', 'nao_contatar'],
   ['vendido', 'nao_contatar'],
   ['descartado', 'nao_contatar'],
   ['sem_interesse', 'nao_contatar'],
 ];
 
 const forbidden: [LeadStage, LeadStage][] = [
-  ['follow_up_feito', 'follow_up_feito'],
-  ['aguardando', 'vendido'],
-  ['revisar', 'abordar'],
+  ['revisar', 'gerando_material'],
+  ['revisar', 'crm'],
+  ['crm', 'crm'],
   ['nao_contatar', 'revisar'],
   ['nao_contatar', 'descartado'],
   ['vendido', 'descartado'],
@@ -35,22 +32,23 @@ describe('transições', () => {
   it.each(forbidden)('proíbe %s → %s', (from, to) => expect(canTransition(from, to)).toBe(false));
 
   it('lança erro próprio em transição inválida', () => {
-    expect(() => assertTransition('aguardando', 'vendido')).toThrow(InvalidTransitionError);
-    expect(() => assertTransition('abordar', 'aguardando')).not.toThrow();
+    expect(() => assertTransition('revisar', 'crm')).toThrow(InvalidTransitionError);
+    expect(() => assertTransition('revisar', 'completar')).not.toThrow();
   });
 });
 
 describe('stepOf', () => {
-  it('agrupa os estados de material e de espera', () => {
+  it('agrupa os estados por etapa', () => {
+    expect(stepOf('revisar')).toBe('revisar');
+    expect(stepOf('completar')).toBe('completar');
     expect(stepOf('gerando_material')).toBe('material');
     expect(stepOf('revisar_material')).toBe('material');
-    expect(stepOf('aguardando')).toBe('aguardar');
-    expect(stepOf('follow_up_feito')).toBe('aguardar');
   });
 
   it('não coloca análise nem saídas em nenhuma etapa', () => {
     expect(stepOf('analisando')).toBeNull();
     expect(stepOf('descartado')).toBeNull();
     expect(stepOf('nao_contatar')).toBeNull();
+    expect(stepOf('crm')).toBeNull();
   });
 });

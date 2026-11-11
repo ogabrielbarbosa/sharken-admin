@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { mergeLeadOnReimport, toLocationKey } from '../src/lead-import';
 import { summarizeBatch } from '../src/batch-summary';
 
-const existing = { stage: 'aguardando', flow: 'sem_site', contacted_at: '2026-11-01', batch_id: 'old', rating: 4, reviews_count: 10, images_count: 2, photos: ['a'], reviews: [], description: 'antiga' } as const;
+const existing = { stage: 'crm', flow: 'sem_site', contacted_at: '2026-11-01', batch_id: 'old', rating: 4, reviews_count: 10, images_count: 2, photos: ['a'], reviews: [], description: 'antiga' } as const;
 const incoming = { batch_id: 'new', place_id: 'p', name: 'X', rating: 4.5, reviews_count: 20, images_count: 5, photos: ['b'], reviews: [{ text: 'bom', stars: 5 }], description: null } as never;
 
 it('reimportação atualiza os números sem mexer no andamento do lead', () => {
@@ -21,14 +21,14 @@ it('normaliza a localização para agrupar a mesma região', () => {
 });
 
 it('resume o batch por etapa e aponta a primeira ação pendente', () => {
-  const stages = ['revisar', 'revisar', 'gerando_material', 'revisar_material', 'abordar', 'follow_up_feito', 'conversa', 'vendido', 'descartado', 'analisando'];
+  const stages = ['revisar', 'revisar', 'completar', 'gerando_material', 'revisar_material', 'crm', 'vendido', 'descartado', 'analisando'];
   const out = summarizeBatch(stages.map((stage) => ({ stage })) as never);
-  expect(out.counts).toEqual({ revisar: 2, material: 2, abordar: 1, aguardar: 1, conversa: 1, vendido: 1 });
-  expect(out.nextAction).toBe('2 para revisar');
+  expect(out.counts).toEqual({ revisar: 2, completar: 1, material: 2 });
+  expect(out.nextAction).toBe('2 leads para avaliar');
 });
 
 it('usa o singular e pula etapas sem ação sua', () => {
-  expect(summarizeBatch([{ stage: 'conversa' }] as never).nextAction).toBe('1 resposta em Conversa');
+  expect(summarizeBatch([{ stage: 'crm' }] as never).nextAction).toBe('1 no CRM');
   expect(summarizeBatch([{ stage: 'gerando_material' }] as never).nextAction).toBeNull();
   expect(summarizeBatch([{ stage: 'vendido' }] as never).nextAction).toBeNull();
 });

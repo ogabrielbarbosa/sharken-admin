@@ -31,8 +31,8 @@ describe('pendências', () => {
   const leads = [
     { batch_id: 'a', stage: 'revisar', contacted_at: null },
     { batch_id: 'b', stage: 'revisar', contacted_at: null },
-    { batch_id: 'a', stage: 'aguardando', contacted_at: '2026-11-01T00:00:00Z' },
-    { batch_id: 'a', stage: 'aguardando', contacted_at: '2026-11-06T00:00:00Z' },
+    { batch_id: 'a', stage: 'crm', contacted_at: '2026-11-01T00:00:00Z' },
+    { batch_id: 'a', stage: 'crm', contacted_at: '2026-11-06T00:00:00Z' },
     { batch_id: 'a', stage: 'descartado', contacted_at: null },
   ] as never;
   const list = buildPendencies({ leads, overdueCharges: 2, now });
@@ -40,10 +40,10 @@ describe('pendências', () => {
     expect(list.find((p) => p.kind === 'follow_up')?.count).toBe(1);
     expect(list.find((p) => p.kind === 'revisar')?.count).toBe(2);
     expect(list.find((p) => p.kind === 'cobranca')?.count).toBe(2);
-    expect(list.find((p) => p.kind === 'abordar')).toBeUndefined();
+    expect(list.find((p) => p.kind === 'completar')).toBeUndefined();
   });
   it('abre direto com um batch e a lista filtrada com vários', () => {
-    expect(pendencyHref(list.find((p) => p.kind === 'follow_up')!)).toBe('/painel/batches/a/aguardar');
+    expect(pendencyHref(list.find((p) => p.kind === 'follow_up')!)).toBe('/painel/crm');
     expect(pendencyHref(list.find((p) => p.kind === 'revisar')!)).toBe('/painel/batches?etapa=revisar');
     expect(pendencyHref(list.find((p) => p.kind === 'cobranca')!)).toBe('/painel/clientes?situacao=em_atraso');
   });
@@ -52,7 +52,7 @@ describe('pendências', () => {
 describe('retenção', () => {
   const now = new Date('2026-11-06T12:00:00Z');
   const ago = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
-  const lead = (over = {}) => ({ stage: 'aguardando', created_at: ago(400), contacted_at: ago(181), follow_up_at: null, responded_at: null, hasClient: false, ...over }) as never;
+  const lead = (over = {}) => ({ stage: 'crm', created_at: ago(400), contacted_at: ago(181), follow_up_at: null, responded_at: null, hasClient: false, ...over }) as never;
   it('remove lead sem resposta depois de 180 dias', () => {
     expect(shouldDeleteLead(lead(), now)).toBe(true);
     expect(shouldDeleteLead(lead({ contacted_at: ago(179) }), now)).toBe(false);
@@ -65,7 +65,7 @@ describe('retenção', () => {
     expect(shouldDeleteLead(lead({ stage: 'revisar', contacted_at: null, created_at: ago(5) }), now)).toBe(false);
   });
   it('preserva quem respondeu, vendeu ou virou cliente', () => {
-    expect(shouldDeleteLead(lead({ stage: 'conversa', responded_at: ago(300) }), now)).toBe(false);
+    expect(shouldDeleteLead(lead({ stage: 'crm', responded_at: ago(300) }), now)).toBe(false);
     expect(shouldDeleteLead(lead({ stage: 'vendido' }), now)).toBe(false);
     expect(shouldDeleteLead(lead({ hasClient: true }), now)).toBe(false);
   });

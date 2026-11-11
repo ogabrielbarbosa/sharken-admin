@@ -1,28 +1,20 @@
 export type LeadStage =
-  | 'analisando' | 'revisar' | 'gerando_material' | 'revisar_material' | 'abordar'
-  | 'aguardando' | 'follow_up_feito' | 'conversa' | 'vendido'
-  | 'descartado' | 'sem_interesse' | 'nao_contatar';
+  | 'analisando' | 'revisar' | 'completar' | 'gerando_material' | 'revisar_material' | 'crm'
+  | 'vendido' | 'descartado' | 'sem_interesse' | 'nao_contatar';
 
-export type ProcessStep = 'revisar' | 'material' | 'abordar' | 'aguardar' | 'conversa' | 'vendido';
+export type ProcessStep = 'revisar' | 'completar' | 'material';
 
 export const PROCESS_STEPS: { key: ProcessStep; label: string }[] = [
-  { key: 'revisar', label: 'Revisar' },
+  { key: 'revisar', label: 'Leads' },
+  { key: 'completar', label: 'Completar' },
   { key: 'material', label: 'Material' },
-  { key: 'abordar', label: 'Abordar' },
-  { key: 'aguardar', label: 'Aguardar' },
-  { key: 'conversa', label: 'Conversa' },
-  { key: 'vendido', label: 'Vendido' },
 ];
 
 const STAGE_STEP: Partial<Record<LeadStage, ProcessStep>> = {
   revisar: 'revisar',
+  completar: 'completar',
   gerando_material: 'material',
   revisar_material: 'material',
-  abordar: 'abordar',
-  aguardando: 'aguardar',
-  follow_up_feito: 'aguardar',
-  conversa: 'conversa',
-  vendido: 'vendido',
 };
 
 export function stepOf(stage: LeadStage): ProcessStep | null {
@@ -35,13 +27,11 @@ export function stagesOf(step: ProcessStep): LeadStage[] {
 
 const NEXT: Partial<Record<LeadStage, LeadStage[]>> = {
   analisando: ['revisar'],
-  revisar: ['gerando_material'],
+  revisar: ['completar'],
+  completar: ['gerando_material'],
   gerando_material: ['revisar_material'],
-  revisar_material: ['gerando_material', 'abordar'],
-  abordar: ['aguardando'],
-  aguardando: ['follow_up_feito', 'conversa'],
-  follow_up_feito: ['conversa'],
-  conversa: ['vendido', 'sem_interesse'],
+  revisar_material: ['gerando_material', 'crm'],
+  crm: ['vendido', 'sem_interesse'],
 };
 
 const FINAL: LeadStage[] = ['vendido', 'descartado', 'sem_interesse', 'nao_contatar'];

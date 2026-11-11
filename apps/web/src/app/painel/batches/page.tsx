@@ -17,7 +17,7 @@ const STATUS: Record<Batch['status'], { label: string; tone: Tone; detail: strin
   erro: { label: 'Erro', tone: 'danger', detail: '' },
 };
 
-const ABBR: Record<ProcessStep, string> = { revisar: 'REV', material: 'MAT', abordar: 'ABO', aguardar: 'AGU', conversa: 'CON', vendido: 'VEN' };
+const ABBR: Record<ProcessStep, string> = { revisar: 'LEA', completar: 'COM', material: 'MAT' };
 
 export default async function BatchesPage({ searchParams }: { searchParams: Promise<{ novo?: string; local?: string; etapa?: string }> }) {
   const { novo, local, etapa } = await searchParams;

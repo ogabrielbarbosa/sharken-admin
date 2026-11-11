@@ -15,18 +15,18 @@ export function canContact(
   if (ctx.blocked) return { allowed: false, reason: 'Este contato está em não contatar.' };
   if (!lead.phone_e164) return { allowed: false, reason: 'Lead sem telefone celular.' };
   if (kind === 'first') {
-    if (lead.stage !== 'abordar') return { allowed: false, reason: 'Este lead não está em Abordar.' };
+    if (lead.stage !== 'crm') return { allowed: false, reason: 'Este lead não está no CRM.' };
     if (ctx.lastContactAt && (ctx.now.getTime() - ctx.lastContactAt.getTime()) / DAY < RECONTACT_DAYS) {
       return { allowed: false, reason: `Este telefone foi contatado há menos de ${RECONTACT_DAYS} dias.` };
     }
-  } else if (lead.stage !== 'aguardando') {
+  } else if (lead.stage !== 'crm') {
     return { allowed: false, reason: 'Este lead não pode receber follow-up.' };
   }
   return { allowed: true };
 }
 
 export function isFollowUpDue(lead: Pick<Lead, 'stage' | 'contacted_at'>, now: Date): boolean {
-  if (lead.stage !== 'aguardando' || !lead.contacted_at) return false;
+  if (lead.stage !== 'crm' || !lead.contacted_at) return false;
   return now.getTime() - new Date(lead.contacted_at).getTime() >= FOLLOW_UP_DAYS * DAY;
 }
 
