@@ -9,7 +9,7 @@ const provider = createEvolutionProvider({ baseUrl: 'https://evo.test/', apiKey:
 describe('normalize', () => {
   it('texto recebido', () => {
     expect(provider.normalize(fx('text-inbound'))).toEqual([
-      { kind: 'message', externalId: '3EB0A1B2C3D4E5F60001', phoneE164: '+5519981342207', lid: null, pushName: 'Marcos', fromMe: false, text: 'Oi, tenho interesse', media: null, at: new Date(1762876800 * 1000) },
+      { kind: 'message', externalId: '3EB0A1B2C3D4E5F60001', phoneE164: '5519981342207', lid: null, pushName: 'Marcos', fromMe: false, text: 'Oi, tenho interesse', media: null, at: new Date(1762876800 * 1000) },
     ]);
   });
   it('texto estendido', () => {
@@ -22,7 +22,7 @@ describe('normalize', () => {
     });
   });
   it('mensagem enviada por mim', () => {
-    expect(provider.normalize(fx('from-me'))[0]).toMatchObject({ fromMe: true, phoneE164: '+5519981342207' });
+    expect(provider.normalize(fx('from-me'))[0]).toMatchObject({ fromMe: true, phoneE164: '5519981342207' });
   });
   it('ignora grupo, status e reação', () => {
     expect(provider.normalize(fx('group'))).toEqual([]);
@@ -30,7 +30,7 @@ describe('normalize', () => {
     expect(provider.normalize(fx('reaction'))).toEqual([]);
   });
   it('lid com telefone alternativo', () => {
-    expect(provider.normalize(fx('lid'))[0]).toMatchObject({ phoneE164: '+5519981342207', lid: '188888888888888' });
+    expect(provider.normalize(fx('lid'))[0]).toMatchObject({ phoneE164: '5519981342207', lid: '188888888888888' });
   });
   it('lid sem telefone', () => {
     expect(provider.normalize(fx('lid-only'))[0]).toMatchObject({ phoneE164: null, lid: '188888888888888' });
@@ -60,7 +60,7 @@ describe('normalize', () => {
 });
 
 describe('sendText', () => {
-  const input = { phoneE164: '+5519981342207', text: 'Olá', clientMessageId: 'c1' };
+  const input = { phoneE164: '5519981342207', text: 'Olá', clientMessageId: 'c1' };
   it('envia com o header e o corpo certos', async () => {
     const f = vi.fn().mockResolvedValue(new Response(JSON.stringify(fx('send-ok')), { status: 201 }));
     const p = createEvolutionProvider({ baseUrl: 'https://evo.test/', apiKey: 'k-test', instance: 'demo', fetch: f });

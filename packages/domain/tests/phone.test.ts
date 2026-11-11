@@ -11,17 +11,11 @@ it('recusa fixo, 0800 e vazio', () => {
   expect(toMobileE164(null)).toBeNull();
 });
 
-it('candidatos com e sem o nono dígito', () => {
+it('candidatos com e sem o nono dígito, com e sem o +', () => {
   const a = phoneMatchCandidates('+5519981342207');
-  expect(a).toContain('+5519981342207');
-  expect(a).toContain('+551981342207');
-  const b = phoneMatchCandidates('+551981342207');
-  expect(b).toContain('+5519981342207');
-  expect(b).toContain('+551981342207');
+  expect(a.sort()).toEqual(['+551981342207', '+5519981342207', '551981342207', '5519981342207']);
+  expect(phoneMatchCandidates('551981342207').sort()).toEqual(a);
 });
-it('candidatos sem o +', () => {
-  expect(phoneMatchCandidates('5519981342207')).toEqual(['5519981342207', '551981342207']);
-});
-it('número estrangeiro só ele mesmo', () => {
-  expect(phoneMatchCandidates('+14155550123')).toEqual(['+14155550123']);
+it('número estrangeiro só ele mesmo, com e sem o +', () => {
+  expect(phoneMatchCandidates('+14155550123').sort()).toEqual(['+14155550123', '14155550123']);
 });

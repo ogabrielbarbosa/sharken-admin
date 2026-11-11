@@ -1,29 +1,25 @@
 import {
   expiryAfterSend,
   followUpDueAt,
+  outreachKind,
   phoneMatchCandidates,
   sendBlockReason,
-  sendKind,
   statusAfterSend,
   type Contact,
   type Message,
+  type SendKind,
   type WhatsAppProvider,
 } from '@lps/domain';
 import type { Db } from './client';
-import { getContact, updateContact } from './contacts';
+import { getContact } from './contacts';
+import { logEvent } from './leads';
 import { insertMessage } from './messages';
 
 export const INVALID_NUMBER_MESSAGE = 'Número sem WhatsApp';
 export const DEFAULT_PAGE_TTL_HOURS = 24;
 
-/** Variantes do número com e sem o "+": os contatos antigos foram gravados sem ele. */
-export function phoneLookupValues(e164: string): string[] {
-  const digits = e164.replace(/\D/g, '');
-  return [...new Set([...phoneMatchCandidates(`+${digits}`), ...phoneMatchCandidates(digits)])];
-}
-
 export async function isDoNotContact(db: Db, phoneE164: string): Promise<boolean> {
-  const { data, error } = await db.from('do_not_contact').select('phone_e164').in('phone_e164', phoneLookupValues(phoneE164)).limit(1);
+  const { data, error } = await db.from('do_not_contact').select('phone_e164').in('phone_e164', phoneMatchCandidates(phoneE164)).limit(1);
   if (error) throw new Error(error.message);
   return ((data as unknown[] | null) ?? []).length > 0;
 }
@@ -33,6 +29,22 @@ export async function isWhatsAppConnected(db: Db): Promise<boolean> {
   const { data, error } = await db.from('whatsapp_connection').select('state').eq('id', 1).maybeSingle();
   if (error) throw new Error(error.message);
   return (data as { state: string } | null)?.state !== 'desconectado';
+}
+
+export const FOLLOW_UP_LIMIT_MESSAGE = 'Já foi enviado um follow-up sem resposta.';
+
+/** Mensagens do painel já aceitas pelo WhatsApp. Contatos migrados da v1 contam pelo que o contato já registra. */
+async function outreachCount(db: Db, contact: Contact): Promise<number> {
+  const { data, error } = await db
+    .from('messages')
+    .select('id')
+    .eq('contact_id', contact.id)
+    .eq('direction', 'saida')
+    .eq('sent_from', 'painel')
+    .in('status', ['enviada', 'entregue', 'lida']);
+  if (error) throw new Error(error.message);
+  const recorded = ((data as unknown[] | null) ?? []).length;
+  return Math.max(recorded, (contact.first_contact_at ? 1 : 0) + contact.follow_ups_without_reply);
 }
 
 async function findByClientId(db: Db, clientMessageId: string): Promise<Message | null> {
@@ -71,13 +83,14 @@ export async function sendMessage(
   const previous = await findByClientId(db, input.clientMessageId);
   if (previous) return previous;
 
-  const kind = sendKind(contact, now);
+  const kind = outreachKind(!!contact.responded_at, await outreachCount(db, contact));
   const blocked = sendBlockReason(contact, {
     doNotContact: await isDoNotContact(db, contact.phone_e164),
     connected: await isWhatsAppConnected(db),
-    kind,
+    kind: kind === 'bloqueado' ? 'normal' : kind,
   });
   if (blocked) throw new Error(blocked);
+  if (kind === 'bloqueado') throw new Error(FOLLOW_UP_LIMIT_MESSAGE);
 
   const pending = await insertMessage(db, {
     contact_id: contact.id,
@@ -102,23 +115,36 @@ export async function sendMessage(
     throw new Error(message);
   }
 
-  // Zero linhas = o eco do webhook já ligou a mensagem. 23505 = o eco prendeu esse id a outra linha igual:
-  // deixa esta pendente, o prazo de pendentes resolve. Nunca grava uma segunda linha.
-  const { error } = await db
-    .from('messages')
-    .update({ external_id: externalId, status: 'enviada' })
-    .eq('id', pending.id)
-    .eq('status', 'pendente')
-    .is('external_id', null);
-  if (error && !isUniqueViolation(error)) throw new Error(error.message);
-
-  await applySendEffects(db, contact, kind, now, opts.pageTtlHours ?? DEFAULT_PAGE_TTL_HOURS);
-  return getMessage(db, pending.id);
+  // Daqui em diante a mensagem já saiu: nenhuma falha de banco pode virar erro para quem clicou.
+  try {
+    // Zero linhas = o eco do webhook já ligou a mensagem. 23505 = o eco prendeu esse id a outra linha igual:
+    // deixa esta pendente, o prazo de pendentes resolve. Nunca grava uma segunda linha.
+    const { error } = await db
+      .from('messages')
+      .update({ external_id: externalId, status: 'enviada' })
+      .eq('id', pending.id)
+      .eq('status', 'pendente')
+      .is('external_id', null);
+    if (error && !isUniqueViolation(error)) console.error('send-message: ligar external_id falhou', error.message);
+  } catch (err) {
+    console.error('send-message: ligar external_id falhou', err);
+  }
+  try {
+    await applySendEffects(db, contact, pending.id, kind as SendKind, now, opts.pageTtlHours ?? DEFAULT_PAGE_TTL_HOURS);
+  } catch (err) {
+    console.error('send-message: efeitos do envio falharam', err);
+  }
+  try {
+    return await getMessage(db, pending.id);
+  } catch {
+    return pending;
+  }
 }
 
-async function applySendEffects(db: Db, contact: Contact, kind: ReturnType<typeof sendKind>, now: Date, ttlHours: number) {
+async function applySendEffects(db: Db, contact: Contact, messageId: string, kind: SendKind, now: Date, ttlHours: number) {
   const patch: Partial<Contact> = {};
-  const status = statusAfterSend(contact, kind);
+  let status = statusAfterSend(contact, kind);
+  if (kind === 'follow_up' && ['novo', 'contatado', 'follow_up'].includes(contact.status)) status = 'follow_up';
   if (status !== contact.status) {
     patch.status = status;
     patch.status_at = now.toISOString();
@@ -128,13 +154,28 @@ async function applySendEffects(db: Db, contact: Contact, kind: ReturnType<typeo
     patch.follow_up_at = followUpDueAt(now).toISOString();
   } else if (kind === 'follow_up') {
     patch.follow_ups_without_reply = contact.follow_ups_without_reply + 1;
-    patch.follow_up_at = null; // o follow-up venceu e foi feito
+    patch.follow_up_at = null; // o follow-up foi feito
   } else if (contact.follow_up_at && new Date(contact.follow_up_at).getTime() <= now.getTime() && contact.responded_at) {
     patch.follow_up_at = null; // respondeu a quem já tinha falado: o lembrete vencido cumpriu seu papel
   }
-  if (Object.keys(patch).length) await updateContact(db, contact.id, patch);
+  let applied = false;
+  if (Object.keys(patch).length) {
+    // Guarda de status: uma resposta que chegou nesse meio tempo não é sobrescrita.
+    const { data, error } = await db.from('contacts').update(patch).eq('id', contact.id).eq('status', contact.status).select('id');
+    if (error) throw new Error(error.message);
+    applied = ((data as unknown[] | null) ?? []).length > 0;
+    if (!applied && kind === 'primeiro' && !contact.first_contact_at) {
+      await db.from('contacts').update({ first_contact_at: patch.first_contact_at }).eq('id', contact.id);
+    }
+  }
 
-  if (kind === 'primeiro' && contact.lead_id) {
+  if (!contact.lead_id) return;
+  await logEvent(db, contact.lead_id, 'mensagem_enviada', { message_id: messageId, kind });
+  if (applied && patch.status) await logEvent(db, contact.lead_id, `contato_${patch.status}`, { por: 'envio' });
+
+  if (kind === 'primeiro') {
+    const lead = await db.from('leads').update({ contacted_at: now.toISOString() }).eq('id', contact.lead_id).is('contacted_at', null);
+    if (lead.error) throw new Error(lead.error.message);
     const { error } = await db
       .from('sites')
       .update({ sent_at: now.toISOString(), expires_at: expiryAfterSend(now, ttlHours).toISOString() })

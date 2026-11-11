@@ -21,8 +21,8 @@ function phoneFromJid(jid: string | null): string | null {
   if (!jid || !jid.endsWith('@s.whatsapp.net')) return null;
   const digits = jid.split('@')[0]!.replace(/\D/g, '');
   const mobile = toMobileE164(digits);
-  if (mobile) return `+${mobile}`;
-  return /^\d{10,15}$/.test(digits) ? `+${digits}` : null;
+  if (mobile) return mobile;
+  return /^\d{10,15}$/.test(digits) ? digits : null;
 }
 
 const MEDIA_KINDS: Record<string, InboundMedia['kind']> = {

@@ -90,3 +90,17 @@ describe('textos', () => {
   });
   it('follow-up', () => expect(followUpText('https://x.com/p')).toBe(MESSAGES.follow_up.replace('[link]', 'https://x.com/p')));
 });
+
+import { outreachKind } from '../src/contacts';
+describe('outreachKind', () => {
+  it('0 enviadas é o primeiro contato, 1 é o follow-up, 2 ou mais bloqueia', () => {
+    expect(outreachKind(false, 0)).toBe('primeiro');
+    expect(outreachKind(false, 1)).toBe('follow_up');
+    expect(outreachKind(false, 2)).toBe('bloqueado');
+    expect(outreachKind(false, 7)).toBe('bloqueado');
+  });
+  it('depois da resposta não há limite', () => {
+    expect(outreachKind(true, 0)).toBe('normal');
+    expect(outreachKind(true, 9)).toBe('normal');
+  });
+});

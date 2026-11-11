@@ -12,7 +12,7 @@ const dir = join(import.meta.dirname, '../../../supabase/migrations');
 let pg: PGlite;
 let db: ReturnType<typeof fakeDb>;
 let n = 0;
-const phone = () => `+5521${String(910000000 + ++n)}`;
+const phone = () => `5521${String(910000000 + ++n)}`;
 const now = new Date('2026-11-11T12:00:00Z');
 
 type Msg = Extract<WhatsAppEvent, { kind: 'message' }>;

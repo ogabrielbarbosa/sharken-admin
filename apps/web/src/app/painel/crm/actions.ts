@@ -8,6 +8,7 @@ import {
   getLead,
   INVALID_NUMBER_MESSAGE,
   listMessages,
+  logEvent,
   retryMessage,
   sendMessage,
   setContactStatus,
@@ -17,6 +18,7 @@ import {
 import { renewExpiry, toMobileE164, type ContactStatus } from '@lps/domain';
 import { getWhatsAppProvider, suggestConversationReply } from '@lps/integrations';
 import { revalidatePath } from 'next/cache';
+import { unstable_rethrow } from 'next/navigation';
 import { authedDb } from '@/lib/auth';
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -32,6 +34,7 @@ async function guarded<T>(fn: () => Promise<T>): Promise<Result<T extends object
     refresh();
     return { ok: true, ...((out ?? {}) as object) } as Result<T extends object ? T : object>;
   } catch (err) {
+    unstable_rethrow(err); // redirect do authedDb
     refresh(); // o balão com erro precisa aparecer
     return fail(err);
   }
@@ -108,6 +111,7 @@ export async function removePageAction(contactId: string) {
     const leadId = await siteOf(db, contactId);
     const { error } = await db.from('sites').update({ status: 'removido' }).eq('lead_id', leadId);
     if (error) throw new Error(error.message);
+    await logEvent(db, leadId, 'modelo_removido');
   });
 }
 
@@ -116,6 +120,7 @@ export async function markInvalidNumberAction(contactId: string) {
     const db = await authedDb();
     const contact = await getContact(db, contactId);
     if (!contact) throw new Error('Contato não encontrado.');
+    if (contact.status === 'perdido') return; // já está perdido
     await setContactStatus(db, contact, 'perdido', { motivo: INVALID_NUMBER_MESSAGE });
     if (contact.lead_id) await updateLead(db, contact.lead_id, { exit_reason: INVALID_NUMBER_MESSAGE });
   });
@@ -132,6 +137,7 @@ export async function suggestReplyAction(contactId: string): Promise<{ text?: st
     if (!messages.some((m) => m.direction === 'entrada')) return { error: 'Ainda não há mensagem recebida para responder.' };
     return { text: await suggestConversationReply(lead, contact.name, messages) };
   } catch (err) {
+    unstable_rethrow(err);
     return { error: err instanceof Error ? err.message : 'Não foi possível sugerir a resposta.' };
   }
 }
@@ -144,14 +150,13 @@ export async function createContactAction(name: string, phone: string): Promise<
     const mobile = toMobileE164(phone);
     if (!mobile) throw new Error('Informe um celular válido, com DDD.');
     const db = await authedDb();
-    const e164 = `+${mobile}`;
-    const existing = await findContactByPhone(db, e164);
-    const other = existing ?? (await findContactByPhone(db, mobile));
+    const other = await findContactByPhone(db, mobile);
     if (other) throw new Error(`Este número já é do contato ${other.name}.`);
-    const created = await createContact(db, { name: cleanName, phone_e164: e164, origin: 'manual', status: 'novo' });
+    const created = await createContact(db, { name: cleanName, phone_e164: mobile, origin: 'manual', status: 'novo' });
     refresh();
     return { ok: true, contactId: created.id };
   } catch (err) {
+    unstable_rethrow(err);
     return fail(err);
   }
 }

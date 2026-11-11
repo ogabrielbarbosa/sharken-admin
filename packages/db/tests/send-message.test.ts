@@ -12,7 +12,7 @@ const dir = join(import.meta.dirname, '../../../supabase/migrations');
 let pg: PGlite;
 let db: ReturnType<typeof fakeDb>;
 let n = 0;
-const phone = () => `+5521${String(920000000 + ++n)}`;
+const phone = () => `5521${String(920000000 + ++n)}`;
 const now = new Date('2026-11-11T12:00:00Z');
 const day = 86_400_000;
 
@@ -87,9 +87,9 @@ describe('sendMessage', () => {
     expect(await listMessages(db, c.id)).toHaveLength(0);
   });
 
-  it('telefone em do_not_contact (com ou sem o +) é recusado', async () => {
+  it('telefone em do_not_contact é recusado', async () => {
     const c = await mk('novo');
-    await pg.query(`insert into do_not_contact (phone_e164, reason) values ($1, 'x')`, [c.phone_e164.replace('+', '')]);
+    await pg.query(`insert into do_not_contact (phone_e164, reason) values ($1, 'x')`, [c.phone_e164]);
     await expect(send(c.id)).rejects.toThrow('não receber');
     expect(await listMessages(db, c.id)).toHaveLength(0);
   });
@@ -105,15 +105,81 @@ describe('sendMessage', () => {
     await pg.query(`delete from whatsapp_connection`);
   });
 
-  it('follow-up vencido: vira follow_up, soma 1 e limpa o lembrete; o segundo sem resposta é recusado', async () => {
-    const c = await mk('contatado', { });
-    await updateContact(db, c.id, { follow_up_at: new Date(now.getTime() - day).toISOString() });
+  it('segunda mensagem, mesmo antes da data, é o follow-up: soma 1 e limpa o lembrete; a terceira é recusada', async () => {
+    const c = await mk('novo');
+    await send(c.id);
     const m = await send(c.id);
     expect(m.is_follow_up).toBe(true);
-    const after = (await getContact(db, c.id))!;
-    expect(after).toMatchObject({ status: 'follow_up', follow_ups_without_reply: 1, follow_up_at: null });
+    expect(await getContact(db, c.id)).toMatchObject({ status: 'follow_up', follow_ups_without_reply: 1, follow_up_at: null });
     await expect(send(c.id)).rejects.toThrow('Já foi enviado um follow-up sem resposta.');
-    expect(await listMessages(db, c.id)).toHaveLength(1);
+    expect(await listMessages(db, c.id)).toHaveLength(2);
+  });
+
+  it('mudar o status não burla o limite: terceira mensagem bloqueada após voltar para novo ou contatado', async () => {
+    const c = await mk('novo');
+    await send(c.id);
+    await send(c.id);
+    for (const status of ['novo', 'contatado'] as const) {
+      await updateContact(db, c.id, { status });
+      await expect(send(c.id)).rejects.toThrow('Já foi enviado um follow-up sem resposta.');
+    }
+    expect(await listMessages(db, c.id)).toHaveLength(2);
+  });
+
+  it('depois da resposta não há limite', async () => {
+    const c = await mk('novo');
+    await send(c.id);
+    await send(c.id);
+    await updateContact(db, c.id, { responded_at: now.toISOString(), status: 'em_conversa' });
+    await expect(send(c.id)).resolves.toMatchObject({ is_follow_up: false, is_first_contact: false });
+    await expect(send(c.id)).resolves.toMatchObject({ status: 'enviada' });
+  });
+
+  it('mensagem com erro não conta para o limite', async () => {
+    const c = await mk('novo');
+    await expect(send(c.id, failing())).rejects.toThrow();
+    await expect(send(c.id)).resolves.toMatchObject({ is_first_contact: true });
+  });
+
+  it('com lead ligado grava histórico, contacted_at e status', async () => {
+    const lead = (await pg.query<{ id: string }>(`insert into leads (place_id, name, stage) values ($1, 'Padaria', 'crm') returning id`, [`p-ev-${++n}`])).rows[0]!;
+    const c = await mk('novo', { lead_id: lead.id });
+    const m = await send(c.id);
+    const ev = (await pg.query<{ type: string; data: Record<string, unknown> }>(`select type, data from events where lead_id = $1 order by created_at`, [lead.id])).rows;
+    expect(ev.map((e) => e.type)).toEqual(expect.arrayContaining(['mensagem_enviada', 'contato_contatado']));
+    expect(ev.find((e) => e.type === 'mensagem_enviada')!.data).toMatchObject({ message_id: m.id, kind: 'primeiro' });
+    expect(ev.find((e) => e.type === 'contato_contatado')!.data).toMatchObject({ por: 'envio' });
+    const l = (await pg.query<{ contacted_at: Date | null }>(`select contacted_at from leads where id = $1`, [lead.id])).rows[0]!;
+    expect(l.contacted_at?.getTime()).toBe(now.getTime());
+  });
+
+  it('resposta que chegou durante o envio não é sobrescrita', async () => {
+    const c = await mk('novo');
+    const provider = {
+      sendText: async () => {
+        await pg.query(`update contacts set status = 'em_conversa', responded_at = now() where id = $1`, [c.id]);
+        return { externalId: `r-${++n}` };
+      },
+    };
+    await send(c.id, provider);
+    const after = (await getContact(db, c.id))!;
+    expect(after.status).toBe('em_conversa');
+    expect(after.first_contact_at).not.toBeNull();
+  });
+
+  it('falha de banco depois do provedor não vira erro para quem enviou', async () => {
+    const c = await mk('novo');
+    const provider = {
+      sendText: async () => {
+        await pg.query(`alter table contacts add constraint tmp_fail check (status <> 'contatado') not valid`);
+        return { externalId: `x-${++n}` };
+      },
+    };
+    try {
+      await expect(send(c.id, provider)).resolves.toMatchObject({ status: 'enviada' });
+    } finally {
+      await pg.query(`alter table contacts drop constraint tmp_fail`);
+    }
   });
 
   it('enviar com follow-up vencido a quem já respondeu limpa o follow-up', async () => {

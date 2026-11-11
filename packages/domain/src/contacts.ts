@@ -84,6 +84,17 @@ export function followUpDueAt(sentAt: Date): Date {
   return new Date(sentAt.getTime() + FOLLOW_UP_MS);
 }
 
+/**
+ * Política de alcance: enquanto a pessoa não respondeu, a 1ª mensagem é o primeiro contato, a 2ª é o único
+ * follow-up e a 3ª em diante é bloqueada. Depois da resposta não há limite.
+ */
+export function outreachKind(responded: boolean, sentCount: number): SendKind | 'bloqueado' {
+  if (responded) return 'normal';
+  if (sentCount <= 0) return 'primeiro';
+  if (sentCount === 1) return 'follow_up';
+  return 'bloqueado';
+}
+
 export function sendKind(c: Pick<Contact, 'status' | 'follow_up_at'>, now: Date): SendKind {
   if (c.status === 'novo') return 'primeiro';
   if (c.status === 'contatado' && c.follow_up_at && new Date(c.follow_up_at).getTime() <= now.getTime()) return 'follow_up';
