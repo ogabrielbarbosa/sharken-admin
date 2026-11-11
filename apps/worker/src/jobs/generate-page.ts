@@ -1,4 +1,4 @@
-import { VIDEO_ENABLED } from '@lps/config';
+import { VIDEO_ENABLED, videoMode } from '@lps/config';
 import { enqueueJob, getLead, getSite, logEvent, moveLead, saveSite, saveVideo, updateLead } from '@lps/db';
 import { buildSiteContent, buildSourceText, checkReadiness, expiryFrom, findUnsupportedClaims, newSiteSlug } from '@lps/domain';
 import { generatePageCopy } from '@lps/integrations';
@@ -27,7 +27,7 @@ export const generatePageJob: Handler = async (db, job) => {
   await updateLead(db, lead.id, { needs_data: false, error: null });
   await logEvent(db, lead.id, 'pagina_gerada');
 
-  if (VIDEO_ENABLED[flow]) {
+  if (VIDEO_ENABLED[flow] && videoMode() === 'ia') {
     await saveVideo(db, lead.id, { status: 'na_fila', progress: 0, error: null });
     await enqueueJob(db, { type: 'render_video', payload: { lead_id: lead.id }, dedupeKey: `render_video:${lead.id}` });
     return;

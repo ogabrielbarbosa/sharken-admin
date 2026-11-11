@@ -1,4 +1,4 @@
-export type VideoStatus = 'na_fila' | 'renderizando' | 'pronto' | 'erro';
+export type VideoStatus = 'na_fila' | 'convertendo' | 'renderizando' | 'pronto' | 'erro';
 
 export function newSiteSlug(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(18));

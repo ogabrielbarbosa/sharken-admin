@@ -12,3 +12,10 @@ export const VOICE_MODE: Record<VideoFlow, 'emenda' | 'clone_total'> = {
   sem_site: 'emenda',
   melhorar_site: 'emenda',
 };
+
+/** `gravado`: o Gabriel envia o vídeo de cada lead (padrão). `ia`: o worker gera com roteiro, voz e Remotion. */
+export type VideoMode = 'gravado' | 'ia';
+
+export function videoMode(source: Record<string, string | undefined> = process.env): VideoMode {
+  return source.VIDEO_MODE?.trim() === 'ia' ? 'ia' : 'gravado';
+}

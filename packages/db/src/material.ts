@@ -17,7 +17,7 @@ export type SiteRecord = {
   attempts: number;
   instruction: string | null;
 };
-export type VideoRecord = { lead_id: string; status: VideoStatus; progress: number; storage_path: string | null; duration_seconds: number | null; error: string | null };
+export type VideoRecord = { lead_id: string; source: 'gravado' | 'ia'; original_path: string | null; status: VideoStatus; progress: number; storage_path: string | null; duration_seconds: number | null; error: string | null };
 
 export async function getSite(db: Db, leadId: string): Promise<SiteRecord | null> {
   const { data } = await db.from('sites').select().eq('lead_id', leadId).maybeSingle();
@@ -64,5 +64,11 @@ export async function listVideos(db: Db, leadIds: string[]): Promise<Map<string,
 
 export async function saveVideo(db: Db, leadId: string, patch: Partial<VideoRecord>) {
   const { error } = await db.from('videos').upsert({ lead_id: leadId, ...patch }, { onConflict: 'lead_id' });
+  if (error) throw new Error(error.message);
+}
+
+/** Aprovação: a página passa a poder ser aberta por quem recebe o link. */
+export async function publishSite(db: Db, leadId: string, now = new Date()) {
+  const { error } = await db.from('sites').update({ published_at: now.toISOString() }).eq('lead_id', leadId).is('published_at', null);
   if (error) throw new Error(error.message);
 }

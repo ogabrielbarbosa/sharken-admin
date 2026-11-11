@@ -22,6 +22,7 @@ export * from './material';
 export * from './messages';
 export * from './contact-rules';
 export * from './video-timing';
+export * from './video-upload';
 export * from './script';
 export * from './client-form';
 export * from './lead-actions';
