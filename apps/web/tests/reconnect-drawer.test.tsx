@@ -2,7 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReconnectDrawer } from '@/components/crm/reconnect-drawer';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+const router = { refresh: vi.fn() };
+vi.mock('next/navigation', () => ({ useRouter: () => router }));
 vi.mock('@/app/painel/crm/actions', () => ({ connectionQrAction: vi.fn() }));
 
 afterEach(cleanup);
@@ -22,6 +23,18 @@ describe('ReconnectDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
     await screen.findByAltText('Código QR para conectar o WhatsApp');
     expect(fetchQr).toHaveBeenCalledTimes(2);
+  });
+
+  it('aceita data URL de imagem e rejeita outros esquemas', async () => {
+    const { unmount } = render(<ReconnectDrawer closeHref="/x" fetchQr={async () => ({ ok: true, qr: 'data:image/jpeg;base64,CCCC' })} />);
+    expect((await screen.findByAltText('Código QR para conectar o WhatsApp')).getAttribute('src')).toBe('data:image/jpeg;base64,CCCC');
+    unmount();
+    for (const qr of ['data:text/html;base64,PHA+', 'javascript:alert(1)']) {
+      render(<ReconnectDrawer closeHref="/x" fetchQr={async () => ({ ok: true, qr })} />);
+      expect(await screen.findByText('O servidor não devolveu um código. Tente Atualizar.')).toBeTruthy();
+      expect(screen.queryByAltText('Código QR para conectar o WhatsApp')).toBeNull();
+      cleanup();
+    }
   });
 
   it('mostra o erro', async () => {
