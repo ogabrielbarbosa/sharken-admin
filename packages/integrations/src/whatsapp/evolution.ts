@@ -77,17 +77,21 @@ function normalizeMessage(data: Json): WhatsAppEvent[] {
 }
 
 const STATUS: Record<string, 'enviada' | 'entregue' | 'lida' | 'erro'> = {
-  PENDING: 'enviada',
   SERVER_ACK: 'enviada',
+  SENT: 'enviada',
   DELIVERY_ACK: 'entregue',
+  DELIVERED: 'entregue',
   READ: 'lida',
   PLAYED: 'lida',
   ERROR: 'erro',
+  FAILED: 'erro',
 };
+const NUMERIC_STATUS: Record<number, 'enviada' | 'entregue' | 'lida' | 'erro'> = { 0: 'erro', 1: 'enviada', 2: 'enviada', 3: 'entregue', 4: 'lida', 5: 'lida' };
 
 function normalizeUpdate(data: Json): WhatsAppEvent[] {
   const externalId = str(data.keyId) ?? str(data.key?.id) ?? str(data.messageId);
-  const status = typeof data.status === 'string' ? STATUS[data.status.toUpperCase()] : undefined;
+  const raw = data.status ?? data.update?.status;
+  const status = typeof raw === 'number' ? NUMERIC_STATUS[raw] : typeof raw === 'string' ? STATUS[raw.toUpperCase()] : undefined;
   return externalId && status ? [{ kind: 'status', externalId, status }] : [];
 }
 

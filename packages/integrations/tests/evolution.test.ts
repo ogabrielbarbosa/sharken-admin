@@ -39,6 +39,14 @@ describe('normalize', () => {
     expect(provider.normalize(fx('update-read'))).toEqual([{ kind: 'status', externalId: '3EB0A1B2C3D4E5F60004', status: 'lida' }]);
     expect(provider.normalize(fx('update-delivered'))).toEqual([{ kind: 'status', externalId: '3EB0A1B2C3D4E5F60004', status: 'entregue' }]);
   });
+  it('status numéricos, variantes e aninhado em update', () => {
+    const upd = (data: object) => provider.normalize({ event: 'messages.update', data: { keyId: 'K1', ...data } });
+    expect(upd({ status: 3 })).toEqual([{ kind: 'status', externalId: 'K1', status: 'entregue' }]);
+    expect(upd({ status: 4 })).toEqual([{ kind: 'status', externalId: 'K1', status: 'lida' }]);
+    expect(upd({ status: 'DELIVERED' })).toEqual([{ kind: 'status', externalId: 'K1', status: 'entregue' }]);
+    expect(upd({ update: { status: 4 } })).toEqual([{ kind: 'status', externalId: 'K1', status: 'lida' }]);
+    expect(upd({ status: 'PENDING' })).toEqual([]);
+  });
   it('conexão', () => {
     expect(provider.normalize(fx('connection-open'))).toEqual([{ kind: 'connection', state: 'conectado' }]);
     expect(provider.normalize(fx('connection-close'))).toEqual([{ kind: 'connection', state: 'desconectado' }]);
