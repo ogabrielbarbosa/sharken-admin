@@ -1,5 +1,6 @@
 import { getEnv } from '@lps/config';
 import {
+  clientByContact,
   countBoxes,
   firstContactsToday,
   getBatch,
@@ -13,10 +14,11 @@ import {
   markStalePending,
   type CrmBox,
 } from '@lps/db';
-import { firstContactText, followUpText, phoneMatchCandidates, sendBlockReason, type Contact } from '@lps/domain';
+import { closeDealDefaults, firstContactText, followUpText, phoneMatchCandidates, sendBlockReason, type Contact, type CloseDealInput } from '@lps/domain';
 import { MessageCircle } from 'lucide-react';
 import { ReconnectDrawer } from '@/components/crm/reconnect-drawer';
 import { ConnectionBadge } from '@/components/crm/connection-badge';
+import { CloseDealDrawer } from '@/components/crm/close-deal-drawer';
 import { ContactList } from '@/components/crm/contact-list';
 import { ContactPanel, type HistoryItem } from '@/components/crm/contact-panel';
 import { Conversation } from '@/components/crm/conversation';
@@ -29,7 +31,7 @@ import { composerDraft, pageLink, STATUS_LABEL, stopRequestPending, timeUntil } 
 import { flowLabel } from '@/lib/lead-labels';
 
 const BOXES: CrmBox[] = ['hoje', 'novos', 'aguardando', 'em_conversa', 'fechados', 'perdidos', 'todos'];
-type Params = { caixa?: string; contato?: string; texto?: string; q?: string; conexao?: string };
+type Params = { caixa?: string; contato?: string; texto?: string; q?: string; conexao?: string; fechar?: string };
 type EventRow = Awaited<ReturnType<typeof listEvents>>[number];
 
 function eventLabel(e: EventRow): string | null {
@@ -39,6 +41,7 @@ function eventLabel(e: EventRow): string | null {
   if (e.type === 'modelo_removido') return 'Página removida';
   if (e.type === 'etapa_crm') return 'Material aprovado';
   if (e.type === 'etapa_completar') return 'Lead avançado';
+  if (e.type === 'contrato_criado') return 'Contrato criado';
   if (e.type.startsWith('contato_')) {
     const status = STATUS_LABEL[e.type.slice(8) as keyof typeof STATUS_LABEL];
     return status ? `Status: ${status.label}` : null;
@@ -100,12 +103,14 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     );
   }
 
-  const [lead, site, video, messages, dnc] = await Promise.all([
+  const closing = params.fechar === '1' && selected.status !== 'nao_contatar';
+  const [lead, site, video, messages, dnc, existingClient] = await Promise.all([
     selected.lead_id ? getLead(db, selected.lead_id) : null,
     selected.lead_id ? getSite(db, selected.lead_id) : null,
     selected.lead_id ? getVideo(db, selected.lead_id) : null,
     listMessages(db, selected.id, 200),
     db.from('do_not_contact').select('phone_e164').in('phone_e164', phoneMatchCandidates(selected.phone_e164)).limit(1),
+    closing ? clientByContact(db, selected.id) : null,
   ]);
   const [events, batch, urls] = await Promise.all([
     selected.lead_id ? listEvents(db, selected.lead_id) : [],
@@ -138,8 +143,21 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     ? { label: batch ? `Batch ${batch.location} · ${batch.business_type}` : 'Batch', href: batch ? `/painel/batches/${batch.id}` : null }
     : { label: selected.origin === 'whatsapp_direto' ? 'WhatsApp direto' : 'Contato manual', href: null };
 
+  let closeDefaults: CloseDealInput | null = null;
+  if (closing) {
+    closeDefaults = closeDealDefaults(selected, lead);
+    if (existingClient) {
+      closeDefaults.client = {
+        legal_name: existingClient.legal_name, document: existingClient.document, contact_name: existingClient.contact_name ?? '',
+        email: existingClient.email ?? '', phone: existingClient.phone ?? closeDefaults.client.phone,
+        address: existingClient.address ?? '', location: existingClient.location ?? closeDefaults.client.location,
+      };
+    }
+  }
+
   return shell(
     <>
+      {closeDefaults && <CloseDealDrawer contactName={selected.name} defaults={closeDefaults} existingClient={!!existingClient} closeHref={`${base}&contato=${selected.id}`} />}
       {listCol(true)}
       <div className="flex min-h-0 flex-col [&>*]:min-h-0 [&>*]:flex-1">
         <Conversation

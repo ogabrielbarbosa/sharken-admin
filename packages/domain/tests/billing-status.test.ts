@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextChargeStatus, nextContractStatus, planPaymentEvent } from '../src/billing-status';
+import { mergeContractStatus, nextChargeStatus, nextContractStatus, planPaymentEvent } from '../src/billing-status';
 
 describe('nextContractStatus', () => {
   it('assina só com o documento concluído', () => {
@@ -60,5 +60,19 @@ describe('planPaymentEvent', () => {
   it('mantém os centavos de valores quebrados', () => {
     const out = planPaymentEvent('PAYMENT_CREATED', { ...payment, value: 19.9 }, null, 's1');
     expect(out.action === 'create' && out.row.amount_cents).toBe(1990);
+  });
+});
+
+describe('mergeContractStatus', () => {
+  it('avança e nunca regride', () => {
+    expect(mergeContractStatus('enviado', 'assinado')).toBe('assinado');
+    expect(mergeContractStatus('enviado', 'recusado')).toBe('recusado');
+    expect(mergeContractStatus('assinado', 'enviado')).toBe('assinado');
+    expect(mergeContractStatus('assinado', 'recusado')).toBe('assinado');
+    expect(mergeContractStatus('recusado', 'enviado')).toBe('recusado');
+  });
+  it('webhook repetido não muda nada', () => {
+    expect(mergeContractStatus('enviado', 'enviado')).toBe('enviado');
+    expect(mergeContractStatus('recusado', 'recusado')).toBe('recusado');
   });
 });

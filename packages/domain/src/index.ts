@@ -36,3 +36,5 @@ export * from './contacts';
 export * from './stop-words';
 export * from './whatsapp';
 export * from './completar';
+export * from './document';
+export * from './close-deal';

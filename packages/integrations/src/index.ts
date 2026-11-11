@@ -7,6 +7,7 @@ export * from './pexels';
 export * from './elevenlabs';
 export * from './reply-suggestions';
 export * from './zapsign';
+export * from './contracts/provider';
 export * from './asaas';
 export * from './capture';
 export * from './whatsapp';

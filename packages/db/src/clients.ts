@@ -1,9 +1,9 @@
-import type { ChargeMethod, ChargeStatus, ContractStatus } from '@lps/domain';
+import type { ChargeMethod, ChargeStatus, CloseDealInput, ContractStatus } from '@lps/domain';
 import type { Db } from './client';
 
-export type ClientRecord = { id: string; created_at: string; lead_id: string | null; legal_name: string; document: string; contact_name: string | null; email: string | null; phone: string | null; address: string | null; location: string | null; asaas_customer_id: string | null };
-export type ServiceRecord = { id: string; client_id: string; name: string; kind: 'unico' | 'recorrente'; amount_cents: number; start_date: string; notes: string | null; status: 'ativo' | 'concluido' | 'cancelado'; asaas_subscription_id: string | null };
-export type ContractRecord = { id: string; service_id: string; status: ContractStatus; zapsign_doc_token: string | null; sign_url: string | null; status_at: string };
+export type ClientRecord = { id: string; created_at: string; lead_id: string | null; contact_id: string | null; legal_name: string; document: string; contact_name: string | null; email: string | null; phone: string | null; address: string | null; location: string | null; asaas_customer_id: string | null };
+export type ServiceRecord = { id: string; client_id: string; name: string; kind: 'unico' | 'recorrente'; amount_cents: number; start_date: string; notes: string | null; status: 'ativo' | 'concluido' | 'cancelado'; asaas_subscription_id: string | null; payment_method: ChargeMethod | null; first_due_date: string | null; cycle: string | null };
+export type ContractRecord = { id: string; service_id: string; status: ContractStatus; zapsign_doc_token: string | null; sign_url: string | null; status_at: string; sent_at: string | null };
 export type ChargeRecord = { id: string; created_at: string; service_id: string; description: string; amount_cents: number; due_date: string; method: ChargeMethod; status: ChargeStatus; payment_url: string | null; asaas_payment_id: string | null };
 
 const unwrap = <T>({ data, error }: { data: unknown; error: { message: string } | null }): T => {
@@ -16,6 +16,9 @@ export async function listClients(db: Db) {
 }
 export async function getClient(db: Db, id: string) {
   return unwrap<ClientRecord | null>(await db.from('clients').select().eq('id', id).maybeSingle());
+}
+export async function clientByContact(db: Db, contactId: string) {
+  return unwrap<ClientRecord | null>(await db.from('clients').select().eq('contact_id', contactId).maybeSingle());
 }
 export async function clientsByLead(db: Db, leadIds: string[]) {
   if (!leadIds.length) return new Map<string, string>();
@@ -83,4 +86,9 @@ export async function insertCharge(db: Db, row: Partial<ChargeRecord>) {
 }
 export async function updateCharge(db: Db, id: string, patch: Partial<ChargeRecord>) {
   unwrap(await db.from('charges').update(patch).eq('id', id));
+}
+
+/** Fechar negócio numa transação só (função close_deal). Devolve o id do contrato criado. */
+export async function closeDeal(db: Db, input: CloseDealInput) {
+  return unwrap<string>(await db.rpc('close_deal', { input }));
 }

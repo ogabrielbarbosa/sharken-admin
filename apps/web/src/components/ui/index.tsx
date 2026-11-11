@@ -98,11 +98,11 @@ export function EmptyState({ icon, title, description, actions }: { icon?: React
   );
 }
 
-export function Drawer({ title, subtitle, closeHref, children }: { title: string; subtitle?: string; closeHref: string; children: ReactNode }) {
+export function Drawer({ title, subtitle, closeHref, children, wide }: { title: string; subtitle?: string; closeHref: string; children: ReactNode; wide?: boolean }) {
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <Link href={closeHref} scroll={false} aria-label="Fechar" className="absolute inset-0 bg-black/60" />
-      <aside className="relative flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-border bg-card p-6">
+      <aside className={cx('relative flex h-full w-full flex-col overflow-y-auto border-l border-border bg-card p-6', wide ? 'max-w-xl' : 'max-w-md')}>
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold">{title}</h2>

@@ -2,6 +2,7 @@
 
 import { getEnv } from '@lps/config';
 import {
+  closeDeal,
   createContact,
   findContactByPhone,
   getContact,
@@ -16,7 +17,7 @@ import {
   updateContact,
   updateLead,
 } from '@lps/db';
-import { renewExpiry, toMobileE164, type ContactStatus } from '@lps/domain';
+import { renewExpiry, toMobileE164, validateCloseDeal, type CloseDealInput, type ContactStatus } from '@lps/domain';
 import { getWhatsAppProvider, suggestConversationReply } from '@lps/integrations';
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
@@ -194,5 +195,36 @@ export async function connectionQrAction(): Promise<{ ok: true; qr: string | nul
   } catch (err) {
     unstable_rethrow(err);
     return fail(err);
+  }
+}
+
+export type CloseDealResult = { ok: true; contractId: string } | { ok: false; error: string; fields?: Record<string, string> };
+
+/** Fechar negócio: valida de novo no servidor e grava tudo numa transação (função close_deal). */
+export async function closeDealAction(input: CloseDealInput): Promise<CloseDealResult> {
+  try {
+    const clean: CloseDealInput = {
+      contact_id: text(input.contact_id),
+      client: {
+        legal_name: text(input.client.legal_name),
+        document: text(input.client.document),
+        contact_name: text(input.client.contact_name),
+        email: text(input.client.email),
+        phone: text(input.client.phone).replace(/\D/g, ''),
+        address: text(input.client.address),
+        location: text(input.client.location),
+      },
+      service: { ...input.service, name: text(input.service.name), notes: text(input.service.notes) },
+      payment: input.payment,
+    };
+    const fields = validateCloseDeal(clean);
+    if (Object.keys(fields).length) return { ok: false, error: 'Corrija os campos marcados.', fields };
+    const db = await authedDb();
+    const contractId = await closeDeal(db, clean);
+    revalidatePath('/painel', 'layout');
+    return { ok: true, contractId };
+  } catch (err) {
+    unstable_rethrow(err);
+    return { ok: false, error: err instanceof Error ? err.message : 'Não foi possível fechar o negócio.' };
   }
 }

@@ -7,6 +7,15 @@ export function nextContractStatus(current: ContractStatus, event: { event_type?
   return current;
 }
 
+const CONTRACT_RANK: Record<ContractStatus, number> = { rascunho: 0, enviado: 1, recusado: 2, assinado: 3 };
+
+/** Aplica o status vindo do provedor sem regredir: assinado é final e recusado só cede à assinatura. */
+export function mergeContractStatus(current: ContractStatus, incoming: 'enviado' | 'assinado' | 'recusado'): ContractStatus {
+  if (current === 'assinado') return current;
+  if (current === 'recusado') return incoming === 'assinado' ? incoming : current;
+  return CONTRACT_RANK[incoming] > CONTRACT_RANK[current] ? incoming : current;
+}
+
 export function nextChargeStatus(current: ChargeStatus, event: string): ChargeStatus {
   switch (event) {
     case 'PAYMENT_RECEIVED':

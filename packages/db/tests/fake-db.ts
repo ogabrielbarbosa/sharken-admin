@@ -75,7 +75,7 @@ export function fakeDb(pg: PGlite): Db {
       const { rows } = await pg.query(`select * from ${fn}(${keys.map((k, i) => `${k} => $${i + 1}`).join(',')})`, keys.map((k) => (args[k] !== null && typeof args[k] === 'object' ? JSON.stringify(args[k]) : args[k])));
       // Funções escalares voltam como uma linha com uma coluna; as de conjunto, como lista de valores.
       const cols = rows.length ? Object.keys(rows[0] as object) : [];
-      const data = fn === 'crm_insert_message' ? rows : fn === 'crm_box_counts' ? (rows[0] as Record<string, unknown>)[cols[0]] : rows.map((r) => (r as Record<string, unknown>)[cols[0]]);
+      const data = fn === 'crm_insert_message' ? rows : fn === 'close_deal' ? (rows[0] as Record<string, unknown>)[cols[0]] : fn === 'crm_box_counts' ? (rows[0] as Record<string, unknown>)[cols[0]] : rows.map((r) => (r as Record<string, unknown>)[cols[0]]);
       return { data, error: null };
     } catch (e) {
       return { data: null, error: { message: (e as Error).message } };

@@ -5,7 +5,7 @@ import {
   updateCharge, updateClient, updateContract, updateService,
 } from '@lps/db';
 import { parseBRLToCents, validateDocument, type ChargeMethod } from '@lps/domain';
-import { createCustomer, createPayment, createSubscription, deletePayment, deleteSubscription, getContractFileUrl, sendContract, type AsaasCycle } from '@lps/integrations';
+import { createCustomer, createPayment, createSubscription, deletePayment, deleteSubscription, getContractProvider, type AsaasCycle } from '@lps/integrations';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { authedDb } from '@/lib/auth';
@@ -99,8 +99,8 @@ export async function sendContractAction(form: FormData) {
   if (!contract || !service || !client) return;
   const back = `/painel/clientes/${client.id}`;
   try {
-    const { docToken, signUrl } = await sendContract(client, service, contract.id);
-    await updateContract(db, contract.id, { status: 'enviado', zapsign_doc_token: docToken, sign_url: signUrl });
+    const { docToken, signUrl } = await getContractProvider().send(client, service, contract.id);
+    await updateContract(db, contract.id, { status: 'enviado', zapsign_doc_token: docToken, sign_url: signUrl, sent_at: new Date().toISOString() });
   } catch (err) {
     redirect(withError(back, (err as Error).message));
   }
@@ -113,7 +113,7 @@ export async function openContractAction(form: FormData) {
   if (!contract?.zapsign_doc_token) return;
   let url: string | null = null;
   try {
-    url = await getContractFileUrl(contract.zapsign_doc_token);
+    url = await getContractProvider().fileUrl(contract.zapsign_doc_token);
   } catch (err) {
     const service = await getService(db, contract.service_id);
     redirect(withError(`/painel/clientes/${service?.client_id}`, (err as Error).message));
