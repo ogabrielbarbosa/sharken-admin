@@ -9,6 +9,7 @@ import {
   INVALID_NUMBER_MESSAGE,
   listMessages,
   logEvent,
+  markRead,
   retryMessage,
   sendMessage,
   setContactStatus,
@@ -159,4 +160,22 @@ export async function createContactAction(name: string, phone: string): Promise<
     unstable_rethrow(err);
     return fail(err);
   }
+}
+
+/** Zera as não lidas. Sem revalidar: a tela já atualiza pelo Realtime e pelo router do cliente. */
+export async function markReadAction(contactId: string): Promise<void> {
+  try {
+    await markRead(await authedDb(), contactId);
+  } catch (err) {
+    unstable_rethrow(err);
+  }
+}
+
+/** Comentário interno do lead ligado ao contato. */
+export async function saveLeadCommentAction(contactId: string, comment: string) {
+  return guarded(async () => {
+    const db = await authedDb();
+    const leadId = await siteOf(db, contactId);
+    await updateLead(db, leadId, { comment: text(comment) || null });
+  });
 }

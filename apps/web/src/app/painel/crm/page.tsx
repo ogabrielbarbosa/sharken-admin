@@ -1,0 +1,173 @@
+import { getEnv } from '@lps/config';
+import {
+  countBoxes,
+  firstContactsToday,
+  getBatch,
+  getContact,
+  getLead,
+  getSite,
+  getVideo,
+  listContacts,
+  listEvents,
+  listMessages,
+  markStalePending,
+  type CrmBox,
+} from '@lps/db';
+import { firstContactText, followUpText, phoneMatchCandidates, sendBlockReason, type Contact } from '@lps/domain';
+import { MessageCircle } from 'lucide-react';
+import { ConnectionBadge } from '@/components/crm/connection-badge';
+import { ContactList } from '@/components/crm/contact-list';
+import { ContactPanel, type HistoryItem } from '@/components/crm/contact-panel';
+import { Conversation } from '@/components/crm/conversation';
+import type { Template } from '@/components/crm/composer';
+import type { LegacyLine, ThreadMessage } from '@/components/crm/thread';
+import { CrmRealtime } from '@/components/crm/use-crm-realtime';
+import { Topbar } from '@/components/layout/topbar';
+import { authedDb } from '@/lib/auth';
+import { composerDraft, pageLink, STATUS_LABEL, stopRequestPending, timeUntil } from '@/lib/crm';
+import { flowLabel } from '@/lib/lead-labels';
+
+const BOXES: CrmBox[] = ['hoje', 'novos', 'aguardando', 'em_conversa', 'fechados', 'perdidos', 'todos'];
+type Params = { caixa?: string; contato?: string; texto?: string; q?: string };
+type EventRow = Awaited<ReturnType<typeof listEvents>>[number];
+
+function eventLabel(e: EventRow): string | null {
+  if (e.type === 'abertura') return 'Página aberta';
+  if (e.type === 'mensagem_enviada') return e.data.kind === 'primeiro' ? 'Primeiro contato enviado' : e.data.kind === 'follow_up' ? 'Follow-up enviado' : null;
+  if (e.type === 'pedido_parar') return 'Pediu para parar';
+  if (e.type === 'modelo_removido') return 'Página removida';
+  if (e.type === 'etapa_crm') return 'Material aprovado';
+  if (e.type === 'etapa_completar') return 'Lead avançado';
+  if (e.type.startsWith('contato_')) {
+    const status = STATUS_LABEL[e.type.slice(8) as keyof typeof STATUS_LABEL];
+    return status ? `Status: ${status.label}` : null;
+  }
+  return null;
+}
+
+async function mediaUrls(db: Awaited<ReturnType<typeof authedDb>>, messages: ThreadMessage[]) {
+  const paths = messages.map((m) => m.media_path).filter((p): p is string => !!p);
+  if (!paths.length) return new Map<string, string>();
+  const { data } = await db.storage.from('whatsapp-media').createSignedUrls(paths, 3600);
+  return new Map((data ?? []).flatMap((d) => (d.path && d.signedUrl ? [[d.path, d.signedUrl] as const] : [])));
+}
+
+export default async function CrmPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const params = await searchParams;
+  const box = BOXES.find((b) => b === params.caixa) ?? 'hoje';
+  const search = params.q?.trim() ?? '';
+  const db = await authedDb();
+  const env = getEnv();
+  const now = new Date();
+
+  await markStalePending(db, new Date(now.getTime() - 2 * 60_000));
+  const [contacts, counts, firstToday, connectionRow, selected] = await Promise.all([
+    listContacts(db, { box, search }),
+    countBoxes(db),
+    firstContactsToday(db, now),
+    db.from('whatsapp_connection').select('state').eq('id', 1).maybeSingle(),
+    params.contato ? getContact(db, params.contato) : Promise.resolve(null),
+  ]);
+  const connection = (connectionRow.data?.state as 'conectado' | 'desconectado' | 'conectando' | undefined) ?? null;
+  const base = `/painel/crm?caixa=${box}${search ? `&q=${encodeURIComponent(search)}` : ''}`;
+  const dailyLimit = env.DAILY_FIRST_CONTACT_LIMIT;
+
+  const list = (
+    <ContactList contacts={contacts} counts={counts} box={box} selectedId={selected?.id ?? null} search={search} now={now} connection={connection} firstToday={firstToday} dailyLimit={dailyLimit} />
+  );
+  const shell = (children: React.ReactNode) => (
+    <div className="flex h-[calc(100vh-1rem)] flex-col max-lg:h-screen">
+      <Topbar crumbs={[{ label: 'CRM' }]} />
+      <CrmRealtime contactId={selected?.id ?? null} />
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_320px]">{children}</div>
+    </div>
+  );
+  const listCol = (hide: boolean) => <div className={`flex min-h-0 flex-col [&>*]:min-h-0 [&>*]:flex-1 ${hide ? 'max-lg:hidden' : ''}`}>{list}</div>;
+
+  if (!selected) {
+    return shell(
+      <>
+        {listCol(false)}
+        <div className="col-span-full hidden min-h-0 flex-col items-center justify-center gap-2 text-center lg:col-span-1 lg:flex xl:col-span-2">
+          <MessageCircle className="size-8 text-muted-foreground" />
+          <p className="text-sm font-medium">Escolha uma conversa</p>
+          <p className="max-w-xs text-xs text-muted-foreground">Cada envio é um clique seu. Nada sai sozinho.</p>
+          <ConnectionBadge state={connection} href={`${base}&conexao=1`} />
+        </div>
+      </>,
+    );
+  }
+
+  const [lead, site, video, messages, dnc] = await Promise.all([
+    selected.lead_id ? getLead(db, selected.lead_id) : null,
+    selected.lead_id ? getSite(db, selected.lead_id) : null,
+    selected.lead_id ? getVideo(db, selected.lead_id) : null,
+    listMessages(db, selected.id, 200),
+    db.from('do_not_contact').select('phone_e164').in('phone_e164', phoneMatchCandidates(selected.phone_e164)).limit(1),
+  ]);
+  const [events, batch, urls] = await Promise.all([
+    selected.lead_id ? listEvents(db, selected.lead_id) : [],
+    selected.batch_id ? getBatch(db, selected.batch_id) : null,
+    mediaUrls(db, messages as ThreadMessage[]),
+  ]);
+
+  const activeSite = site?.status === 'modelo' ? site : null;
+  const link = activeSite ? pageLink(activeSite.slug, { pagesHost: process.env.PAGES_HOST, appUrl: env.APP_URL }) : null;
+  const opens = events.filter((e) => e.type === 'abertura').length;
+  const expiresIn = activeSite?.expires_at && new Date(activeSite.expires_at) > now ? timeUntil(activeSite.expires_at, now) : null;
+
+  const threadMessages: ThreadMessage[] = messages.map((m) => ({ ...m, mediaUrl: m.media_path ? (urls.get(m.media_path) ?? null) : null }));
+  const firstAt = messages[0]?.at;
+  const legacy: LegacyLine[] = firstAt
+    ? events.filter((e) => e.created_at < firstAt && e.type !== 'abertura').flatMap((e) => { const label = eventLabel(e); return label ? [{ at: e.created_at, label }] : []; }).reverse().slice(-12)
+    : [];
+  const history: HistoryItem[] = events.flatMap((e) => { const label = eventLabel(e); return label ? [{ at: e.created_at, label }] : []; }).slice(0, 8);
+
+  const templates: Template[] = [];
+  if (lead && link) {
+    try { templates.push({ label: 'Primeiro contato', text: firstContactText(lead, link) }); } catch { /* lead sem campo da mensagem */ }
+    templates.push({ label: 'Follow-up', text: followUpText(link) });
+  }
+
+  const blockReason = sendBlockReason(selected as Contact, { doNotContact: !!dnc.data?.length, connected: connection !== 'desconectado', kind: 'normal' });
+  const flow = lead ? flowLabel(lead).label : null;
+  const videoLabel = video && video.status === 'pronto' ? `${video.source === 'gravado' ? 'Gravado' : 'IA'}${video.duration_seconds ? ` · ${Math.floor(video.duration_seconds / 60)}:${String(Math.round(video.duration_seconds % 60)).padStart(2, '0')}` : ''}` : null;
+  const origin = selected.origin === 'batch'
+    ? { label: batch ? `Batch ${batch.location} · ${batch.business_type}` : 'Batch', href: batch ? `/painel/batches/${batch.id}` : null }
+    : { label: selected.origin === 'whatsapp_direto' ? 'WhatsApp direto' : 'Contato manual', href: null };
+
+  return shell(
+    <>
+      {listCol(true)}
+      <div className="flex min-h-0 flex-col [&>*]:min-h-0 [&>*]:flex-1">
+        <Conversation
+          key={selected.id}
+          contact={selected}
+          messages={threadMessages}
+          legacy={legacy}
+          pageOpens={opens}
+          expiresIn={expiresIn}
+          now={now}
+          draft={composerDraft({ contact: selected, lead, link, texto: params.texto, now })}
+          templates={templates}
+          blockReason={blockReason}
+          stopRequest={stopRequestPending(messages)}
+          dailyCount={firstToday}
+          dailyLimit={dailyLimit}
+        />
+      </div>
+      <div className="hidden min-h-0 flex-col xl:flex [&>*]:min-h-0 [&>*]:flex-1">
+        <ContactPanel
+          contact={selected}
+          lead={lead}
+          origin={origin}
+          page={activeSite && link ? { link, expiresLabel: activeSite.expires_at ? (expiresIn ? `Expira em ${expiresIn}` : 'Página expirada') : activeSite.sent_at ? null : 'Sem prazo até o envio', expired: !expiresIn && !!activeSite.expires_at, opens, ttlHours: env.PAGE_TTL_HOURS } : null}
+          flowLabel={flow}
+          videoLabel={videoLabel}
+          history={history}
+          closeHref={`${base}&contato=${selected.id}&fechar=1`}
+        />
+      </div>
+    </>,
+  );
+}

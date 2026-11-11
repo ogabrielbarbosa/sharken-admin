@@ -20,7 +20,7 @@ export function Topbar({ crumbs }: { crumbs: Crumb[] }) {
         ))}
       </nav>
       <span className="hidden items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground sm:inline-flex">
-        <Hand className="size-3.5" />Envio sempre manual pelo WhatsApp
+        <Hand className="size-3.5" />Cada envio é um clique seu
       </span>
     </header>
   );
