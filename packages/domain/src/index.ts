@@ -38,3 +38,5 @@ export * from './completar';
 export * from './document';
 export * from './close-deal';
 export * from './payments';
+export * from './pipeline-links';
+export * from './briefing';
