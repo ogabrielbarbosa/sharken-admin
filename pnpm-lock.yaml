@@ -146,7 +146,11 @@ importers:
         specifier: ^0.5.15
         version: 0.5.15
 
-  packages/domain: {}
+  packages/domain:
+    dependencies:
+      '@lps/config':
+        specifier: workspace:*
+        version: link:../config
 
   packages/integrations:
     dependencies:

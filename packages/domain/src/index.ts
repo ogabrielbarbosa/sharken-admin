@@ -28,3 +28,6 @@ export * from './metrics';
 export * from './retention';
 export * from './municipios';
 export * from './review-filter';
+export * from './contacts';
+export * from './stop-words';
+export * from './whatsapp';

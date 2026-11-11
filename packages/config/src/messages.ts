@@ -8,4 +8,12 @@ export const MESSAGES = {
     'Oi, tudo bem? Aqui é o Gabriel, faço sites para negócios locais em [cidade]. Vi o site da [nome do negócio] e notei um ponto que pode melhorar: [motivo]. Preparei um modelo novo com os dados públicos de vocês: [link]. Se preferir não receber mais mensagens, é só avisar.',
   follow_up:
     'Oi! Aqui é o Gabriel de novo. Queria saber se vocês conseguiram ver o modelo que preparei com os dados públicos de vocês: [link]. Se não fizer sentido, é só avisar que não mando mais mensagem.',
+  contrato: 'Segue o contrato para assinatura: [link]',
+  pagamento: 'Segue o link para pagamento de [descrição], no valor de [valor], com vencimento em [data]: [link]',
 };
+
+// Palavras que sugerem pedido para parar. Comparadas sem acento e em minúsculas.
+export const STOP_WORDS = [
+  'parar', 'pare', 'sair', 'remover', 'não quero', 'nao quero', 'não tenho interesse', 'nao tenho interesse',
+  'não mande', 'nao mande', 'descadastrar',
+];
