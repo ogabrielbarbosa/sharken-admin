@@ -14,10 +14,8 @@ const text = (form: FormData, key: string) => String(form.get(key) ?? '').trim()
 const withError = (href: string, message: string) => `${href}${href.includes('?') ? '&' : '?'}erro=${encodeURIComponent(message)}`;
 const refresh = () => revalidatePath('/painel', 'layout');
 /** Telas diferentes mandam o formulário e querem voltar para si mesmas. */
-const backTo = (form: FormData, fallback: string) => {
-  const back = text(form, 'back');
-  return back.startsWith('/painel/') && !back.includes('\\') && !back.includes('//') ? back : fallback;
-};
+const safePath = (path: string, fallback: string) => (path.startsWith('/painel/') && !path.includes('\\') && !path.includes('//') ? path : fallback);
+const backTo = (form: FormData, fallback: string) => safePath(text(form, 'back'), fallback);
 
 function clientFields(form: FormData) {
   return {
@@ -129,8 +127,9 @@ export async function openContractAction(form: FormData) {
 export async function createChargeAction(form: FormData) {
   const db = await authedDb();
   const clientId = text(form, 'clientId');
-  const back = `/painel/clientes/${clientId}`;
-  const again = `${back}?cobranca=1`;
+  const page = `/painel/clientes/${clientId}`;
+  const back = backTo(form, page);
+  const again = safePath(text(form, 'reopen'), `${page}?cobranca=1`);
   const client = await getClient(db, clientId);
   const service = await getService(db, text(form, 'serviceId'));
   const amount = parseBRLToCents(text(form, 'amount'));

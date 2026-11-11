@@ -38,3 +38,4 @@ export * from './whatsapp';
 export * from './completar';
 export * from './document';
 export * from './close-deal';
+export * from './payments';

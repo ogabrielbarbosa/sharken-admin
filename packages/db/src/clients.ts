@@ -1,11 +1,12 @@
 import { phoneMatchCandidates, toMobileE164, type ChargeMethod, type ChargeStatus, CloseDealInput, ContractStatus } from '@lps/domain';
 import type { Db } from './client';
+import { logEvent } from './leads';
 import { createContact, findContactByPhone, getContact } from './contacts';
 
 export type ClientRecord = { id: string; created_at: string; lead_id: string | null; contact_id: string | null; legal_name: string; document: string; contact_name: string | null; email: string | null; phone: string | null; address: string | null; location: string | null; asaas_customer_id: string | null };
 export type ServiceRecord = { id: string; client_id: string; name: string; kind: 'unico' | 'recorrente'; amount_cents: number; start_date: string; notes: string | null; status: 'ativo' | 'concluido' | 'cancelado'; asaas_subscription_id: string | null; payment_method: ChargeMethod | null; first_due_date: string | null; cycle: string | null };
 export type ContractRecord = { id: string; service_id: string; status: ContractStatus; zapsign_doc_token: string | null; sign_url: string | null; status_at: string; sent_at: string | null };
-export type ChargeRecord = { id: string; created_at: string; service_id: string; description: string; amount_cents: number; due_date: string; method: ChargeMethod; status: ChargeStatus; payment_url: string | null; asaas_payment_id: string | null };
+export type ChargeRecord = { id: string; created_at: string; service_id: string; description: string; amount_cents: number; due_date: string; method: ChargeMethod; status: ChargeStatus; payment_url: string | null; asaas_payment_id: string | null; paid_at: string | null };
 
 const unwrap = <T>({ data, error }: { data: unknown; error: { message: string } | null }): T => {
   if (error) throw new Error(error.message);
@@ -136,4 +137,67 @@ export async function resolveClientContact(db: Db, client: Pick<ClientRecord, 'i
   const created = await createContact(db, { name: client.contact_name || client.legal_name, phone_e164: phone, origin: 'manual', status: 'novo' });
   await updateClient(db, client.id, { contact_id: created.id });
   return { contactId: created.id };
+}
+
+export type ChargeWithClient = { charge: ChargeRecord; service: ServiceRecord; client: ClientRecord };
+
+async function withClients(db: Db, charges: ChargeRecord[]): Promise<ChargeWithClient[]> {
+  if (!charges.length) return [];
+  const services = unwrap<ServiceRecord[]>(await db.from('services').select().in('id', [...new Set(charges.map((c) => c.service_id))]));
+  const clients = unwrap<ClientRecord[]>(await db.from('clients').select().in('id', [...new Set(services.map((s) => s.client_id))]));
+  const serviceById = new Map(services.map((s) => [s.id, s]));
+  const clientById = new Map(clients.map((c) => [c.id, c]));
+  return charges.flatMap((charge) => {
+    const service = serviceById.get(charge.service_id);
+    const client = service && clientById.get(service.client_id);
+    return service && client ? [{ charge, service, client }] : [];
+  });
+}
+
+/** Serviços com contrato assinado e sem cobrança emitida (nem avulsa nem assinatura). Sem contrato assinado, fora. */
+export async function listReadyToCharge(db: Db): Promise<ContractWithClient[]> {
+  const signed = (await listContractsWithClient(db, 'assinado')).filter((r) => r.service.status === 'ativo' && !r.service.asaas_subscription_id);
+  if (!signed.length) return [];
+  const charged = new Set(unwrap<{ service_id: string }[]>(await db.from('charges').select('service_id').in('service_id', signed.map((r) => r.service.id))).map((c) => c.service_id));
+  return signed.filter((r) => !charged.has(r.service.id)).sort((a, b) => a.contract.status_at.localeCompare(b.contract.status_at));
+}
+
+/** Cobranças pendentes e vencidas: vencidas primeiro, depois pelo vencimento. */
+export async function listOpenCharges(db: Db): Promise<ChargeWithClient[]> {
+  const charges = unwrap<ChargeRecord[]>(await db.from('charges').select().in('status', ['pendente', 'vencido']).order('due_date'));
+  const rows = await withClients(db, charges);
+  return [...rows.filter((r) => r.charge.status === 'vencido'), ...rows.filter((r) => r.charge.status !== 'vencido')];
+}
+
+/** Cobranças pagas desde `since`, as mais recentes primeiro. Sem `paid_at` (pagas antes da v2), vale a criação. */
+export async function listPaidCharges(db: Db, since: Date): Promise<ChargeWithClient[]> {
+  const charges = unwrap<ChargeRecord[]>(await db.from('charges').select().eq('status', 'pago'));
+  const when = (c: ChargeRecord) => c.paid_at ?? c.created_at;
+  const recent = charges.filter((c) => new Date(when(c)) >= since).sort((a, b) => when(b).localeCompare(when(a)));
+  return withClients(db, recent);
+}
+
+/**
+ * Efeitos de um pagamento recém-confirmado: grava `paid_at`, deixa o serviço `ativo` no primeiro pagamento
+ * (cancelado fica como está) e registra "Pagamento recebido" no histórico do lead do cliente, quando há.
+ */
+export async function recordChargePaid(db: Db, chargeId: string, paidAt: string) {
+  const charge = await getCharge(db, chargeId);
+  if (!charge) return;
+  await updateCharge(db, charge.id, { paid_at: paidAt });
+  const service = await getService(db, charge.service_id);
+  if (!service) return;
+  const paid = unwrap<{ id: string }[]>(await db.from('charges').select('id').eq('service_id', service.id).eq('status', 'pago'));
+  if (!paid.some((c) => c.id !== charge.id) && service.status === 'concluido') await updateService(db, service.id, { status: 'ativo' });
+  const client = await getClient(db, service.client_id);
+  if (client?.lead_id) await logEvent(db, client.lead_id, 'pagamento_recebido', { charge_id: charge.id, service_id: service.id, amount_cents: charge.amount_cents, paid_at: paidAt });
+}
+
+/** Registra "Contrato assinado" no histórico do lead do cliente, quando há. */
+export async function recordContractSigned(db: Db, contractId: string) {
+  const contract = await getContract(db, contractId);
+  const service = contract && (await getService(db, contract.service_id));
+  if (!contract || !service) return;
+  const client = await getClient(db, service.client_id);
+  if (client?.lead_id) await logEvent(db, client.lead_id, 'contrato_assinado', { contract_id: contractId, service_id: service.id });
 }

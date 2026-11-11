@@ -1,5 +1,5 @@
 import { secretMatches } from '@lps/config';
-import { contractByDocToken, createAdminClient, updateContract } from '@lps/db';
+import { contractByDocToken, createAdminClient, recordContractSigned, updateContract } from '@lps/db';
 import { mergeContractStatus } from '@lps/domain';
 import { getContractProvider } from '@lps/integrations';
 
@@ -15,6 +15,7 @@ export async function POST(request: Request) {
   if (contract) {
     const status = mergeContractStatus(contract.status, event.status);
     if (status !== contract.status) await updateContract(db, contract.id, { status });
+    if (status === 'assinado' && contract.status !== 'assinado') await recordContractSigned(db, contract.id);
   }
   return Response.json({ ok: true });
 }

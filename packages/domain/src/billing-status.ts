@@ -41,6 +41,8 @@ export type AsaasPayment = {
   billingType: string;
   description?: string | null;
   invoiceUrl?: string | null;
+  paymentDate?: string | null;
+  confirmedDate?: string | null;
 };
 
 const METHODS: Record<string, ChargeMethod> = { PIX: 'pix', BOLETO: 'boleto', CREDIT_CARD: 'cartao', UNDEFINED: 'pix' };

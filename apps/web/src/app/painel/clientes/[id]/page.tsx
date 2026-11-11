@@ -3,6 +3,7 @@ import { clientStanding, formatBRL, formatDocument, summarizeCharges, type Charg
 import { ArrowLeft, Plus, Send } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ChargeDrawer } from '@/components/clients/charge-drawer';
 import { ClientDrawer } from '@/components/clients/client-drawer';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge, Button, Card, Drawer, ErrorNote, Field, Input, LinkButton, Select, Status, Table, Textarea, type Tone } from '@/components/ui';
@@ -10,7 +11,7 @@ import { CopyButton } from '@/components/ui/copy-button';
 import { MenuButton, RowMenu } from '@/components/ui/row-menu';
 import { authedDb } from '@/lib/auth';
 import { formatDate } from '@/lib/lead-labels';
-import { cancelChargeAction, createChargeAction, createServiceAction, openContractAction, saveClientAction, sendContractAction, setServiceStatusAction } from '../actions';
+import { cancelChargeAction, createServiceAction, openContractAction, saveClientAction, sendContractAction, setServiceStatusAction } from '../actions';
 
 const CONTRACT: Record<ContractStatus, { label: string; tone: Tone; prefix: string }> = {
   rascunho: { label: 'Rascunho', tone: 'neutral', prefix: 'Criado em' },
@@ -221,30 +222,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
         </Drawer>
       )}
 
-      {cobranca && (
-        <Drawer title="Nova cobrança" subtitle={client.legal_name} closeHref={here}>
-          <form action={createChargeAction} className="flex flex-1 flex-col gap-4">
-            <input type="hidden" name="clientId" value={id} />
-            <Field label="Serviço">
-              <Select name="serviceId">{billable.map((s) => <option key={s.id} value={s.id}>{s.name}{s.kind === 'recorrente' ? ' (recorrente)' : ''}</option>)}</Select>
-            </Field>
-            <Field label="Descrição"><Input name="description" required /></Field>
-            <Field label="Valor"><Input name="amount" placeholder="R$ 89,00" required /></Field>
-            <Field label="Vencimento"><Input name="due_date" type="date" required /></Field>
-            <Field label="Forma de pagamento"><Select name="method" defaultValue="pix"><option value="pix">Pix</option><option value="boleto">Boleto</option><option value="cartao">Cartão</option></Select></Field>
-            {billable.some((s) => s.kind === 'recorrente') && (
-              <Field label="Periodicidade" hint="Vale só para serviço recorrente. O Asaas gera uma cobrança a cada período.">
-                <Select name="cycle" defaultValue="MONTHLY">
-                  <option value="WEEKLY">Semanal</option><option value="MONTHLY">Mensal</option><option value="QUARTERLY">Trimestral</option><option value="SEMIANNUALLY">Semestral</option><option value="YEARLY">Anual</option>
-                </Select>
-              </Field>
-            )}
-            <p className="text-xs text-muted-foreground">A cobrança é criada no Asaas. Depois, copie o link de pagamento e envie ao cliente.</p>
-            {erro && <ErrorNote>{erro}</ErrorNote>}
-            <div className="mt-auto pt-4"><Button type="submit" className="w-full">Gerar cobrança</Button></div>
-          </form>
-        </Drawer>
-      )}
+      {cobranca && <ChargeDrawer clientId={id} clientName={client.legal_name} services={billable} closeHref={here} error={erro} />}
     </>
   );
 }
