@@ -16,7 +16,7 @@ const refresh = () => revalidatePath('/painel', 'layout');
 /** Telas diferentes mandam o formulário e querem voltar para si mesmas. */
 const backTo = (form: FormData, fallback: string) => {
   const back = text(form, 'back');
-  return back.startsWith('/painel/') ? back : fallback;
+  return back.startsWith('/painel/') && !back.includes('\\') && !back.includes('//') ? back : fallback;
 };
 
 function clientFields(form: FormData) {

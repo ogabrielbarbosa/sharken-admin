@@ -6,11 +6,12 @@ import { createClient, createService, listContractsWithClient, updateContract } 
 import { fakeDb } from './fake-db';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
+let pg: PGlite;
 let db: ReturnType<typeof fakeDb>;
 const ids: Record<string, string> = {};
 
 beforeAll(async () => {
-  const pg = new PGlite();
+  pg = new PGlite();
   await pg.exec(`
     create role anon; create role authenticated; create role service_role;
     create schema storage;
@@ -24,6 +25,7 @@ beforeAll(async () => {
     const [contract] = await db.from('contracts').select().eq('service_id', service.id).then((r) => r.data as { id: string }[]);
     if (status !== 'rascunho') await updateContract(db, contract.id, { status });
     ids[name] = contract.id;
+    await pg.query('update contracts set status_at = $1 where id = $2', [new Date(Date.UTC(2026, 10, 1 + Object.keys(ids).length)).toISOString(), contract.id]);
   }
 });
 

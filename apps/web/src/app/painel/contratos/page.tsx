@@ -1,5 +1,5 @@
-import { listContractsWithClient } from '@lps/db';
-import { formatBRL, toMobileE164, type ContractStatus } from '@lps/domain';
+import { listContractsWithClient, OPTED_OUT_MESSAGE } from '@lps/db';
+import { formatBRL, phoneMatchCandidates, toMobileE164, type ContractStatus } from '@lps/domain';
 import { FileText, Info, MessageCircle, Pencil, Send } from 'lucide-react';
 import Link from 'next/link';
 import { Topbar } from '@/components/layout/topbar';
@@ -26,6 +26,14 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
   const db = await authedDb();
   const [all, rows] = await Promise.all([listContractsWithClient(db), filter ? listContractsWithClient(db, filter) : null]);
   const shown = rows ?? all;
+  const phones = [...new Set(all.map((r) => toMobileE164(r.client.phone)).filter((p): p is string => !!p))];
+  const { data: blockedRows } = phones.length ? await db.from('do_not_contact').select('phone_e164').in('phone_e164', phones.flatMap(phoneMatchCandidates)) : { data: [] };
+  const blockedPhones = new Set((blockedRows as { phone_e164: string }[] | null)?.map((r) => r.phone_e164) ?? []);
+  const contactIds = [...new Set(all.flatMap((r) => (r.client.contact_id ? [r.client.contact_id] : [])))];
+  const { data: stopped } = contactIds.length ? await db.from('contacts').select('id').eq('status', 'nao_contatar').in('id', contactIds) : { data: [] };
+  const stoppedIds = new Set((stopped as { id: string }[] | null)?.map((r) => r.id) ?? []);
+  const optedOut = (c: { phone: string | null; contact_id: string | null }) =>
+    (!!c.contact_id && stoppedIds.has(c.contact_id)) || phoneMatchCandidates(toMobileE164(c.phone) ?? '').some((p) => blockedPhones.has(p));
   const count = (s: ContractStatus) => all.filter((r) => r.contract.status === s).length;
   const tabs: { key: ContractStatus | undefined; label: string; n: number }[] = [
     { key: undefined, label: 'Todos', n: all.length },
@@ -83,7 +91,7 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
                             <form action={whatsappContractAction}>
                               <input type="hidden" name="clientId" value={client.id} />
                               <input type="hidden" name="signUrl" value={contract.sign_url} />
-                              <Button type="submit" variant="outline" disabled={!hasPhone} title={hasPhone ? undefined : 'O cliente não tem celular cadastrado.'}><MessageCircle />Mandar no WhatsApp</Button>
+                              <Button type="submit" variant="outline" disabled={!hasPhone || optedOut(client)} title={optedOut(client) ? OPTED_OUT_MESSAGE : hasPhone ? undefined : 'O cliente não tem celular cadastrado.'}><MessageCircle />Mandar no WhatsApp</Button>
                             </form>
                             <CopyButton text={contract.sign_url} label="Copiar link" />
                           </>

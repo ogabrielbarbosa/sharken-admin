@@ -1,5 +1,6 @@
-import type { ChargeMethod, ChargeStatus, CloseDealInput, ContractStatus } from '@lps/domain';
+import { phoneMatchCandidates, toMobileE164, type ChargeMethod, type ChargeStatus, CloseDealInput, ContractStatus } from '@lps/domain';
 import type { Db } from './client';
+import { createContact, findContactByPhone, getContact } from './contacts';
 
 export type ClientRecord = { id: string; created_at: string; lead_id: string | null; contact_id: string | null; legal_name: string; document: string; contact_name: string | null; email: string | null; phone: string | null; address: string | null; location: string | null; asaas_customer_id: string | null };
 export type ServiceRecord = { id: string; client_id: string; name: string; kind: 'unico' | 'recorrente'; amount_cents: number; start_date: string; notes: string | null; status: 'ativo' | 'concluido' | 'cancelado'; asaas_subscription_id: string | null; payment_method: ChargeMethod | null; first_due_date: string | null; cycle: string | null };
@@ -108,4 +109,31 @@ export async function updateCharge(db: Db, id: string, patch: Partial<ChargeReco
 /** Fechar negócio numa transação só (função close_deal). Devolve o id do contrato criado. */
 export async function closeDeal(db: Db, input: CloseDealInput) {
   return unwrap<string>(await db.rpc('close_deal', { input }));
+}
+
+export const OPTED_OUT_MESSAGE = 'Este contato pediu para não receber mensagens.';
+export const CLIENT_NO_PHONE_MESSAGE = 'O cliente não tem celular válido. Corrija o telefone no cadastro.';
+
+/**
+ * Contato do CRM de um cliente, para mandar mensagem. Usa o contato ligado; senão acha pelo celular
+ * (sem religar se já é de outro cliente) ou cria um manual e liga. Não cria nada para quem pediu para parar.
+ */
+export async function resolveClientContact(db: Db, client: Pick<ClientRecord, 'id' | 'legal_name' | 'contact_name' | 'phone' | 'contact_id'>): Promise<{ contactId: string } | { blocked: string }> {
+  const linked = client.contact_id ? await getContact(db, client.contact_id) : null;
+  const phone = linked?.phone_e164 ?? toMobileE164(client.phone);
+  if (!phone) return { blocked: CLIENT_NO_PHONE_MESSAGE };
+  if (linked?.status === 'nao_contatar') return { blocked: OPTED_OUT_MESSAGE };
+  const blocks = unwrap<unknown[] | null>(await db.from('do_not_contact').select('id').in('phone_e164', phoneMatchCandidates(phone)).limit(1));
+  if (blocks?.length) return { blocked: OPTED_OUT_MESSAGE };
+  if (linked) return { contactId: linked.id };
+  const existing = await findContactByPhone(db, phone);
+  if (existing) {
+    if (existing.status === 'nao_contatar') return { blocked: OPTED_OUT_MESSAGE };
+    const owner = await clientByContact(db, existing.id);
+    if (!owner) await updateClient(db, client.id, { contact_id: existing.id });
+    return { contactId: existing.id };
+  }
+  const created = await createContact(db, { name: client.contact_name || client.legal_name, phone_e164: phone, origin: 'manual', status: 'novo' });
+  await updateClient(db, client.id, { contact_id: created.id });
+  return { contactId: created.id };
 }
