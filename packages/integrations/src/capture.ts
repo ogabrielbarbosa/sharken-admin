@@ -1,10 +1,12 @@
 import { getEnv, webhookBaseUrl } from '@lps/config';
-import { countJobs, createAdminClient, enqueueJob, getBatch, importLeads, listBatches, listLeads, updateBatch, updateLead } from '@lps/db';
+import { countJobs, createAdminClient, enqueueJob, getBatch, importLeads, listBatches, listKnownPlaceIds, listLeads, updateBatch, updateLead } from '@lps/db';
 import { mapPlaceToLead, type ApifyPlace, type Batch } from '@lps/domain';
-import { buildInstagramInput, buildMapsInput, fetchDataset, getRun, INSTAGRAM_ACTOR, latestPostDate, MAPS_ACTOR, runOutcome, startActorRun, usernameFromUrl, type InstagramProfile } from './apify';
+import { buildInstagramInput, buildMapsInput, fetchDataset, getRun, INSTAGRAM_ACTOR, latestPostDate, MAPS_ACTOR, runOutcome, shouldPollRuns, startActorRun, usernameFromUrl, type InstagramProfile } from './apify';
 
-function webhookUrl(batchId: string, kind: 'maps' | 'instagram') {
+function webhookUrl(batchId: string, kind: 'maps' | 'instagram'): string | null {
   const env = getEnv();
+  // O Apify recusa localhost. No local o worker consulta o resultado no lugar do webhook.
+  if (shouldPollRuns(env)) return null;
   const url = new URL('/api/webhooks/apify', webhookBaseUrl(env));
   url.searchParams.set('secret', env.WEBHOOK_SECRET);
   url.searchParams.set('batch', batchId);
@@ -94,6 +96,24 @@ export async function handleInstagramResult(batchId: string, event: { datasetId:
   await enqueueAnalysis(batchId);
 }
 
+/** Grava os negócios que o Apify já achou, sem esperar a busca terminar. A análise continua só no fim. */
+export async function syncSearchProgress() {
+  const db = createAdminClient();
+  for (const batch of await listBatches(db)) {
+    if (batch.status !== 'buscando' || !batch.apify_run_id) continue;
+    try {
+      const run = await getRun(batch.apify_run_id);
+      if (!run.defaultDatasetId) continue;
+      const items = await fetchDataset<ApifyPlace>(run.defaultDatasetId);
+      const leads = items.filter((i) => i.placeId && i.title).map((i) => mapPlaceToLead(i, batch.id));
+      const known = await listKnownPlaceIds(db, leads.map((l) => l.place_id));
+      const fresh = leads.filter((l) => !known.has(l.place_id));
+      if (fresh.length) await importLeads(db, fresh);
+    } catch (err) {
+      console.error(`[apify] progresso do batch ${batch.id}: ${(err as Error).message}`);
+    }
+  }
+}
 
 /** Consulta as buscas em andamento quando o webhook não alcança este ambiente. */
 export async function pollPendingRuns() {

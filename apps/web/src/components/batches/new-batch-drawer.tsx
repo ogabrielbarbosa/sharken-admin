@@ -1,10 +1,11 @@
 'use client';
 
-import { DEFAULT_CRITERIA } from '@lps/domain';
+import { DEFAULT_CRITERIA, findMunicipio } from '@lps/domain';
 import { ArrowLeft, ArrowRight, Check, Search } from 'lucide-react';
 import { useState } from 'react';
 import { createBatchAction } from '@/app/painel/batches/actions';
 import { Button, Drawer, ErrorNote, Field, Input } from '@/components/ui';
+import { MunicipioPicker } from './municipio-picker';
 
 const STEPS = ['Onde buscar', 'Critérios', 'Confirmar'];
 
@@ -26,7 +27,8 @@ export function NewBatchDrawer() {
 
   function next() {
     if (step === 0) {
-      if (!where.location.trim() || !where.businessType.trim()) return setError('Preencha a localização e o tipo de negócio.');
+      if (!findMunicipio(where.location)) return setError('Escolha a cidade na lista de municípios.');
+      if (!where.businessType.trim()) return setError('Preencha o tipo de negócio.');
       if (!(Number(where.quantity) > 0)) return setError('Informe uma quantidade maior que zero.');
     }
     if (step === 1 && Object.values(criteria).some((v) => v === '' || !(Number(v.replace(',', '.')) >= 0))) {
@@ -51,8 +53,8 @@ export function NewBatchDrawer() {
       <form action={createBatchAction} className="flex flex-1 flex-col gap-4">
         {step === 0 && (
           <>
-            <p className="text-sm text-muted-foreground">Campos livres. Escreva a região e o tipo de negócio como alguém buscaria no Google Maps.</p>
-            <Field label="Localização"><Input value={where.location} placeholder="Campinas, SP" onChange={(e) => setWhere({ ...where, location: e.target.value })} /></Field>
+            <p className="text-sm text-muted-foreground">Escolha a cidade na lista e escreva o tipo de negócio como alguém buscaria no Google Maps.</p>
+            <Field label="Cidade"><MunicipioPicker value={where.location} onChange={(location) => setWhere((w) => ({ ...w, location }))} /></Field>
             <Field label="Tipo de negócio"><Input value={where.businessType} placeholder="pet shop" onChange={(e) => setWhere({ ...where, businessType: e.target.value })} /></Field>
             <Field label="Quantidade de leads" hint="Padrão: 50 leads por batch."><Input type="number" min={1} value={where.quantity} onChange={(e) => setWhere({ ...where, quantity: e.target.value })} /></Field>
           </>

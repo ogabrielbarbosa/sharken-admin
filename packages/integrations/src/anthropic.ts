@@ -1,7 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 let client: Anthropic | null = null;
-const getClient = () => (client ??= new Anthropic());
+// Chave de usuário (sk-ant-usr…) precisa dizer o workspace em cada chamada.
+const getClient = () =>
+  (client ??= new Anthropic(
+    process.env.ANTHROPIC_WORKSPACE_ID ? { defaultHeaders: { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } } : {},
+  ));
 const model = () => process.env.ANTHROPIC_MODEL || 'claude-opus-5-5';
 
 type Effort = 'low' | 'medium' | 'high';

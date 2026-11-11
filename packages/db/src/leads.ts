@@ -15,6 +15,14 @@ export async function listLeads(db: Db, batchId: string, stages?: LeadStage[]): 
   return data as Lead[];
 }
 
+/** Place IDs que já estão no banco, para gravar só os negócios novos durante a busca. */
+export async function listKnownPlaceIds(db: Db, placeIds: string[]): Promise<Set<string>> {
+  if (!placeIds.length) return new Set();
+  const { data, error } = await db.from('leads').select('place_id').in('place_id', placeIds);
+  if (error) throw new Error(error.message);
+  return new Set((data as { place_id: string }[]).map((l) => l.place_id));
+}
+
 export async function listBatchStages(db: Db): Promise<{ batch_id: string; stage: LeadStage }[]> {
   return fetchAll((from, to) => db.from('leads').select('batch_id, stage').not('batch_id', 'is', null).order('id').range(from, to)) as Promise<{ batch_id: string; stage: LeadStage }[]>;
 }

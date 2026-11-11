@@ -14,7 +14,7 @@ export function scoreLead(lead: ScoreInput, c: Criteria, now: Date): { score: nu
     { label: `Nota ${rating.toFixed(1).replace('.', ',')}`, points: 20, met: rating >= c.minRating },
     { label: `Fotos ${lead.images_count}`, points: 20, met: lead.images_count >= c.minPhotos },
     {
-      label: instagramDays === null ? 'Sem Instagram verificado' : instagramDays <= c.instagramActiveDays ? 'Instagram ativo' : `Instagram parado há ${instagramDays} dias`,
+      label: instagramDays === null ? 'Instagram não encontrado' : instagramDays <= c.instagramActiveDays ? 'Instagram ativo' : `Instagram parado há ${instagramDays} dias`,
       points: 20,
       met: instagramDays !== null && instagramDays <= c.instagramActiveDays,
     },

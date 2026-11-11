@@ -4,10 +4,13 @@ import { buildInstagramInput, buildMapsInput, buildRunUrl, parseWebhookEvent, ru
 describe('buildMapsInput', () => {
   it('monta exatamente a entrada do ator', () => {
     expect(buildMapsInput({ location: 'Campinas, SP', businessType: 'pet shop', quantity: 50 })).toEqual({
-      searchStringsArray: ['pet shop'], locationQuery: 'Campinas, SP, Brasil', maxCrawledPlacesPerSearch: 50,
+      searchStringsArray: ['pet shop'], locationQuery: 'Campinas, São Paulo, Brasil', maxCrawledPlacesPerSearch: 50,
       language: 'pt-BR', website: 'allPlaces', maxImages: 8, maxReviews: 5, reviewsSort: 'highestRanking',
       reviewsOrigin: 'google', scrapeReviewsPersonalData: false,
     });
+  });
+  it('mantém o texto livre dos batches antigos', () => {
+    expect(buildMapsInput({ location: 'Zona Sul, Rio', businessType: 'x', quantity: 1 }).locationQuery).toBe('Zona Sul, Rio, Brasil');
   });
 });
 
@@ -19,6 +22,13 @@ describe('buildRunUrl', () => {
     const hooks = JSON.parse(Buffer.from(url.searchParams.get('webhooks')!, 'base64').toString());
     expect(hooks[0].requestUrl).toBe('https://app.test/hook?secret=s');
     expect(hooks[0].eventTypes).toEqual(['ACTOR.RUN.SUCCEEDED', 'ACTOR.RUN.FAILED', 'ACTOR.RUN.TIMED_OUT', 'ACTOR.RUN.ABORTED']);
+  });
+});
+
+describe('buildRunUrl sem webhook', () => {
+  it('não registra webhook no ambiente local', () => {
+    const url = new URL(buildRunUrl('compass/crawler-google-places', 'tok', null));
+    expect(url.searchParams.has('webhooks')).toBe(false);
   });
 });
 

@@ -26,3 +26,5 @@ export * from './finance';
 export * from './billing-status';
 export * from './metrics';
 export * from './retention';
+export * from './municipios';
+export * from './review-filter';

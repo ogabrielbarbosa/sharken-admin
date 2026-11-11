@@ -1,4 +1,4 @@
-import type { ApifyPlace } from '@lps/domain';
+import { findMunicipio, type ApifyPlace } from '@lps/domain';
 
 const BASE = 'https://api.apify.com/v2';
 export const MAPS_ACTOR = 'compass/crawler-google-places';
@@ -6,9 +6,11 @@ export const INSTAGRAM_ACTOR = 'apify/instagram-profile-scraper';
 const FINAL_EVENTS = ['ACTOR.RUN.SUCCEEDED', 'ACTOR.RUN.FAILED', 'ACTOR.RUN.TIMED_OUT', 'ACTOR.RUN.ABORTED'];
 
 export function buildMapsInput(b: { location: string; businessType: string; quantity: number }) {
+  // Batches novos guardam "Cidade, UF". O nome do estado por extenso evita que o Apify ache a cidade errada.
+  const m = findMunicipio(b.location);
   return {
     searchStringsArray: [b.businessType],
-    locationQuery: `${b.location}, Brasil`,
+    locationQuery: m ? `${m.nome}, ${m.estado}, Brasil` : `${b.location}, Brasil`,
     maxCrawledPlacesPerSearch: b.quantity,
     language: 'pt-BR',
     website: 'allPlaces',
@@ -35,11 +37,14 @@ export function buildInstagramInput(urls: string[]) {
   return { usernames: [...new Set(names)] };
 }
 
-export function buildRunUrl(actor: string, token: string, webhookUrl: string): string {
-  const hooks = [{ eventTypes: FINAL_EVENTS, requestUrl: webhookUrl }];
+/** Sem `webhookUrl` (ambiente local), o Apify não avisa e o worker consulta o resultado. */
+export function buildRunUrl(actor: string, token: string, webhookUrl: string | null): string {
   const url = new URL(`${BASE}/acts/${actor.replace('/', '~')}/runs`);
   url.searchParams.set('token', token);
-  url.searchParams.set('webhooks', Buffer.from(JSON.stringify(hooks)).toString('base64'));
+  if (webhookUrl) {
+    const hooks = [{ eventTypes: FINAL_EVENTS, requestUrl: webhookUrl }];
+    url.searchParams.set('webhooks', Buffer.from(JSON.stringify(hooks)).toString('base64'));
+  }
   return url.toString();
 }
 
@@ -57,13 +62,16 @@ function token(): string {
   return value;
 }
 
-export async function startActorRun(actor: string, input: object, webhookUrl: string): Promise<string> {
+export async function startActorRun(actor: string, input: object, webhookUrl: string | null): Promise<string> {
   const res = await fetch(buildRunUrl(actor, token(), webhookUrl), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`O Apify recusou a busca (${res.status}).`);
+  if (!res.ok) {
+    const detail = ((await res.json().catch(() => null)) as { error?: { message?: string } } | null)?.error?.message;
+    throw new Error(`O Apify recusou a busca (${res.status})${detail ? `: ${detail}` : '.'}`);
+  }
   const json = (await res.json()) as { data: { id: string } };
   return json.data.id;
 }

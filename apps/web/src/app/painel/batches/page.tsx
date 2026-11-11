@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { NewBatchDrawer } from '@/components/batches/new-batch-drawer';
 import { Topbar } from '@/components/layout/topbar';
 import { Button, Card, EmptyState, LinkButton, PageHeader, Status, Table, type Tone } from '@/components/ui';
+import { AutoRefresh } from '@/components/ui/auto-refresh';
 import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
 import { authedDb } from '@/lib/auth';
 import { retryBatchAction } from './actions';
@@ -36,6 +37,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <Topbar crumbs={[{ label: 'Batches' }]} />
+      {!novo && batches.some((b) => b.status === 'buscando' || b.status === 'analisando') && <AutoRefresh />}
       <main className="p-4 lg:p-6">
         <PageHeader
           title="Batches"

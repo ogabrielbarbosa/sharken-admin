@@ -11,6 +11,7 @@ const schema = z.object({
   CAPTURE_TOKEN: z.string().min(1),
   CRON_SECRET: z.string().min(1),
   ANTHROPIC_MODEL: z.string().default('claude-opus-5-5'),
+  ANTHROPIC_WORKSPACE_ID: z.string().optional(),
   COMMERCIAL_NAME: z.string().default('Sharken'),
   WEBHOOK_BASE_URL: z.string().url().optional(),
 });
