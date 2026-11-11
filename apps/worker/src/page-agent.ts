@@ -26,11 +26,17 @@ function guard(dir: string): CanUseTool {
   };
 }
 
-/** Roda o agente na pasta: ele lê GUIA.md, brief.json e material/ e escreve index.html. */
-export async function runPageAgent(dir: string, prompt: string, model: string): Promise<void> {
+export type AgentRun = { error: string | null; costUsd: number };
+
+/**
+ * Roda o agente na pasta: ele lê GUIA.md, brief.json e material/ e escreve index.html.
+ * Não lança erro: limite de turnos, tempo esgotado e falha do SDK voltam em `error`, para a próxima tentativa.
+ */
+export async function runPageAgent(dir: string, prompt: string, model: string): Promise<AgentRun> {
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), PAGE_AGENT.timeoutMs);
   const workspace = process.env.ANTHROPIC_WORKSPACE_ID;
+  let costUsd = 0;
   try {
     for await (const message of query({
       prompt,
@@ -41,7 +47,10 @@ export async function runPageAgent(dir: string, prompt: string, model: string): 
         tools: TOOLS,
         permissionMode: 'default',
         canUseTool: guard(dir),
+        // Nada do ambiente do Mac: sem configurações, CLAUDE.md nem servidores MCP do usuário.
         settingSources: [],
+        mcpServers: {},
+        strictMcpConfig: true,
         persistSession: false,
         systemPrompt: SYSTEM_PROMPT,
         abortController: abort,
@@ -53,14 +62,15 @@ export async function runPageAgent(dir: string, prompt: string, model: string): 
       },
     })) {
       if (message.type !== 'result') continue;
-      if (message.subtype === 'success' && !message.is_error) return;
-      if (message.subtype === 'error_max_turns') throw new Error('O agente passou do limite de turnos.');
-      throw new Error(`O agente parou com erro (${message.subtype}).`);
+      costUsd = message.total_cost_usd ?? 0;
+      if (message.subtype === 'success' && !message.is_error) return { error: null, costUsd };
+      if (message.subtype === 'error_max_turns') return { error: 'O agente passou do limite de turnos.', costUsd };
+      return { error: `O agente parou com erro (${message.subtype}).`, costUsd };
     }
-    throw new Error('O agente terminou sem resultado.');
+    return { error: 'O agente terminou sem resultado.', costUsd };
   } catch (err) {
-    if (abort.signal.aborted) throw new Error('O agente passou do tempo limite.');
-    throw err;
+    if (abort.signal.aborted) return { error: 'O agente passou do tempo limite.', costUsd };
+    return { error: `O agente falhou: ${(err as Error).message}`, costUsd };
   } finally {
     clearTimeout(timer);
   }
