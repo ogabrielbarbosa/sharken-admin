@@ -4,7 +4,7 @@ import { CYCLES, formatDocument, formatPhone, parseBRLToCents, PAYMENT_METHODS, 
 import { FileSignature } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition, type ReactNode } from 'react';
+import { useRef, useState, useTransition, type ReactNode } from 'react';
 import { closeDealAction } from '@/app/painel/crm/actions';
 import { Button, Drawer, ErrorNote, Input, Select, Textarea } from '@/components/ui';
 
@@ -35,6 +35,7 @@ function Labeled({ label, fromCrm, error, children }: { label: string; fromCrm?:
 /** Drawer de Fechar negócio. O servidor valida de novo e grava tudo numa transação. */
 export function CloseDealDrawer({ contactName, defaults, existingClient, closeHref }: { contactName: string; defaults: CloseDealInput; existingClient: boolean; closeHref: string }) {
   const router = useRouter();
+  const requestId = useRef(crypto.randomUUID());
   const [client, setClient] = useState({ ...defaults.client, phone: formatPhone(defaults.client.phone), document: formatDocument(defaults.client.document) });
   const [service, setService] = useState({ name: defaults.service.name, kind: defaults.service.kind, notes: defaults.service.notes, start_date: defaults.service.start_date || today() });
   const [amount, setAmount] = useState('');
@@ -50,6 +51,7 @@ export function CloseDealDrawer({ contactName, defaults, existingClient, closeHr
     e.preventDefault();
     const input: CloseDealInput = {
       contact_id: defaults.contact_id,
+      request_id: requestId.current,
       client,
       service: { name: service.name, kind: service.kind, notes: service.notes, start_date: service.start_date, amount_cents: parseBRLToCents(amount) },
       payment: { method: payment.method, first_due_date: payment.first_due_date, cycle: service.kind === 'recorrente' && payment.cycle ? payment.cycle : null },
@@ -57,7 +59,7 @@ export function CloseDealDrawer({ contactName, defaults, existingClient, closeHr
     start(async () => {
       const out = await closeDealAction(input);
       if (out.ok) {
-        router.push(`/painel/contratos?contrato=${out.contractId}`);
+        router.replace(`/painel/clientes/${out.clientId}`);
         return;
       }
       setFields(out.fields ?? {});
@@ -66,7 +68,7 @@ export function CloseDealDrawer({ contactName, defaults, existingClient, closeHr
   };
 
   return (
-    <Drawer title="Fechar negócio" subtitle={`${contactName} · os campos marcados vieram do CRM`} closeHref={closeHref} wide>
+    <Drawer title={existingClient ? 'Novo negócio' : 'Fechar negócio'} subtitle={`${contactName} · os campos marcados vieram do CRM`} closeHref={closeHref} wide>
       <form onSubmit={submit} className="flex flex-1 flex-col gap-6">
         <Block n={1} title="Cliente">
           {existingClient && <p className="rounded-md bg-secondary px-3 py-2 text-sm text-muted-foreground">Este contato já é cliente. O serviço novo fica nele, e os campos alterados atualizam o cadastro.</p>}

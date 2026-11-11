@@ -4,6 +4,8 @@ import { getEnv } from '@lps/config';
 import {
   closeDeal,
   createContact,
+  getContract,
+  getService,
   findContactByPhone,
   getContact,
   getLead,
@@ -17,7 +19,7 @@ import {
   updateContact,
   updateLead,
 } from '@lps/db';
-import { renewExpiry, toMobileE164, validateCloseDeal, type CloseDealInput, type ContactStatus } from '@lps/domain';
+import { normalizeDocument, renewExpiry, toMobileE164, validateCloseDeal, type CloseDealInput, type ContactStatus } from '@lps/domain';
 import { getWhatsAppProvider, suggestConversationReply } from '@lps/integrations';
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
@@ -198,16 +200,17 @@ export async function connectionQrAction(): Promise<{ ok: true; qr: string | nul
   }
 }
 
-export type CloseDealResult = { ok: true; contractId: string } | { ok: false; error: string; fields?: Record<string, string> };
+export type CloseDealResult = { ok: true; contractId: string; clientId: string } | { ok: false; error: string; fields?: Record<string, string> };
 
 /** Fechar negócio: valida de novo no servidor e grava tudo numa transação (função close_deal). */
 export async function closeDealAction(input: CloseDealInput): Promise<CloseDealResult> {
   try {
     const clean: CloseDealInput = {
       contact_id: text(input.contact_id),
+      request_id: text(input.request_id) || undefined,
       client: {
         legal_name: text(input.client.legal_name),
-        document: text(input.client.document),
+        document: normalizeDocument(text(input.client.document)),
         contact_name: text(input.client.contact_name),
         email: text(input.client.email),
         phone: text(input.client.phone).replace(/\D/g, ''),
@@ -221,10 +224,15 @@ export async function closeDealAction(input: CloseDealInput): Promise<CloseDealR
     if (Object.keys(fields).length) return { ok: false, error: 'Corrija os campos marcados.', fields };
     const db = await authedDb();
     const contractId = await closeDeal(db, clean);
+    const contract = await getContract(db, contractId);
+    const service = contract && (await getService(db, contract.service_id));
+    if (!service) throw new Error('Contrato não encontrado.');
     revalidatePath('/painel', 'layout');
-    return { ok: true, contractId };
+    return { ok: true, contractId, clientId: service.client_id };
   } catch (err) {
     unstable_rethrow(err);
-    return { ok: false, error: err instanceof Error ? err.message : 'Não foi possível fechar o negócio.' };
+    // Só as mensagens que a própria função escreve em português chegam à tela; o resto vira texto genérico.
+    const known = err instanceof Error && /^(Contato não encontrado|Contato marcado como Não contatar)/.test(err.message);
+    return { ok: false, error: known ? (err as Error).message : 'Não foi possível fechar o negócio. Confira os dados e tente de novo.' };
   }
 }

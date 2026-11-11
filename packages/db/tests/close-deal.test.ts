@@ -103,6 +103,24 @@ describe('close_deal', () => {
     expect((await q(`select status from contacts where id = $1`, [contactId])).rows[0].status).toBe('fechado');
   });
 
+  it('mesma request_id devolve o mesmo contrato sem criar outro', async () => {
+    const { contactId } = await seed();
+    const keyed = { ...input(contactId), request_id: `req-${n}` };
+    const first = await closeDeal(db, keyed);
+    const second = await closeDeal(db, keyed);
+    expect(second).toBe(first);
+    expect((await q(`select count(*) c from services s join clients c on c.id = s.client_id where c.contact_id = $1`, [contactId])).rows[0].c).toEqual(1);
+    expect((await q(`select count(*) c from contracts where request_id = $1`, [keyed.request_id])).rows[0].c).toEqual(1);
+  });
+
+  it('guarda o documento só com números', async () => {
+    const { contactId } = await seed();
+    const row = { ...input(contactId) };
+    row.client = { ...row.client, document: '529.982.247-25' };
+    await closeDeal(db, row);
+    expect((await q(`select document from clients where contact_id = $1`, [contactId])).rows[0].document).toBe('52998224725');
+  });
+
   it('recusa contato Não contatar', async () => {
     const { contactId } = await seed({ status: 'nao_contatar' });
     const before = await count('clients');

@@ -70,4 +70,16 @@ describe('validateCloseDeal', () => {
     input.payment.cycle = 'mensal';
     expect(validateCloseDeal(input).cycle).toBeUndefined();
   });
+  it('recusa data que não existe e tipo desconhecido', () => {
+    const input = valid();
+    input.service.start_date = '2026-13-45';
+    input.payment.first_due_date = '2026-02-30';
+    (input.service as { kind: string }).kind = 'mensal';
+    expect(Object.keys(validateCloseDeal(input)).sort()).toEqual(['first_due_date', 'kind', 'start_date']);
+  });
+  it('aceita CNPJ alfanumérico', () => {
+    const input = valid();
+    input.client.document = '12ABC34501DE' + '00';
+    expect(validateCloseDeal(input).document).toBeDefined();
+  });
 });

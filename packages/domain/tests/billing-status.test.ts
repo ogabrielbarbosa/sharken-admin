@@ -75,4 +75,8 @@ describe('mergeContractStatus', () => {
     expect(mergeContractStatus('enviado', 'enviado')).toBe('enviado');
     expect(mergeContractStatus('recusado', 'recusado')).toBe('recusado');
   });
+  it('fora de ordem: recusado e depois assinado vira assinado; assinado e depois enviado fica assinado', () => {
+    expect(mergeContractStatus('recusado', 'assinado')).toBe('assinado');
+    expect(mergeContractStatus(mergeContractStatus('enviado', 'assinado'), 'enviado')).toBe('assinado');
+  });
 });

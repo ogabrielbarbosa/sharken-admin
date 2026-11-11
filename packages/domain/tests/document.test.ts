@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDocument, formatPhone, isValidCnpj, isValidCpf } from '../src/document';
+import { formatDocument, formatPhone, isValidCnpj, isValidCpf, normalizeDocument } from '../src/document';
 
 describe('isValidCpf', () => {
   it('aceita CPF válido, com ou sem pontuação', () => {
@@ -47,5 +47,35 @@ describe('formatPhone', () => {
   });
   it('devolve o texto original quando não reconhece', () => {
     expect(formatPhone('123')).toBe('123');
+  });
+});
+
+const withCheckDigits = (base: string) => {
+  const dv = (chars: string, weights: number[]) => {
+    const rest = [...chars].reduce((sum, ch, i) => sum + (ch.charCodeAt(0) - 48) * weights[i], 0) % 11;
+    return rest < 2 ? 0 : 11 - rest;
+  };
+  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const d1 = dv(base, w1);
+  const d2 = dv(base + d1, [6, ...w1]);
+  return `${base}${d1}${d2}`;
+};
+
+describe('CNPJ alfanumérico', () => {
+  const valid = withCheckDigits('12ABC34501DE');
+  it('aceita 12 caracteres alfanuméricos com 2 dígitos verificadores', () => {
+    expect(isValidCnpj(valid)).toBe(true);
+    expect(isValidCnpj(valid.toLowerCase())).toBe(true);
+    expect(isValidCnpj(`${valid.slice(0, 2)}.${valid.slice(2, 5)}.${valid.slice(5, 8)}/${valid.slice(8, 12)}-${valid.slice(12)}`)).toBe(true);
+  });
+  it('recusa dígito verificador errado e letra nos dígitos verificadores', () => {
+    const wrong = valid.slice(0, 13) + String((Number(valid[13]) + 1) % 10);
+    expect(isValidCnpj(wrong)).toBe(false);
+    expect(isValidCnpj(valid.slice(0, 12) + 'AB')).toBe(false);
+  });
+  it('formata e normaliza', () => {
+    expect(normalizeDocument('12.ABC.345/01DE-' + valid.slice(12))).toBe(valid);
+    expect(formatDocument(valid)).toBe(`12.ABC.345/01DE-${valid.slice(12)}`);
+    expect(normalizeDocument('529.982.247-25')).toBe('52998224725');
   });
 });

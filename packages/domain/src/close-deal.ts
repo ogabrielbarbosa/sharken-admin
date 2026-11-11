@@ -18,6 +18,8 @@ export const PAYMENT_METHODS: { value: ChargeMethod; label: string }[] = [
 
 export type CloseDealInput = {
   contact_id: string;
+  /** Chave de idempotência: o mesmo valor nunca cria dois contratos. */
+  request_id?: string;
   client: { legal_name: string; document: string; contact_name: string; email: string; phone: string; address: string; location: string };
   service: { name: string; kind: 'unico' | 'recorrente'; amount_cents: number | null; start_date: string; notes: string };
   payment: { method: ChargeMethod; first_due_date: string; cycle: Cycle | null };
@@ -44,7 +46,12 @@ export function closeDealDefaults(contact: Contact, lead: Lead | null): CloseDea
   };
 }
 
-const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+function isRealDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
 
 /** Erros por campo. Vazio quando pode salvar. */
 export function validateCloseDeal(input: CloseDealInput): Record<string, string> {
@@ -55,9 +62,10 @@ export function validateCloseDeal(input: CloseDealInput): Record<string, string>
   if (client.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(client.email.trim())) errors.email = 'E-mail inválido.';
   if (!service.name.trim()) errors.service_name = 'Informe o nome do serviço.';
   if (service.amount_cents === null || !Number.isInteger(service.amount_cents) || service.amount_cents <= 0) errors.amount = 'Informe um valor maior que zero.';
-  if (!isoDate.test(service.start_date)) errors.start_date = 'Informe a data de início.';
-  if (!isoDate.test(payment.first_due_date)) errors.first_due_date = 'Informe o primeiro vencimento.';
+  if (!isRealDate(service.start_date)) errors.start_date = 'Informe a data de início.';
+  if (!isRealDate(payment.first_due_date)) errors.first_due_date = 'Informe o primeiro vencimento.';
   if (!PAYMENT_METHODS.some((m) => m.value === payment.method)) errors.method = 'Escolha a forma de pagamento.';
+  if (service.kind !== 'unico' && service.kind !== 'recorrente') errors.kind = 'Escolha o tipo do serviço.';
   if (service.kind === 'recorrente' && !CYCLES.some((c) => c.value === payment.cycle)) errors.cycle = 'Escolha a periodicidade.';
   return errors;
 }

@@ -93,10 +93,10 @@ export function ContactPanel({ contact, lead, origin, page, flowLabel, videoLabe
 
       <footer className="space-y-2 border-t border-border p-4">
         {error && <ErrorNote>{error}</ErrorNote>}
-        {contact.status === 'fechado' || ended ? (
+        {ended ? (
           <span className="flex h-9 items-center justify-center gap-2 rounded-md bg-secondary text-sm font-medium opacity-60"><Handshake className="size-4" />Fechar negócio</span>
         ) : (
-          <Link href={closeHref} scroll={false} className="flex h-9 items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground hover:bg-white"><Handshake className="size-4" />Fechar negócio</Link>
+          <Link href={closeHref} scroll={false} className="flex h-9 items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground hover:bg-white"><Handshake className="size-4" />{contact.status === 'fechado' ? 'Novo negócio' : 'Fechar negócio'}</Link>
         )}
         <div className="grid grid-cols-2 gap-2">
           <button type="button" disabled={pending || ended || contact.status === 'perdido'} onClick={() => change('perdido', 'Marcar este contato como perdido?')} className="inline-flex h-8 cursor-pointer items-center justify-center gap-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"><ThumbsDown className="size-4" />Perdido</button>
