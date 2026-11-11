@@ -52,7 +52,7 @@ describe('pendências', () => {
 describe('retenção', () => {
   const now = new Date('2026-11-06T12:00:00Z');
   const ago = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
-  const lead = (over = {}) => ({ stage: 'crm', created_at: ago(400), contacted_at: ago(181), follow_up_at: null, responded_at: null, hasClient: false, ...over }) as never;
+  const lead = (over = {}) => ({ stage: 'descartado', created_at: ago(400), contacted_at: ago(181), follow_up_at: null, responded_at: null, hasClient: false, ...over }) as never;
   it('remove lead sem resposta depois de 180 dias', () => {
     expect(shouldDeleteLead(lead(), now)).toBe(true);
     expect(shouldDeleteLead(lead({ contacted_at: ago(179) }), now)).toBe(false);
@@ -65,9 +65,13 @@ describe('retenção', () => {
     expect(shouldDeleteLead(lead({ stage: 'revisar', contacted_at: null, created_at: ago(5) }), now)).toBe(false);
   });
   it('preserva quem respondeu, vendeu ou virou cliente', () => {
-    expect(shouldDeleteLead(lead({ stage: 'crm', responded_at: ago(300) }), now)).toBe(false);
+    expect(shouldDeleteLead(lead({ responded_at: ago(300) }), now)).toBe(false);
     expect(shouldDeleteLead(lead({ stage: 'vendido' }), now)).toBe(false);
     expect(shouldDeleteLead(lead({ hasClient: true }), now)).toBe(false);
+  });
+  it('preserva lead ativo no CRM e ainda remove o descartado', () => {
+    expect(shouldDeleteLead(lead({ stage: 'crm', created_at: ago(400), contacted_at: null }), now)).toBe(false);
+    expect(shouldDeleteLead(lead({ stage: 'descartado', created_at: ago(400), contacted_at: null }), now)).toBe(true);
   });
   it('remove modelo vencido', () => {
     expect(shouldRemoveSite({ status: 'modelo', expires_at: ago(1) }, now)).toBe(true);
