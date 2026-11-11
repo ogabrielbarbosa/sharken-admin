@@ -1,24 +1,77 @@
 'use server';
 
-import { addAsset, deleteAsset, enqueueJob, getAsset, getLead, listAssets, listLeads, moveLead, updateAsset, updateLead, type Db } from '@lps/db';
-import { canGenerateMaterial, canTransition, isAcceptedMime, MAX_ASSET_BYTES, nextPending, normalizeLinkUrl, sanitizeFileName, type Lead } from '@lps/domain';
+import {
+  addAsset, completeInfo, deleteAsset, enqueueJob, getAsset, getLead, listAssets, moveLead, qualifyLeads,
+  savePageUrl, saveLoomUrl, STALE, stepBack, updateAsset, updateLead, type Db, type PipelineResult,
+} from '@lps/db';
+import { canTransition, isAcceptedMime, MAX_ASSET_BYTES, normalizeLinkUrl, sanitizeFileName, type Lead } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import { authedDb } from '@/lib/auth';
 
 const BUCKET = 'lead-assets';
 type Result = { error?: string };
 
-/** O lead precisa existir e ainda estar em Completar; com `batchId`, também ser daquele batch. */
-async function completing(db: Db, leadId: string, batchId?: string): Promise<Lead | null> {
+/** O lead precisa existir e ainda estar em Qualificado (`completar`). */
+async function completing(db: Db, leadId: string): Promise<Lead | null> {
   const lead = await getLead(db, leadId);
-  if (!lead || lead.stage !== 'completar') return null;
-  if (batchId && lead.batch_id !== batchId) return null;
-  return lead;
+  return lead && lead.stage === 'completar' ? lead : null;
 }
 
-const gone = { error: 'Este lead não está mais em Completar.' };
+const gone = { error: 'Este lead não está mais em Qualificado.' };
 const refresh = () => revalidatePath('/painel', 'layout');
+
+// ── Etapas ──────────────────────────────────────────────────────────────
+
+/** Novo lead → Qualificado. Quem já saiu de Novo lead fica como está. */
+export async function qualifyAction(ids: string[]): Promise<PipelineResult> {
+  const db = await authedDb();
+  const { moved } = await qualifyLeads(db, ids);
+  refresh();
+  if (!moved) return { ok: false, error: STALE };
+  return moved < ids.length ? { ok: true, warning: `${ids.length - moved} já tinham mudado de etapa.` } : { ok: true };
+}
+
+/** Descarta os leads escolhidos. A transição é conferida para cada um. */
+export async function discardAction(ids: string[]): Promise<PipelineResult> {
+  const db = await authedDb();
+  let moved = 0;
+  for (const id of ids) {
+    const lead = await getLead(db, id);
+    if (!lead || !canTransition(lead.stage, 'descartado')) continue;
+    await moveLead(db, lead, 'descartado', { exit_reason: 'Descartado por você' });
+    moved += 1;
+  }
+  refresh();
+  if (!moved) return { ok: false, error: STALE };
+  return moved < ids.length ? { ok: true, warning: `${ids.length - moved} já tinham mudado de etapa.` } : { ok: true };
+}
+
+export async function completeInfoAction(leadId: string): Promise<PipelineResult> {
+  const result = await completeInfo(await authedDb(), leadId);
+  refresh();
+  return result;
+}
+
+export async function savePageUrlAction(leadId: string, url: string): Promise<PipelineResult> {
+  const result = await savePageUrl(await authedDb(), leadId, url);
+  refresh();
+  return result;
+}
+
+export async function saveLoomUrlAction(leadId: string, url: string): Promise<PipelineResult> {
+  const result = await saveLoomUrl(await authedDb(), leadId, url);
+  refresh();
+  return result;
+}
+
+export async function stepBackAction(leadId: string, from: 'pagina' | 'video'): Promise<PipelineResult> {
+  if (from !== 'pagina' && from !== 'video') return { ok: false, error: STALE };
+  const result = await stepBack(await authedDb(), leadId, from);
+  refresh();
+  return result;
+}
+
+// ── Itens do lead em Qualificado ────────────────────────────────────────
 
 export async function addLinkAction(leadId: string, rawUrl: string, label?: string): Promise<Result> {
   const db = await authedDb();
@@ -96,47 +149,6 @@ export async function saveLeadFieldAction(leadId: string, field: 'reason' | 'com
   const db = await authedDb();
   if (!(await completing(db, leadId))) return gone;
   await updateLead(db, leadId, { [field]: value });
-  return {};
-}
-
-const base = (batchId: string) => `/painel/batches/${batchId}/completar`;
-
-/** Sem `ids` na URL, a fila é o conjunto de leads do batch em Completar. */
-async function nextInQueue(db: Db, batchId: string, currentId: string, ids: string[]): Promise<string | null> {
-  const pending = await listLeads(db, batchId, ['completar']);
-  const order = ids.length ? ids : pending.map((l) => l.id);
-  return nextPending(order, currentId, new Set(pending.map((l) => l.id)));
-}
-
-function queueUrl(batchId: string, ids: string[], leadId: string | null) {
-  const params = new URLSearchParams();
-  if (ids.length) params.set('ids', ids.join(','));
-  if (leadId) params.set('lead', leadId);
-  const qs = params.toString();
-  return qs ? `${base(batchId)}?${qs}` : base(batchId);
-}
-
-const idsOf = (form: FormData) => String(form.get('ids') ?? '').split(',').filter(Boolean);
-
-export async function generateMaterialAction(leadId: string, batchId: string, ids: string[]): Promise<Result> {
-  const db = await authedDb();
-  const lead = await completing(db, leadId, batchId);
-  if (!lead || !canTransition('completar', 'gerando_material')) return gone;
-  const check = canGenerateMaterial(lead, await listAssets(db, leadId));
-  if (!check.ok) return { error: check.reason };
-  await moveLead(db, lead, 'gerando_material', { error: null });
-  await enqueueJob(db, { type: 'build_page', payload: { lead_id: leadId }, dedupeKey: `build_page:${leadId}` });
   refresh();
-  const next = await nextInQueue(db, batchId, leadId, ids);
-  redirect(next ? queueUrl(batchId, ids, next) : `/painel/batches/${batchId}/material`);
-}
-
-export async function skipAction(form: FormData) {
-  const db = await authedDb();
-  const leadId = String(form.get('leadId'));
-  const batchId = String(form.get('batchId'));
-  const ids = idsOf(form);
-  if (!(await completing(db, leadId, batchId))) return;
-  const next = await nextInQueue(db, batchId, leadId, ids);
-  if (next) redirect(queueUrl(batchId, ids, next));
+  return {};
 }

@@ -3,7 +3,7 @@
 import { Loader2, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { MAX_ASSET_BYTES } from '@lps/domain';
-import { confirmUploadAction, createUploadUrlAction } from '@/app/painel/batches/[id]/completar/actions';
+import { confirmUploadAction, createUploadUrlAction } from '@/app/painel/batches/[id]/actions';
 
 /** Área de arrastar arquivos. O navegador envia direto ao Storage com uma URL assinada. */
 export function FileDrop({ leadId }: { leadId: string }) {

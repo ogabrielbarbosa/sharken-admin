@@ -1,19 +1,27 @@
 'use client';
 
-import { ArrowRight, Ban, Check, ChevronDown, ChevronUp, Trash2, X } from 'lucide-react';
+import { Ban, Check, ChevronDown, ChevronUp, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import type { Lead } from '@lps/domain';
 import { Badge, Button } from '@/components/ui';
-import { blockLeadAction, discardLeadAction } from '@/lib/common-lead-actions';
+import { blockLeadAction } from '@/lib/common-lead-actions';
 import { NoteField } from './note-field';
-import { advanceLeadsAction } from '@/app/painel/batches/[id]/revisar/actions';
+import { discardAction, qualifyAction } from '@/app/painel/batches/[id]/actions';
+import { Notice, useStageAction } from '@/components/pipeline/board';
 import { siteLabel, leadMeta, instagramLabel } from '@/lib/lead-labels';
 
-/** Painel lateral do lead. As setas do teclado passam para o anterior e o próximo da lista filtrada. */
-export function LeadDrawer({ lead, batchId, position, prevHref, nextHref, closeHref }: { lead: Lead; batchId: string; position: string; prevHref: string | null; nextHref: string | null; closeHref: string }) {
+/**
+ * Painel lateral do lead. As setas do teclado passam para o anterior e o próximo da coluna.
+ * Qualificar e Descartar só aparecem para quem está em Novo lead (`revisar`).
+ */
+export function LeadDrawer({ lead, position, prevHref, nextHref, closeHref }: { lead: Lead; position: string; prevHref: string | null; nextHref: string | null; closeHref: string }) {
   const router = useRouter();
+  const { pending, notice, run } = useStageAction();
+  // Depois de decidir, passa para o próximo da coluna, ou fecha.
+  const decide = (fn: typeof qualifyAction) =>
+    run(() => fn([lead.id]), (r) => { if (r.ok) router.replace(nextHref ?? prevHref ?? closeHref, { scroll: false }); });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -87,28 +95,27 @@ export function LeadDrawer({ lead, batchId, position, prevHref, nextHref, closeH
             </section>
           )}
           {lead.error && <p className="text-xs text-warning">{lead.error}</p>}
+          {lead.exit_reason && <p className="text-sm text-muted-foreground">Saiu da pipeline: {lead.exit_reason}</p>}
           {lead.flow === 'melhorar_site' && (
-            <NoteField key={`reason-${lead.id}`} leadId={lead.id} field="reason" initial={lead.reason} label="Motivo · aparece na mensagem e no vídeo" placeholder="ex.: o site não abre bem no celular" />
+            <NoteField key={`reason-${lead.id}`} leadId={lead.id} field="reason" initial={lead.reason} label="Motivo · aparece na mensagem" placeholder="ex.: o site não abre bem no celular" />
           )}
           <NoteField key={`comment-${lead.id}`} leadId={lead.id} field="comment" initial={lead.comment} label="Comentário interno" placeholder="Não vai para o lead…" />
         </div>
-        <div className="flex items-center justify-between gap-2 border-t border-border p-4">
-          <form action={blockLeadAction}>
-            <input type="hidden" name="leadId" value={lead.id} />
-            <Button type="submit" variant="ghost"><Ban />Não contatar</Button>
-          </form>
-          <div className="flex items-center gap-2">
-            <form action={discardLeadAction}>
+        {notice && <div className="px-6 pb-4"><Notice notice={notice} /></div>}
+        {lead.stage !== 'nao_contatar' && (
+          <div className="flex items-center justify-between gap-2 border-t border-border p-4">
+            <form action={blockLeadAction}>
               <input type="hidden" name="leadId" value={lead.id} />
-              <Button type="submit" variant="outline"><Trash2 />Descartar</Button>
+              <Button type="submit" variant="ghost"><Ban />Não contatar</Button>
             </form>
-            <form action={advanceLeadsAction}>
-              <input type="hidden" name="batchId" value={batchId} />
-              <input type="hidden" name="ids" value={lead.id} />
-              <Button type="submit"><ArrowRight />Avançar e completar</Button>
-            </form>
+            {lead.stage === 'revisar' && (
+              <div className="flex items-center gap-2">
+                <Button variant="outline" disabled={pending} onClick={() => decide(discardAction)}><Trash2 />Descartar</Button>
+                <Button disabled={pending} onClick={() => decide(qualifyAction)}><Check />Qualificar</Button>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </aside>
     </div>
   );

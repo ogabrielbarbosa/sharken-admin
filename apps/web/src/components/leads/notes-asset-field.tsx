@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Textarea } from '@/components/ui';
-import { addTextAction } from '@/app/painel/batches/[id]/completar/actions';
+import { addTextAction } from '@/app/painel/batches/[id]/actions';
 
 /** Notas para a página: salva ao sair do campo. */
 export function NotesAssetField({ leadId, initial }: { leadId: string; initial: string }) {

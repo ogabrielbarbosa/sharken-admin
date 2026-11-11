@@ -1,5 +1,5 @@
 import { listBatches, listBatchStages } from '@lps/db';
-import { PROCESS_STEPS, stagesOf, summarizeBatch, type Batch, type ProcessStep } from '@lps/domain';
+import { PIPELINE_COLUMNS, summarizeBatch, type Batch, type LeadStage, type PipelineColumn } from '@lps/domain';
 import { ChevronRight, Plus, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { NewBatchDrawer } from '@/components/batches/new-batch-drawer';
@@ -17,7 +17,10 @@ const STATUS: Record<Batch['status'], { label: string; tone: Tone; detail: strin
   erro: { label: 'Erro', tone: 'danger', detail: '' },
 };
 
-const ABBR: Record<ProcessStep, string> = { revisar: 'LEA', completar: 'COM', material: 'MAT' };
+const ABBR: Record<PipelineColumn, string> = { novo: 'NOV', qualificado: 'QUA', pagina: 'PÁG', video: 'VÍD', pronto: 'PRO', descartados: 'DES' };
+
+/** `etapa` aceita a coluna (`qualificado`) ou um estágio (`revisar`, dos links da visão geral). */
+const columnFor = (etapa: string) => PIPELINE_COLUMNS.find((c) => c.key === etapa || c.stages.includes(etapa as LeadStage));
 
 export default async function BatchesPage({ searchParams }: { searchParams: Promise<{ novo?: string; local?: string; etapa?: string }> }) {
   const { novo, local, etapa } = await searchParams;
@@ -25,12 +28,12 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
   const [batches, stages] = await Promise.all([listBatches(db), listBatchStages(db)]);
   const locations = [...new Map(batches.map((b) => [b.location_key, b.location])).entries()];
 
+  const column = etapa ? columnFor(etapa) : undefined;
   const rows = batches
     .filter((b) => !local || b.location_key === local)
     .filter((b) => {
-      if (!etapa) return true;
-      const wanted = stagesOf(etapa as ProcessStep);
-      return stages.some((s) => s.batch_id === b.id && wanted.includes(s.stage));
+      if (!column) return true;
+      return stages.some((s) => s.batch_id === b.id && column.stages.includes(s.stage));
     })
     .map((batch) => ({ batch, summary: summarizeBatch(stages.filter((s) => s.batch_id === batch.id)) }));
 
@@ -41,7 +44,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
       <main className="p-4 lg:p-6">
         <PageHeader
           title="Batches"
-          description="Cada batch é uma busca por região e tipo de negócio. Clique em um batch para revisar os leads."
+          description="Cada batch é uma busca por região e tipo de negócio. Clique em um batch para abrir a pipeline dele."
           actions={
             <>
               <form>
@@ -55,9 +58,9 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
             </>
           }
         />
-        {etapa && (
+        {column && (
           <p className="mb-4 text-sm text-muted-foreground">
-            Mostrando batches com leads em {PROCESS_STEPS.find((s) => s.key === etapa)?.label}.{' '}
+            Mostrando batches com leads em {column.label}.{' '}
             <Link href="/painel/batches" className="underline">Ver todos</Link>
           </p>
         )}
@@ -72,8 +75,8 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
             <Table head={['Localização', 'Tipo de negócio', 'Quantidade', 'Status', 'Leads por etapa', 'Próxima ação', '']}>
               {rows.map(({ batch, summary }) => {
                 const status = STATUS[batch.status];
-                const href = `/painel/batches/${batch.id}/revisar`;
-                const started = PROCESS_STEPS.some((s) => summary.counts[s.key] > 0);
+                const href = `/painel/batches/${batch.id}`;
+                const started = PIPELINE_COLUMNS.some((c) => summary.counts[c.key] > 0);
                 return (
                   <tr key={batch.id} className="hover:bg-accent/40">
                     <td className="px-4 py-3 font-medium"><Link href={href}>{batch.location}</Link></td>
@@ -83,10 +86,10 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                     <td className="px-4 py-3">
                       {started ? (
                         <div className="flex gap-3">
-                          {PROCESS_STEPS.map((s) => (
-                            <span key={s.key} className="text-center">
-                              <span className="block text-sm">{summary.counts[s.key]}</span>
-                              <span className="block font-mono text-[10px] text-muted-foreground">{ABBR[s.key]}</span>
+                          {PIPELINE_COLUMNS.map((c) => (
+                            <span key={c.key} title={c.label} className="text-center">
+                              <span className="block text-sm">{summary.counts[c.key]}</span>
+                              <span className="block font-mono text-[10px] text-muted-foreground">{ABBR[c.key]}</span>
                             </span>
                           ))}
                         </div>

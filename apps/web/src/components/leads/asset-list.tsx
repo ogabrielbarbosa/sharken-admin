@@ -4,7 +4,7 @@ import { FileText, Image as ImageIcon, Link as LinkIcon, Loader2, Plus, RotateCw
 import { useState, useTransition } from 'react';
 import type { LeadAsset } from '@lps/domain';
 import { Button, Input } from '@/components/ui';
-import { addLinkAction, removeAssetAction, retryAssetAction } from '@/app/painel/batches/[id]/completar/actions';
+import { addLinkAction, removeAssetAction, retryAssetAction } from '@/app/painel/batches/[id]/actions';
 
 const short = (url: string) => url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
 

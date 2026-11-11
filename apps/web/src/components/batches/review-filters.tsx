@@ -16,7 +16,7 @@ type Counts = Record<FilterGroupKey, Record<string, number>>;
 
 const hrefFor = (batchId: string, f: ReviewFilter) => {
   const qs = serializeReviewFilter(f);
-  return `/painel/batches/${batchId}/revisar${qs ? `?${qs}` : ''}`;
+  return `/painel/batches/${batchId}${qs ? `?${qs}` : ''}`;
 };
 
 /** Tooltip em posição fixa, preso dentro da tela, para não ser cortado pelo popover. */
@@ -236,7 +236,7 @@ export function ActiveFilters({ batchId, filter, shown, total }: { batchId: stri
           <X className="size-3 opacity-60 group-hover:opacity-100" />
         </Link>
       ))}
-      <Link href={`/painel/batches/${batchId}/revisar`} scroll={false} replace className="ml-auto text-muted-foreground hover:text-foreground">Ver todos</Link>
+      <Link href={`/painel/batches/${batchId}`} scroll={false} replace className="ml-auto text-muted-foreground hover:text-foreground">Ver todos</Link>
     </div>
   );
 }

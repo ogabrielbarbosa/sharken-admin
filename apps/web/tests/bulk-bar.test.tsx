@@ -1,19 +1,22 @@
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BulkBar } from '@/components/leads/bulk-bar';
 
 afterEach(cleanup);
-const noop = async () => {};
+const noop = () => {};
 
 describe('BulkBar', () => {
   it('não renderiza sem seleção', () => {
-    const { container } = render(<BulkBar batchId="b1" ids={[]} advance={noop} discard={noop} onClear={() => {}} />);
+    const { container } = render(<BulkBar ids={[]} onQualify={noop} onDiscard={noop} onClear={noop} />);
     expect(container.innerHTML).toBe('');
   });
 
-  it('mostra a contagem e o botão de avançar', () => {
-    render(<BulkBar batchId="b1" ids={['a', 'b', 'c']} advance={noop} discard={noop} onClear={() => {}} />);
+  it('mostra a contagem, Descartar e Qualificar', () => {
+    const onQualify = vi.fn();
+    render(<BulkBar ids={['a', 'b', 'c']} onQualify={onQualify} onDiscard={noop} onClear={noop} />);
     expect(screen.getByText('3 selecionados')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Avançar 3 e completar' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Descartar' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Qualificar' }));
+    expect(onQualify).toHaveBeenCalledOnce();
   });
 });
