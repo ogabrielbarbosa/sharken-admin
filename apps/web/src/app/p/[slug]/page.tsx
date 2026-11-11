@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ModelPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const { captura } = await searchParams;
-  const { data } = await createAdminClient().from('sites').select('slug, status, expires_at, content').eq('slug', slug).maybeSingle();
+  const { data } = await createAdminClient().from('sites').select('slug, status, published_at, sent_at, expires_at, content').eq('slug', slug).maybeSingle();
   const site = data as Row | null;
   const isCapture = secretMatches(captura, process.env.CAPTURE_TOKEN);
   if (!site || (!isCapture && getSiteAccess(site, new Date()) !== 'ok')) notFound();

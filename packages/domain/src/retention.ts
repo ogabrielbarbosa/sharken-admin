@@ -12,6 +12,6 @@ export function shouldDeleteLead(lead: RetentionInput, now: Date): boolean {
   return now.getTime() - new Date(reference).getTime() >= RETENTION_DAYS * DAY;
 }
 
-export function shouldRemoveSite(site: SiteRow, now: Date): boolean {
-  return site.status === 'modelo' && new Date(site.expires_at) <= now;
+export function shouldRemoveSite(site: Pick<SiteRow, 'status' | 'expires_at'>, now: Date): boolean {
+  return site.status === 'modelo' && !!site.expires_at && new Date(site.expires_at) <= now;
 }

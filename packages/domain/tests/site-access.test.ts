@@ -7,11 +7,11 @@ const now = new Date('2026-11-06T12:00:00Z');
 
 describe('getSiteAccess', () => {
   it('libera modelo dentro da validade', () => {
-    expect(getSiteAccess({ status: 'modelo', expires_at: '2026-11-07T00:00:00Z' }, now)).toBe('ok');
+    expect(getSiteAccess({ status: 'modelo', published_at: null, sent_at: null, expires_at: '2026-11-07T00:00:00Z' }, now)).toBe('ok');
   });
   it('bloqueia modelo vencido ou removido', () => {
-    expect(getSiteAccess({ status: 'modelo', expires_at: '2026-11-05T00:00:00Z' }, now)).toBe('indisponivel');
-    expect(getSiteAccess({ status: 'removido', expires_at: '2026-12-01T00:00:00Z' }, now)).toBe('indisponivel');
+    expect(getSiteAccess({ status: 'modelo', published_at: null, sent_at: null, expires_at: '2026-11-05T00:00:00Z' }, now)).toBe('indisponivel');
+    expect(getSiteAccess({ status: 'removido', published_at: null, sent_at: null, expires_at: '2026-12-01T00:00:00Z' }, now)).toBe('indisponivel');
   });
 });
 
