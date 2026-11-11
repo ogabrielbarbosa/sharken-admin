@@ -3,7 +3,7 @@ import { applyReviewFilter, countByOption, parseReviewFilter, serializeReviewFil
 import { ExternalLink, Inbox, Loader2, Phone, Plus, Star } from 'lucide-react';
 import { LeadDrawer } from '@/components/leads/lead-drawer';
 import { LeadTable } from '@/components/leads/lead-table';
-import { Card, EmptyState, LinkButton, PageHeader } from '@/components/ui';
+import { Card, EmptyState, LinkButton, PageHeader, Toolbar } from '@/components/ui';
 import { AutoRefresh } from '@/components/ui/auto-refresh';
 import { ActiveFilters, ReviewFilters } from '@/components/batches/review-filters';
 import { loadBatchContext } from '@/lib/batch-context';
@@ -18,7 +18,7 @@ function Arriving({ leads, searching, quantity }: { leads: Lead[]; searching: bo
   return (
     <Card className="mb-6">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3 text-sm font-medium">
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        <Loader2 className="size-4 animate-spin text-brand-soft" />
         {title}
       </div>
       {leads.length === 0 ? (
@@ -28,7 +28,7 @@ function Arriving({ leads, searching, quantity }: { leads: Lead[]; searching: bo
           {leads.map((lead) => {
             const link = lead.website_url ?? lead.instagram_url;
             return (
-              <li key={lead.id} className="flex flex-col gap-1 px-4 py-2.5 text-sm lg:flex-row lg:items-center lg:gap-4">
+              <li key={lead.id} className="flex animate-rise flex-col gap-1 px-4 py-2.5 text-sm lg:flex-row lg:items-center lg:gap-4">
                 <span className="min-w-0 font-medium lg:w-64 lg:truncate">{lead.name}</span>
                 <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{lead.address ?? leadMeta(lead)}</span>
                 <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -91,11 +91,9 @@ export default async function RevisarPage({ params, searchParams }: { params: Pr
   return (
     <>
       {progress}
-      <PageHeader
-        title="Leads"
-        description={`${allLeads.length} ${allLeads.length === 1 ? 'lead analisado' : 'leads analisados'}. Abra o nome para ver a análise completa.`}
-        actions={<ReviewFilters batchId={id} filter={filter} counts={countByOption(allLeads, now)} shown={leads.length} total={allLeads.length} />}
-      />
+      <Toolbar start={<span className="text-sm text-muted-foreground"><b className="font-medium text-foreground tabular-nums">{allLeads.length}</b> {allLeads.length === 1 ? 'lead analisado' : 'leads analisados'}. Abra o nome para ver a análise completa.</span>}>
+        <ReviewFilters batchId={id} filter={filter} counts={countByOption(allLeads, now)} shown={leads.length} total={allLeads.length} />
+      </Toolbar>
       <ActiveFilters batchId={id} filter={filter} shown={leads.length} total={allLeads.length} />
       {leads.length === 0
         ? <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">Nenhum lead bate com esse filtro.</p>

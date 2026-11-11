@@ -1,10 +1,10 @@
 import { listBatches, listBatchStages } from '@lps/db';
 import { PROCESS_STEPS, stagesOf, summarizeBatch, type Batch, type ProcessStep } from '@lps/domain';
-import { ChevronRight, Plus, RotateCcw } from 'lucide-react';
+import { ChevronRight, Layers, Plus, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { NewBatchDrawer } from '@/components/batches/new-batch-drawer';
 import { Topbar } from '@/components/layout/topbar';
-import { Button, Card, EmptyState, LinkButton, PageHeader, Status, Table, type Tone } from '@/components/ui';
+import { Button, Card, EmptyState, LinkButton, Status, Table, Toolbar, type Tone } from '@/components/ui';
 import { AutoRefresh } from '@/components/ui/auto-refresh';
 import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
 import { authedDb } from '@/lib/auth';
@@ -39,11 +39,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
       <Topbar crumbs={[{ label: 'Batches' }]} />
       {!novo && batches.some((b) => b.status === 'buscando' || b.status === 'analisando') && <AutoRefresh />}
       <main className="p-4 lg:p-6">
-        <PageHeader
-          title="Batches"
-          description="Cada batch é uma busca por região e tipo de negócio. Clique em um batch para revisar os leads."
-          actions={
-            <>
+        <Toolbar>
               <form>
                 {etapa && <input type="hidden" name="etapa" value={etapa} />}
                 <AutoSubmitSelect name="local" defaultValue={local ?? ''} aria-label="Localização" className="w-52">
@@ -52,17 +48,15 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                 </AutoSubmitSelect>
               </form>
               <LinkButton href="/painel/batches?novo=1"><Plus />Novo batch</LinkButton>
-            </>
-          }
-        />
+        </Toolbar>
         {etapa && (
           <p className="mb-4 text-sm text-muted-foreground">
             Mostrando batches com leads em {PROCESS_STEPS.find((s) => s.key === etapa)?.label}.{' '}
-            <Link href="/painel/batches" className="underline">Ver todos</Link>
+            <Link href="/painel/batches" className="text-brand-soft hover:underline">Ver todos</Link>
           </p>
         )}
         {rows.length === 0 ? (
-          <EmptyState title="Nenhum batch por aqui" description="Crie um batch para buscar negócios de uma região." actions={<LinkButton href="/painel/batches?novo=1"><Plus />Novo batch</LinkButton>} />
+          <EmptyState icon={<Layers />} title="Nenhum batch por aqui" description="Crie um batch para buscar negócios de uma região." actions={<LinkButton href="/painel/batches?novo=1"><Plus />Novo batch</LinkButton>} />
         ) : (
           <Card>
             <div className="flex items-center justify-between px-4 py-3 text-sm">
@@ -75,17 +69,17 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                 const href = `/painel/batches/${batch.id}/revisar`;
                 const started = PROCESS_STEPS.some((s) => summary.counts[s.key] > 0);
                 return (
-                  <tr key={batch.id} className="hover:bg-accent/40">
+                  <tr key={batch.id} className="group/row">
                     <td className="px-4 py-3 font-medium"><Link href={href}>{batch.location}</Link></td>
                     <td className="px-4 py-3 text-muted-foreground">{batch.business_type}</td>
                     <td className="px-4 py-3">{batch.quantity}</td>
-                    <td className="px-4 py-3"><Status tone={status.tone}>{status.label}</Status></td>
+                    <td className="px-4 py-3"><Status tone={status.tone} live={batch.status === 'buscando' || batch.status === 'analisando'}>{status.label}</Status></td>
                     <td className="px-4 py-3">
                       {started ? (
                         <div className="flex gap-3">
                           {PROCESS_STEPS.map((s) => (
                             <span key={s.key} className="text-center">
-                              <span className="block text-sm">{summary.counts[s.key]}</span>
+                              <span className={`block text-sm tabular-nums ${summary.counts[s.key] > 0 ? 'font-medium text-brand-light' : 'text-subtle-foreground'}`}>{summary.counts[s.key]}</span>
                               <span className="block font-mono text-[10px] text-muted-foreground">{ABBR[s.key]}</span>
                             </span>
                           ))}
@@ -103,7 +97,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                           <input type="hidden" name="id" value={batch.id} />
                           <Button type="submit" variant="outline"><RotateCcw />Repetir</Button>
                         </form>
-                      ) : <Link href={href} aria-label="Abrir batch"><ChevronRight className="ml-auto size-4 text-muted-foreground" /></Link>}
+                      ) : <Link href={href} aria-label="Abrir batch"><ChevronRight className="ml-auto size-4 text-muted-foreground transition-[translate,color] duration-200 group-hover/row:translate-x-0.5 group-hover/row:text-brand-soft" /></Link>}
                     </td>
                   </tr>
                 );

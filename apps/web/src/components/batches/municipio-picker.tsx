@@ -42,9 +42,9 @@ export function MunicipioPicker({ value, onChange }: { value: string; onChange: 
           if (e.key === 'Enter') { e.preventDefault(); choose(options[active]); }
         }}
       />
-      {value && <Check className="pointer-events-none absolute top-2.5 right-3 size-4 text-emerald-500" />}
+      {value && <Check className="pointer-events-none absolute top-2.5 right-3 size-4 animate-check-pop text-brand-soft" />}
       {open && options.length > 0 && (
-        <ul role="listbox" className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-border bg-card py-1 shadow-lg">
+        <ul role="listbox" className="absolute z-10 mt-1 max-h-72 w-full origin-top animate-pop-in overflow-auto rounded-md border border-border bg-card py-1 shadow-overlay">
           {options.map((m, i) => (
             <li
               key={formatMunicipio(m)}
@@ -52,7 +52,7 @@ export function MunicipioPicker({ value, onChange }: { value: string; onChange: 
               aria-selected={i === active}
               onMouseDown={(e) => { e.preventDefault(); choose(m); }}
               onMouseEnter={() => setActive(i)}
-              className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm ${i === active ? 'bg-secondary' : ''}`}
+              className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm ${i === active ? 'bg-brand-bright/15 text-brand-pale' : ''}`}
             >
               <MapPin className="size-3.5 shrink-0 text-muted-foreground" />
               <span>{m.nome}</span>

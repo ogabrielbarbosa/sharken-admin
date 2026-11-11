@@ -42,9 +42,9 @@ export function NewBatchDrawer() {
     <Drawer title="Novo batch" subtitle={`Passo ${step + 1} de 3`} closeHref="/painel/batches">
       <ol className="mb-6 flex items-center gap-2 text-xs">
         {STEPS.map((label, i) => (
-          <li key={label} className={`flex items-center gap-1.5 ${i === step ? 'font-medium' : 'text-muted-foreground'}`}>
-            <span className={`flex size-5 items-center justify-center rounded-full ${i <= step ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>
-              {i < step ? <Check className="size-3" /> : i + 1}
+          <li key={label} className={`flex items-center gap-1.5 transition-colors duration-300 ${i === step ? 'font-medium' : 'text-muted-foreground'}`}>
+            <span className={`flex size-5 items-center justify-center rounded-full transition-[background-color,box-shadow] duration-300 ${i <= step ? 'bg-linear-to-b from-brand-bright to-brand text-white shadow-[0_0_10px_-2px_#3b82f6]' : 'bg-white/[0.06]'}`}>
+              {i < step ? <Check className="size-3 animate-check-pop" /> : i + 1}
             </span>
             {label}
           </li>
@@ -52,27 +52,27 @@ export function NewBatchDrawer() {
       </ol>
       <form action={createBatchAction} className="flex flex-1 flex-col gap-4">
         {step === 0 && (
-          <>
+          <div key="s0" className="stagger flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">Escolha a cidade na lista e escreva o tipo de negócio como alguém buscaria no Google Maps.</p>
             <Field label="Cidade"><MunicipioPicker value={where.location} onChange={(location) => setWhere((w) => ({ ...w, location }))} /></Field>
             <Field label="Tipo de negócio"><Input value={where.businessType} placeholder="pet shop" onChange={(e) => setWhere({ ...where, businessType: e.target.value })} /></Field>
             <Field label="Quantidade de leads" hint="Padrão: 50 leads por batch."><Input type="number" min={1} value={where.quantity} onChange={(e) => setWhere({ ...where, quantity: e.target.value })} /></Field>
-          </>
+          </div>
         )}
         {step === 1 && (
-          <>
+          <div key="s1" className="stagger flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">Definem quais negócios entram na revisão. Os valores abaixo são o padrão e valem só para este batch.</p>
             {criteriaFields.map((f) => (
               <Field key={f.key} label={f.label + ('suffix' in f ? ` (${f.suffix})` : '')}>
                 <Input value={criteria[f.key]} inputMode="decimal" onChange={(e) => setCriteria({ ...criteria, [f.key]: e.target.value })} />
               </Field>
             ))}
-          </>
+          </div>
         )}
         {step === 2 && (
-          <div className="space-y-4 text-sm">
+          <div key="s2" className="stagger space-y-4 text-sm">
             <p className="text-muted-foreground">Revise o batch antes de iniciar a busca.</p>
-            <dl className="space-y-2 rounded-lg border border-border p-4">
+            <dl className="space-y-2 rounded-lg border border-brand-border bg-brand-muted/40 p-4">
               <Row label="Localização" value={where.location} />
               <Row label="Tipo de negócio" value={where.businessType} />
               <Row label="Quantidade de leads" value={where.quantity} />

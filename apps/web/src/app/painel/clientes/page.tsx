@@ -1,17 +1,20 @@
 import { listCharges, listClients, listContracts, listServices } from '@lps/db';
 import { clientStanding, formatBRL, normalizeDocument, summarizeCharges } from '@lps/domain';
-import { Plus, Search } from 'lucide-react';
+import { BadgeDollarSign, CircleDollarSign, Hourglass, Plus, Search, Users, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { ClientDrawer } from '@/components/clients/client-drawer';
 import { Topbar } from '@/components/layout/topbar';
-import { Card, EmptyState, Input, LinkButton, PageHeader, Status, Table } from '@/components/ui';
+import { Card, EmptyState, Input, LinkButton, Status, Table, Toolbar } from '@/components/ui';
 import { authedDb } from '@/lib/auth';
 import { createNewClientAction } from './actions';
 
-const Stat = ({ label, value, note }: { label: string; value: string | number; note: string }) => (
-  <Card className="p-4">
-    <p className="text-sm text-muted-foreground">{label}</p>
-    <p className="mt-1 text-2xl font-semibold">{value}</p>
+const Stat = ({ label, value, note, icon: Icon }: { label: string; value: string | number; note: string; icon: LucideIcon }) => (
+  <Card interactive className="p-4">
+    <div className="flex items-center justify-between">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <span className="grid size-7 place-items-center rounded-md border border-brand-border bg-brand-muted text-brand-soft"><Icon className="size-3.5" /></span>
+    </div>
+    <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
     <p className="mt-1 text-xs text-muted-foreground">{note}</p>
   </Card>
 );
@@ -44,34 +47,28 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
     <>
       <Topbar crumbs={[{ label: 'Clientes' }]} />
       <main className="p-4 lg:p-6">
-        <PageHeader
-          title="Clientes"
-          description="Negócios que fecharam com você, com serviços, contratos e cobranças."
-          actions={
-            <>
+        <Toolbar>
               <form className="relative">
                 <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
                 <Input name="q" defaultValue={q} placeholder="Buscar cliente…" className="w-56 pl-8" />
               </form>
               <LinkButton href="/painel/clientes?novo=1"><Plus />Novo cliente</LinkButton>
-            </>
-          }
-        />
-        <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Stat label="Clientes" value={clients.length} note={`${clients.filter((c) => new Date(c.created_at) >= monthStart).length} novos este mês`} />
-          <Stat label="Total faturado" value={formatBRL(totals.invoiced)} note={`${formatBRL(monthInvoiced)} este mês`} />
-          <Stat label="Total recebido" value={formatBRL(totals.received)} note={`${totals.invoiced ? Math.round((totals.received / totals.invoiced) * 100) : 0}% do faturado`} />
-          <Stat label="Total em aberto" value={formatBRL(totals.open)} note={`${formatBRL(totals.overdue)} em atraso`} />
+        </Toolbar>
+        <div className="stagger mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Stat icon={Users} label="Clientes" value={clients.length} note={`${clients.filter((c) => new Date(c.created_at) >= monthStart).length} novos este mês`} />
+          <Stat icon={BadgeDollarSign} label="Total faturado" value={formatBRL(totals.invoiced)} note={`${formatBRL(monthInvoiced)} este mês`} />
+          <Stat icon={CircleDollarSign} label="Total recebido" value={formatBRL(totals.received)} note={`${totals.invoiced ? Math.round((totals.received / totals.invoiced) * 100) : 0}% do faturado`} />
+          <Stat icon={Hourglass} label="Total em aberto" value={formatBRL(totals.open)} note={`${formatBRL(totals.overdue)} em atraso`} />
         </div>
         {rows.length === 0 ? (
-          <EmptyState title="Nenhum cliente por aqui" description="Cadastre um cliente a partir de uma venda ou pelo botão Novo cliente." />
+          <EmptyState icon={<Users />} title="Nenhum cliente por aqui" description="Cadastre um cliente a partir de uma venda ou pelo botão Novo cliente." />
         ) : (
           <Card>
             <Table head={['Cliente', 'Localização', 'Serviços', 'Contrato', 'Faturado', 'Em aberto', 'Situação']}>
               {rows.map(({ client, summary, standing, servicesCount, contractLabel }) => (
-                <tr key={client.id} className="hover:bg-accent/40">
+                <tr key={client.id}>
                   <td className="px-4 py-3">
-                    <Link href={`/painel/clientes/${client.id}`} className="font-medium hover:underline">{client.legal_name}</Link>
+                    <Link href={`/painel/clientes/${client.id}`} className="font-medium transition-colors hover:text-brand-light">{client.legal_name}</Link>
                     {client.contact_name && <p className="text-xs text-muted-foreground">{client.contact_name}</p>}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{client.location ?? '—'}</td>
