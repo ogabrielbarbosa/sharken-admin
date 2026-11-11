@@ -4,23 +4,23 @@ Sistema de um único usuário para encontrar negócios locais, montar uma págin
 
 **Objetivo:** gerar caixa rápido, com pouco esforço operacional.
 
-**Status:** v2 implementada. Specs em `docs/superpowers/specs/2026-11-11-v2-*.md` (visão geral, leads, material, crm, contrato, pagamento), plano em `docs/superpowers/plans/2026-11-11-v2.md`, telas em `untitled.pen` (frames "v2 · 01".."v2 · 12"). A primeira versão fica em `docs/superpowers/specs/2026-11-06-sistema-de-prospeccao-design.md`, substituída onde a v2 diz o contrário. Ambientes e comandos em `docs/ambientes.md`, operação em `docs/operacao.md`.
+**Status:** v2 implementada, com o batch reformulado como pipeline (spec `docs/superpowers/specs/2026-11-11-v2-pipeline-design.md`, plano `docs/superpowers/plans/2026-11-11-pipeline.md`; ela substitui o Leads/Completar/Material das specs abaixo). Specs em `docs/superpowers/specs/2026-11-11-v2-*.md` (visão geral, leads, material, crm, contrato, pagamento), plano da v2 em `docs/superpowers/plans/2026-11-11-v2.md`, telas em `untitled.pen` (frames "v2 · 01".."v2 · 12"). A primeira versão fica em `docs/superpowers/specs/2026-11-06-sistema-de-prospeccao-design.md`, substituída onde a v2 diz o contrário. Ambientes e comandos em `docs/ambientes.md`, operação em `docs/operacao.md`.
 
 **Banco local:** nunca rodar `supabase db reset`, `supabase stop --no-backup` ou `supabase stop --all` sem o Gabriel pedir. Os dados locais devem ser preservados, e há outros projetos Supabase na máquina.
 
 ## Decisões
 
-- **Processo:** Batch (localização + tipo de negócio) → Leads → Completar → Material, depois CRM global → Contrato → Pagamento. O batch é a unidade de trabalho até o Material; do CRM em diante o contato vale por si, com ou sem lead.
+- **Processo:** Batch (localização + tipo de negócio) → pipeline Novo lead → Qualificado → Página → Vídeo → Pronto para abordar, depois CRM global → Contrato → Pagamento. O batch é a unidade de trabalho até o Pronto para abordar; do CRM em diante o contato vale por si, com ou sem lead.
 - **Busca:** localização e tipo de negócio em campos livres. Definir nichos, preços, metas e testes comerciais é com o Gabriel.
 - **Dois fluxos:** sem site (inclui site fora do ar) e melhorar site. O sistema analisa, e o Gabriel revisa e decide em Leads.
 - **Comentário e motivo:** o comentário é interno. O motivo é um campo próprio, que aparece para o lead na mensagem.
-- **Página:** gerada por um agente no worker (API do Claude, custo por página no evento `pagina_gerada`), publicada em `PAGES_HOST` e válida 24 h após o envio (`PAGE_TTL_HOURS`).
-- **Vídeo:** gravado pelo Gabriel e enviado por lead. O vídeo por IA (roteiro, ElevenLabs, Remotion) fica desligado, atrás de `VIDEO_MODE=ia`.
-- **Configuração:** roteiros, mensagens, prompts e guia de design das páginas ficam em arquivos do projeto (`packages/config`), sem tela.
+- **Página:** feita pelo Gabriel fora do sistema. O sistema não gera página; o link é colado no lead.
+- **Vídeo:** gravado pelo Gabriel (Loom) fora do sistema. O link é colado no lead. Não há vídeo por IA.
+- **Configuração:** mensagens e prompts de análise e de sugestão de resposta ficam em arquivos do projeto (`packages/config`), sem tela.
 - **Primeiro contato:** WhatsApp pela Evolution API (não oficial), com uma instância própria para o número de prospecção. O Gabriel conversa no CRM do app; cada mensagem sai de um clique dele, um contato por vez. Identificação clara, no máximo um follow-up para quem nunca respondeu (o agendado só avisa) e parar assim que a pessoa pedir.
 - **Modo de operação:** human in the loop. A IA propõe e o Gabriel aprova ou reprova.
 - **Clientes:** um cliente tem vários serviços, com contrato pelo ZapSign e cobrança pelo Asaas. O CRM tem o botão "Fechar negócio" que leva ao contrato.
-- **Stack:** TypeScript, Next.js na Vercel, Supabase, Apify, API do Claude, Evolution API, ZapSign, Asaas, e ElevenLabs e Remotion só no vídeo por IA (renderiza no Mac do Gabriel).
+- **Stack:** TypeScript, Next.js na Vercel, Supabase, Apify, API do Claude (só análise de leads e sugestão de resposta), Evolution API, ZapSign, Asaas.
 
 ## Restrições do WhatsApp
 
@@ -31,6 +31,6 @@ Sistema de um único usuário para encontrar negócios locais, montar uma págin
 
 ## Em aberto
 
-- Nome comercial e domínio das páginas (as telas usam Sharken)
+- Nome comercial (as telas usam Sharken)
 - Modelo de contrato no ZapSign
 - Versão da Evolution API no servidor (v1 ou v2)

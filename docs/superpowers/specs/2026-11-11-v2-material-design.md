@@ -1,7 +1,7 @@
 # Versão 2: Material
 
 **Data:** 2026-11-11
-**Status:** aguarda a revisão do Gabriel. A seção 2 (como gerar a página) é uma recomendação que ele precisa confirmar. O vídeo (seção 5) foi definido por ele: envio por lead, sem tela de gravação.
+**Status:** substituída por `2026-11-11-v2-pipeline-design.md` (página e vídeo agora são feitos pelo Gabriel e anexados como links).
 **Visão geral:** `2026-11-11-v2-visao-geral-design.md`
 
 ## 1. Objetivo

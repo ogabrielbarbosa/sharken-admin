@@ -4,6 +4,8 @@
 **Status:** aguarda a revisão do Gabriel.
 **Visão geral:** `2026-11-11-v2-visao-geral-design.md`
 
+> Nota: as seções 2 (Avançar) e 3 foram substituídas por `2026-11-11-v2-pipeline-design.md`.
+
 ## 1. Objetivo
 
 Hoje, Revisar mostra cada lead como um cartão grande, com análise, motivo e comentário abertos ao mesmo tempo, e o "Avançar selecionados" manda tudo direto para a geração. A v2:

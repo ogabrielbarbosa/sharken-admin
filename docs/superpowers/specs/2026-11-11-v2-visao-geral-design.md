@@ -4,6 +4,8 @@
 **Status:** fluxo e estados aprovados pelo Gabriel em 2026-11-11. O resto aguarda a revisão dele.
 **Base:** `2026-11-06-sistema-de-prospeccao-design.md`. O que esta spec não muda continua valendo.
 
+> Nota: o batch virou um quadro (pipeline) e a geração de página e vídeo saiu do sistema. Ver `2026-11-11-v2-pipeline-design.md`, que prevalece sobre o que esta spec disser em contrário.
+
 ## 1. Por que mudar
 
 A primeira versão termina no envio manual pelo `wa.me` e registra a conversa colando texto. Isso trava o volume. A versão 2:

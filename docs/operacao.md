@@ -2,7 +2,7 @@
 
 ## Página e vídeo
 
-O sistema não gera página nem vídeo. Você monta a página de exemplo e grava o vídeo (por exemplo, no Loom) fora do sistema e anexa os dois links no lead, no quadro do batch. Os links aparecem em Material e no contato do CRM.
+O sistema não gera página nem vídeo. Você monta a página de exemplo e grava o vídeo (por exemplo, no Loom) fora do sistema e anexa os dois links no lead, no quadro do batch. Os links aparecem no cartão do lead e no contato do CRM.
 
 ## WhatsApp
 
@@ -23,4 +23,4 @@ Crie um modelo DOCX no ZapSign com os campos `{{NOME}}`, `{{DOCUMENTO}}`, `{{SER
 
 - Número de WhatsApp dedicado, separado do pessoal, conectado na Evolution.
 - Análise de legítimo interesse (LGPD) registrada.
-- Um lead fictício de cada fluxo, com o seu próprio telefone, passando por todas as etapas: Leads, Completar, Material, CRM, Fechar negócio, Contrato e Pagamento (sandbox).
+- Um lead fictício de cada fluxo, com o seu próprio telefone, passando por todas as etapas: Novo lead, Qualificado, Página, Vídeo, Pronto para abordar, CRM, Fechar negócio, Contrato e Pagamento (sandbox).
