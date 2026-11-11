@@ -39,6 +39,6 @@ if (!vercel('deploy', '--prod')) fail('O deploy na Vercel falhou. Veja a mensage
 ok(`publicado em ${env.APP_URL}`);
 
 say('Worker (no seu Mac, usando o banco da nuvem)');
-console.log('  Ele processa as buscas, páginas e vídeos. Deixe esta janela aberta. Ctrl+C para parar.\n');
+console.log('  Ele processa as buscas, as análises e o download de mídia. Deixe esta janela aberta. Ctrl+C para parar.\n');
 run('pnpm', ['--filter', '@lps/worker', 'start'], { env: { ...process.env, APP_ENV: 'dev' } });
 

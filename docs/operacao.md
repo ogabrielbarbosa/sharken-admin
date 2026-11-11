@@ -1,21 +1,8 @@
 # Operação
 
-## Páginas
+## Página e vídeo
 
-O worker gera a página de cada lead com um agente (API do Claude), no job `build_page`. Cada geração custa tokens: o custo em dólares e o número de tentativas ficam no evento `pagina_gerada` do lead (campo `cost_usd`, visível no Histórico). O modelo é `PAGE_AGENT_MODEL` e o guia de design fica em `packages/config/src/page-design/`.
-
-A página é publicada em `PAGES_HOST` e vale `PAGE_TTL_HOURS` (24 h) depois do envio. Depois disso, mostra um botão para o WhatsApp de prospecção (`PROSPECT_WHATSAPP`).
-
-## Vídeo
-
-Por padrão (`VIDEO_MODE=gravado`) você grava o vídeo de cada lead e o envia pelo painel, em Material. O worker não gera vídeo.
-
-O vídeo por IA fica desligado. Para ligar, use `VIDEO_MODE=ia` e:
-
-1. Edite os roteiros em `packages/config/src/scripts.ts`.
-2. Rode `pnpm script:list` para ver cada trecho fixo e o nome do arquivo de áudio.
-3. Grave os trechos em `assets/recordings/<fluxo>/<id>.mp3`.
-4. Ligue o vídeo do fluxo em `packages/config/src/video.ts`.
+O sistema não gera página nem vídeo. Você monta a página de exemplo e grava o vídeo (por exemplo, no Loom) fora do sistema e anexa os dois links no lead, no quadro do batch. Os links aparecem em Material e no contato do CRM.
 
 ## WhatsApp
 
@@ -26,7 +13,7 @@ O vídeo por IA fica desligado. Para ligar, use `VIDEO_MODE=ia` e:
 ## Mensagens e prompts
 
 - Mensagens de WhatsApp: `packages/config/src/messages.ts`
-- Prompts da IA (análise, página e sugestão de resposta): `packages/config/src/prompts.ts`
+- Prompts da IA (análise e sugestão de resposta): `packages/config/src/prompts.ts`
 
 ## Contrato no ZapSign
 

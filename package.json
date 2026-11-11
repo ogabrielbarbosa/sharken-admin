@@ -18,7 +18,6 @@
     "worker:remoto": "APP_ENV=dev pnpm --filter @lps/worker start",
     "whatsapp:webhook": "APP_ENV=local pnpm --filter @lps/worker whatsapp:webhook",
     "whatsapp:webhook:remoto": "APP_ENV=dev pnpm --filter @lps/worker whatsapp:webhook",
-    "script:list": "pnpm --filter @lps/worker script:list",
     "setup:local": "node scripts/setup-local.mjs",
     "user:create": "APP_ENV=local pnpm --filter @lps/worker user:create",
     "user:create:remoto": "APP_ENV=dev pnpm --filter @lps/worker user:create",

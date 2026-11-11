@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { getEnv, requireOptional, webhookBaseUrl } from '../src/env';
-import { videoMode } from '../src/video';
 
 const valid = {
   NEXT_PUBLIC_SUPABASE_URL: 'https://x.supabase.co',
@@ -47,16 +46,5 @@ describe('webhookBaseUrl', () => {
   it('prefere a URL do túnel', () => {
     expect(webhookBaseUrl({ APP_URL: 'http://localhost:3000', WEBHOOK_BASE_URL: 'https://t.dev' })).toBe('https://t.dev');
     expect(webhookBaseUrl({ APP_URL: 'https://app.dev' })).toBe('https://app.dev');
-  });
-});
-
-describe('videoMode', () => {
-  it('usa gravado por padrão e por valor desconhecido', () => {
-    expect(videoMode({})).toBe('gravado');
-    expect(videoMode({ VIDEO_MODE: '' })).toBe('gravado');
-    expect(videoMode({ VIDEO_MODE: 'x' })).toBe('gravado');
-  });
-  it('aceita ia', () => {
-    expect(videoMode({ VIDEO_MODE: 'ia' })).toBe('ia');
   });
 });

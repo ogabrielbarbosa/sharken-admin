@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildPendencies, pendencyHref, summarizeResults, type ResultRow } from '../src/metrics';
-import { shouldDeleteLead, shouldRemoveSite } from '../src/retention';
+import { shouldDeleteLead } from '../src/retention';
 
 const row = (over: Partial<ResultRow> = {}): ResultRow => ({
   flow: 'sem_site', business_type: 'pet shop', found: true, advanced: true, approved: true, contacted: true, opened: true, replied: false, sold: false, ...over,
@@ -77,10 +77,5 @@ describe('retenção', () => {
   it('preserva lead ativo no CRM e ainda remove o descartado', () => {
     expect(shouldDeleteLead(lead({ stage: 'crm', created_at: ago(400), contacted_at: null }), now)).toBe(false);
     expect(shouldDeleteLead(lead({ stage: 'descartado', created_at: ago(400), contacted_at: null }), now)).toBe(true);
-  });
-  it('remove modelo vencido', () => {
-    expect(shouldRemoveSite({ status: 'modelo', expires_at: ago(1) }, now)).toBe(true);
-    expect(shouldRemoveSite({ status: 'modelo', expires_at: new Date(now.getTime() + 86_400_000).toISOString() }, now)).toBe(false);
-    expect(shouldRemoveSite({ status: 'removido', expires_at: ago(1) }, now)).toBe(false);
   });
 });

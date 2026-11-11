@@ -4,7 +4,6 @@ export * from './batches';
 export * from './leads';
 export * from './contact';
 export * from './contacts';
-export * from './material';
 export * from './clients';
 export * from './fetch-all';
 export * from './overview';

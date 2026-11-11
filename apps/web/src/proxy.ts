@@ -1,27 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { type NextRequest, NextResponse } from 'next/server';
 
-function isPagesHost(request: NextRequest): boolean {
-  const pagesHost = process.env.PAGES_HOST?.trim().toLowerCase();
-  if (!pagesHost) return false;
-  const host = (request.headers.get('host') ?? request.nextUrl.host).toLowerCase();
-  return host === pagesHost || host.split(':')[0] === pagesHost;
-}
-
-// No host de páginas só existem /<slug> (reescrito para /p/<slug>) e o POST de abertura.
-function pagesHostResponse(request: NextRequest): NextResponse {
-  const { pathname } = request.nextUrl;
-  if (pathname === '/api/open' || pathname.startsWith('/_next/')) return NextResponse.next();
-  if (/^\/[^/]+\/?$/.test(pathname)) {
-    const url = request.nextUrl.clone();
-    url.pathname = `/p${pathname.replace(/\/$/, '')}`;
-    return NextResponse.rewrite(url);
-  }
-  return new NextResponse('Não encontrado', { status: 404, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
-}
-
 export async function proxy(request: NextRequest) {
-  if (isPagesHost(request)) return pagesHostResponse(request);
   if (!request.nextUrl.pathname.startsWith('/painel')) return NextResponse.next();
 
   let response = NextResponse.next({ request });

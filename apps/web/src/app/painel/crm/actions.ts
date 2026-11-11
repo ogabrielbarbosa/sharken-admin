@@ -91,7 +91,7 @@ export async function saveFollowUpAction(contactId: string, date: string | null,
 
 async function leadOf(db: Awaited<ReturnType<typeof authedDb>>, contactId: string) {
   const contact = await getContact(db, contactId);
-  if (!contact?.lead_id) throw new Error('Este contato não tem página.');
+  if (!contact?.lead_id) throw new Error('Este contato não tem lead.');
   return contact.lead_id;
 }
 

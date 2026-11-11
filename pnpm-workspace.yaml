@@ -5,4 +5,3 @@ onlyBuiltDependencies:
   - supabase
   - esbuild
   - sharp
-  - "@remotion/compositor-darwin-arm64"

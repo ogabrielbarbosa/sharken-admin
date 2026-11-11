@@ -1,12 +1,11 @@
 import { canTransition, type LeadStage } from './stages';
 
-export type LeadAction = 'descartar' | 'nao_contatar' | 'remover_modelo';
+export type LeadAction = 'descartar' | 'nao_contatar';
 
 export function availableActions(lead: { stage: LeadStage }): LeadAction[] {
   const actions: LeadAction[] = [];
   if (canTransition(lead.stage, 'descartado')) actions.push('descartar');
   if (canTransition(lead.stage, 'nao_contatar')) actions.push('nao_contatar');
-  actions.push('remover_modelo');
   return actions;
 }
 

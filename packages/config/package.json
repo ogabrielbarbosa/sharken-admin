@@ -5,8 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./messages": "./src/messages.ts",
-    "./page-design": "./src/page-design/config.ts"
+    "./messages": "./src/messages.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",

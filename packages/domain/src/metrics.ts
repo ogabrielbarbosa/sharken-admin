@@ -1,6 +1,6 @@
 import type { LeadStage } from './stages';
 
-type ProcessStep = 'revisar' | 'completar';
+type PendencyStep = 'revisar' | 'completar';
 
 export type ResultRow = {
   flow: string | null;
@@ -65,7 +65,7 @@ export type Pendency = {
   label: string;
   count: number;
   batchIds: string[];
-  step?: ProcessStep;
+  step?: PendencyStep;
 };
 type PendingLead = { batch_id: string | null; stage: LeadStage };
 export type CrmCounts = { hoje: number; novos: number; em_conversa: number };
@@ -78,7 +78,7 @@ const CRM_PENDENCIES: { kind: 'hoje' | 'novos' | 'em_conversa'; label: string }[
 
 export function buildPendencies(input: { leads: PendingLead[]; crm: CrmCounts; overdueCharges: number }): Pendency[] {
   const list: Pendency[] = CRM_PENDENCIES.filter((p) => input.crm[p.kind] > 0).map((p) => ({ ...p, count: input.crm[p.kind], batchIds: [] }));
-  const inStep = (step: ProcessStep) => input.leads.filter((l) => l.stage === step);
+  const inStep = (step: PendencyStep) => input.leads.filter((l) => l.stage === step);
   for (const [kind, label, step] of [['revisar', 'Leads para revisar', 'revisar'], ['completar', 'Leads para completar', 'completar']] as const) {
     const leads = inStep(step);
     if (leads.length) list.push({ kind, label, step, count: leads.length, batchIds: [...new Set(leads.map((l) => l.batch_id).filter((b): b is string => !!b))] });

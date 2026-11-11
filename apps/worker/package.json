@@ -6,25 +6,16 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
-    "script:list": "tsx src/script-list.ts",
-    "test": "vitest run --passWithNoTests && tsx tests/site-probe.mts",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
     "user:create": "tsx src/create-user.ts",
     "whatsapp:webhook": "tsx src/whatsapp-webhook.ts"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.322",
     "@lps/config": "workspace:*",
     "@lps/db": "workspace:*",
     "@lps/domain": "workspace:*",
     "@lps/integrations": "workspace:*",
-    "@lps/video": "workspace:*",
-    "@remotion/bundler": "4.0.541",
-    "@remotion/renderer": "4.0.541",
-    "music-metadata": "^12.3.5",
-    "playwright": "^1.65.0",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "remotion": "4.0.541"
+    "playwright": "^1.65.0"
   }
 }

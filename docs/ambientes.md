@@ -58,7 +58,7 @@ O banco local usa as portas 57321 a 57324 para não conflitar com outros projeto
 
 ## Variáveis da v2
 
-Todas ficam no `.env.local` e no `.env.dev`. As da Evolution e o `PAGES_HOST` são opcionais: só são cobradas quando você usa a função.
+Todas ficam no `.env.local` e no `.env.dev`. As da Evolution são opcionais: só são cobradas quando você usa a função.
 
 | Variável | Para quê | Padrão |
 |---|---|---|
@@ -66,12 +66,7 @@ Todas ficam no `.env.local` e no `.env.dev`. As da Evolution e o `PAGES_HOST` s�
 | `EVOLUTION_API_KEY` | Chave da Evolution | |
 | `EVOLUTION_INSTANCE` | Nome da instância do número de prospecção | |
 | `WHATSAPP_WEBHOOK_SECRET` | Segredo do webhook do WhatsApp (`openssl rand -hex 32`) | |
-| `PAGES_HOST` | Host das páginas geradas (ex.: `pages.seudominio.com.br`) | |
-| `PAGE_TTL_HOURS` | Horas de validade da página depois do envio | 24 |
 | `DAILY_FIRST_CONTACT_LIMIT` | Aviso de primeiros contatos por dia | 20 |
-| `VIDEO_MODE` | `gravado` (você grava e envia) ou `ia` (vídeo gerado pelo worker) | `gravado` |
-| `PAGE_AGENT_MODEL` | Modelo do Claude que gera as páginas | `claude-opus-5-5` |
-| `PROSPECT_WHATSAPP` | WhatsApp de prospecção (E.164, só dígitos), usado no botão da página expirada | |
 
 ## WhatsApp (Evolution API)
 

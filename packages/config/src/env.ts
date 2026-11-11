@@ -13,8 +13,6 @@ const schema = z.object({
   ANTHROPIC_MODEL: z.string().default('claude-opus-5-5'),
   ANTHROPIC_WORKSPACE_ID: z.string().optional(),
   COMMERCIAL_NAME: z.string().default('Sharken'),
-  PAGE_AGENT_MODEL: z.string().default('claude-opus-5-5'),
-  PAGE_TTL_HOURS: z.coerce.number().int().positive().default(24),
   DAILY_FIRST_CONTACT_LIMIT: z.coerce.number().int().positive().default(20),
   WEBHOOK_BASE_URL: z.string().url().optional(),
 });
@@ -40,9 +38,6 @@ export function webhookBaseUrl(env: Pick<Env, 'APP_URL' | 'WEBHOOK_BASE_URL'>): 
 }
 
 export type OptionalKey =
-  | 'ELEVENLABS_API_KEY'
-  | 'ELEVENLABS_VOICE_ID'
-  | 'PEXELS_API_KEY'
   | 'ZAPSIGN_API_TOKEN'
   | 'ZAPSIGN_TEMPLATE_ID'
   | 'ZAPSIGN_BASE_URL'
@@ -51,9 +46,7 @@ export type OptionalKey =
   | 'EVOLUTION_URL'
   | 'EVOLUTION_API_KEY'
   | 'EVOLUTION_INSTANCE'
-  | 'WHATSAPP_WEBHOOK_SECRET'
-  | 'PAGES_HOST'
-  | 'PROSPECT_WHATSAPP';
+  | 'WHATSAPP_WEBHOOK_SECRET';
 
 export function requireOptional(key: OptionalKey, source: Source = process.env): string {
   const value = source[key];
