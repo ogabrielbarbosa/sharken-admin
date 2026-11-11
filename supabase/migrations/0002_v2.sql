@@ -129,6 +129,7 @@ do $$ begin
 end $$;
 
 -- Leads da v1 em andamento viram contatos; o lead passa para `crm` (vendido continua vendido).
+-- Sem telefone, ou com telefone já usado por outro contato, o lead é descartado.
 create or replace function migrate_v1_leads_to_contacts() returns void language plpgsql as $$
 begin
   insert into contacts (
@@ -151,9 +152,16 @@ begin
     and l.phone_e164 is not null
   on conflict (phone_e164) do nothing;
 
+  -- Só quem ficou ligado a um contato vai para o CRM.
   update leads set stage = 'crm'
   where stage in ('abordar', 'aguardando', 'follow_up_feito', 'conversa')
-    and phone_e164 is not null;
+    and exists (select 1 from contacts c where c.lead_id = leads.id);
+
+  -- Etapas antigas sem contato não têm tela na v2.
+  update leads set
+    stage = 'descartado',
+    exit_reason = case when phone_e164 is null then 'migração v2: sem telefone' else 'migração v2: telefone repetido' end
+  where stage in ('abordar', 'aguardando', 'follow_up_feito', 'conversa');
 end $$;
 revoke all on function migrate_v1_leads_to_contacts() from public, anon, authenticated;
 grant execute on function migrate_v1_leads_to_contacts() to service_role;
