@@ -7,10 +7,13 @@ export async function getLead(db: Db, id: string): Promise<Lead | null> {
   return data as Lead | null;
 }
 
-export async function listLeads(db: Db, batchId: string, stages?: LeadStage[]): Promise<Lead[]> {
+/** Por padrão ordena pela pontuação; `stage_changed_at` põe primeiro quem está há mais tempo na etapa. */
+export async function listLeads(db: Db, batchId: string, stages?: LeadStage[], orderBy: 'score' | 'stage_changed_at' = 'score'): Promise<Lead[]> {
   let query = db.from('leads').select().eq('batch_id', batchId);
   if (stages) query = query.in('stage', stages);
-  const { data, error } = await query.order('score', { ascending: false, nullsFirst: false });
+  const { data, error } = await (orderBy === 'stage_changed_at'
+    ? query.order('stage_changed_at', { ascending: true })
+    : query.order('score', { ascending: false, nullsFirst: false }));
   if (error) throw new Error(error.message);
   return data as Lead[];
 }

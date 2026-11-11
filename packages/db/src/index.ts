@@ -12,3 +12,4 @@ export * from './lead-assets';
 export * from './messages';
 export * from './whatsapp-ingest';
 export * from './send-message';
+export * from './pipeline';
