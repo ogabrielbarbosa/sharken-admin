@@ -1,36 +1,28 @@
 export type LeadStage =
-  | 'analisando' | 'revisar' | 'completar' | 'gerando_material' | 'revisar_material' | 'crm'
+  | 'analisando' | 'revisar' | 'completar' | 'pagina' | 'video' | 'crm'
   | 'vendido' | 'descartado' | 'sem_interesse' | 'nao_contatar';
 
-export type ProcessStep = 'revisar' | 'completar' | 'material';
+export type PipelineColumn = 'novo' | 'qualificado' | 'pagina' | 'video' | 'pronto' | 'descartados';
 
-export const PROCESS_STEPS: { key: ProcessStep; label: string }[] = [
-  { key: 'revisar', label: 'Leads' },
-  { key: 'completar', label: 'Completar' },
-  { key: 'material', label: 'Material' },
+export const PIPELINE_COLUMNS: { key: PipelineColumn; label: string; stages: LeadStage[] }[] = [
+  { key: 'novo', label: 'Novo lead', stages: ['analisando', 'revisar'] },
+  { key: 'qualificado', label: 'Qualificado', stages: ['completar'] },
+  { key: 'pagina', label: 'Página', stages: ['pagina'] },
+  { key: 'video', label: 'Vídeo', stages: ['video'] },
+  { key: 'pronto', label: 'Pronto para abordar', stages: ['crm', 'vendido', 'sem_interesse'] },
+  { key: 'descartados', label: 'Descartados', stages: ['descartado', 'nao_contatar'] },
 ];
 
-const STAGE_STEP: Partial<Record<LeadStage, ProcessStep>> = {
-  revisar: 'revisar',
-  completar: 'completar',
-  gerando_material: 'material',
-  revisar_material: 'material',
-};
-
-export function stepOf(stage: LeadStage): ProcessStep | null {
-  return STAGE_STEP[stage] ?? null;
-}
-
-export function stagesOf(step: ProcessStep): LeadStage[] {
-  return (Object.keys(STAGE_STEP) as LeadStage[]).filter((s) => STAGE_STEP[s] === step);
+export function columnOf(stage: LeadStage): PipelineColumn {
+  return PIPELINE_COLUMNS.find((c) => c.stages.includes(stage))!.key;
 }
 
 const NEXT: Partial<Record<LeadStage, LeadStage[]>> = {
   analisando: ['revisar'],
   revisar: ['completar'],
-  completar: ['gerando_material'],
-  gerando_material: ['revisar_material'],
-  revisar_material: ['gerando_material', 'crm'],
+  completar: ['pagina'],
+  pagina: ['video', 'completar'],
+  video: ['crm', 'pagina'],
   crm: ['vendido', 'sem_interesse'],
   // O contato perdido que volta a falar reabre o lead.
   sem_interesse: ['crm'],

@@ -31,11 +31,12 @@ export function isAcceptedMime(mime: string): boolean {
   return mime.startsWith('image/') || DOC_MIMES.includes(mime);
 }
 
-export function canGenerateMaterial(
+export function canCompleteInfo(
   lead: Pick<Lead, 'flow' | 'reason'>,
-  _assets: { status: AssetStatus }[],
+  assets: { status: AssetStatus }[],
 ): { ok: true } | { ok: false; reason: string } {
-  if (lead.flow === 'melhorar_site' && !lead.reason?.trim()) return { ok: false, reason: 'Preencha o motivo para gerar o material.' };
+  if (assets.some((a) => a.status === 'extraindo')) return { ok: false, reason: 'Espere a extração terminar.' };
+  if (lead.flow === 'melhorar_site' && !lead.reason?.trim()) return { ok: false, reason: 'Preencha o motivo.' };
   return { ok: true };
 }
 

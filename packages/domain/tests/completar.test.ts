@@ -1,16 +1,20 @@
 import { expect, it } from 'vitest';
-import { canGenerateMaterial, isAcceptedMime, nextPending, normalizeLinkUrl, sanitizeFileName } from '../src/completar';
+import { canCompleteInfo, isAcceptedMime, nextPending, normalizeLinkUrl, sanitizeFileName } from '../src/completar';
 
-it('bloqueia melhorar site sem motivo', () => {
-  expect(canGenerateMaterial({ flow: 'melhorar_site', reason: '' }, [])).toEqual({ ok: false, reason: 'Preencha o motivo para gerar o material.' });
-  expect(canGenerateMaterial({ flow: 'melhorar_site', reason: null }, [])).toMatchObject({ ok: false });
-  expect(canGenerateMaterial({ flow: 'melhorar_site', reason: '   ' }, [])).toMatchObject({ ok: false });
+it('recusa enquanto algum item está sendo extraído', () => {
+  expect(canCompleteInfo({ flow: 'sem_site', reason: null }, [{ status: 'pronto' }, { status: 'extraindo' }])).toEqual({ ok: false, reason: 'Espere a extração terminar.' });
+});
+it('recusa melhorar site sem motivo', () => {
+  expect(canCompleteInfo({ flow: 'melhorar_site', reason: '' }, [])).toEqual({ ok: false, reason: 'Preencha o motivo.' });
+  expect(canCompleteInfo({ flow: 'melhorar_site', reason: null }, [])).toMatchObject({ ok: false });
+  expect(canCompleteInfo({ flow: 'melhorar_site', reason: '   ' }, [])).toMatchObject({ ok: false });
 });
 it('libera melhorar site com motivo', () => {
-  expect(canGenerateMaterial({ flow: 'melhorar_site', reason: 'site lento' }, [])).toEqual({ ok: true });
+  expect(canCompleteInfo({ flow: 'melhorar_site', reason: 'site lento' }, [])).toEqual({ ok: true });
 });
-it('libera sem site sem motivo, mesmo com itens extraindo', () => {
-  expect(canGenerateMaterial({ flow: 'sem_site', reason: null }, [{ status: 'extraindo' }])).toEqual({ ok: true });
+it('libera sem site sem motivo, e item com erro não trava', () => {
+  expect(canCompleteInfo({ flow: 'sem_site', reason: null }, [])).toEqual({ ok: true });
+  expect(canCompleteInfo({ flow: 'sem_site', reason: null }, [{ status: 'erro' }, { status: 'pronto' }])).toEqual({ ok: true });
 });
 
 it('limpa o nome do arquivo', () => {

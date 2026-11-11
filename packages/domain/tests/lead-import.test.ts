@@ -21,14 +21,14 @@ it('normaliza a localização para agrupar a mesma região', () => {
 });
 
 it('resume o batch por etapa e aponta a primeira ação pendente', () => {
-  const stages = ['revisar', 'revisar', 'completar', 'gerando_material', 'revisar_material', 'crm', 'vendido', 'descartado', 'analisando'];
+  const stages = ['revisar', 'revisar', 'completar', 'pagina', 'video', 'crm', 'vendido', 'descartado', 'analisando'];
   const out = summarizeBatch(stages.map((stage) => ({ stage })) as never);
-  expect(out.counts).toEqual({ revisar: 2, completar: 1, material: 2 });
+  expect(out.counts).toEqual({ novo: 3, qualificado: 1, pagina: 1, video: 1, pronto: 2, descartados: 1 });
   expect(out.nextAction).toBe('2 leads para avaliar');
 });
 
 it('usa o singular e pula etapas sem ação sua', () => {
   expect(summarizeBatch([{ stage: 'crm' }] as never).nextAction).toBe('1 no CRM');
-  expect(summarizeBatch([{ stage: 'gerando_material' }] as never).nextAction).toBeNull();
+  expect(summarizeBatch([{ stage: 'vendido' }] as never).nextAction).toBeNull();
   expect(summarizeBatch([{ stage: 'vendido' }] as never).nextAction).toBeNull();
 });

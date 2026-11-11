@@ -18,7 +18,7 @@ describe('getSiteAccess', () => {
 describe('shouldRecordOpen', () => {
   const base = { isAdmin: false, isCapture: false };
   it('só conta depois do envio', () => {
-    expect(shouldRecordOpen({ ...base, stage: 'revisar_material' })).toBe(false);
+    expect(shouldRecordOpen({ ...base, stage: 'video' })).toBe(false);
     expect(shouldRecordOpen({ ...base, stage: 'completar' })).toBe(false);
     expect(shouldRecordOpen({ ...base, stage: 'crm' })).toBe(true);
     expect(shouldRecordOpen({ ...base, stage: 'vendido' })).toBe(true);
