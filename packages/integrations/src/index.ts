@@ -9,3 +9,4 @@ export * from './reply-suggestions';
 export * from './zapsign';
 export * from './asaas';
 export * from './capture';
+export * from './whatsapp';

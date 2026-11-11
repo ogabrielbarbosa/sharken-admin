@@ -1,0 +1,1 @@
+{"event":"messages.upsert","instance":"demo","data":{"key":{"remoteJid":"188888888888888@lid","remoteJidAlt":"5519981342207@s.whatsapp.net","fromMe":false,"id":"3EB0A1B2C3D4E5F60007"},"pushName":"Marcos","message":{"conversation":"Oi pelo lid"},"messageType":"conversation","messageTimestamp":1762877400}}

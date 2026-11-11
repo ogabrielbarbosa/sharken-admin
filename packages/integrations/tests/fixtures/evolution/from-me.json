@@ -1,0 +1,1 @@
+{"event":"messages.upsert","instance":"demo","data":{"key":{"remoteJid":"5519981342207@s.whatsapp.net","fromMe":true,"id":"3EB0A1B2C3D4E5F60004"},"pushName":"Você","message":{"conversation":"Olá, aqui é o Gabriel"},"messageType":"conversation","messageTimestamp":1762877100}}

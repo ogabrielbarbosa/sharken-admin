@@ -1,0 +1,1 @@
+{"event":"messages.upsert","instance":"demo","data":{"key":{"remoteJid":"188888888888888@lid","fromMe":false,"id":"3EB0A1B2C3D4E5F60008"},"pushName":"Marcos","message":{"conversation":"Sem telefone"},"messageType":"conversation","messageTimestamp":1762877500}}

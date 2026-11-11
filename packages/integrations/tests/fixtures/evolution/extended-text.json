@@ -1,0 +1,1 @@
+{"event":"messages.upsert","instance":"demo","data":{"key":{"remoteJid":"5519981342207@s.whatsapp.net","fromMe":false,"id":"3EB0A1B2C3D4E5F60002"},"pushName":"Marcos","message":{"extendedTextMessage":{"text":"Quanto custa?"}},"messageType":"extendedTextMessage","messageTimestamp":1762876900}}

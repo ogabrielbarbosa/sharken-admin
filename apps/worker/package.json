@@ -9,7 +9,8 @@
     "script:list": "tsx src/script-list.ts",
     "test": "vitest run --passWithNoTests && tsx tests/site-probe.mts",
     "typecheck": "tsc --noEmit",
-    "user:create": "tsx src/create-user.ts"
+    "user:create": "tsx src/create-user.ts",
+    "whatsapp:webhook": "tsx src/whatsapp-webhook.ts"
   },
   "dependencies": {
     "@lps/config": "workspace:*",

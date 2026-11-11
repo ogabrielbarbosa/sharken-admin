@@ -44,7 +44,12 @@ export type OptionalKey =
   | 'ZAPSIGN_TEMPLATE_ID'
   | 'ZAPSIGN_BASE_URL'
   | 'ASAAS_API_KEY'
-  | 'ASAAS_BASE_URL';
+  | 'ASAAS_BASE_URL'
+  | 'EVOLUTION_URL'
+  | 'EVOLUTION_API_KEY'
+  | 'EVOLUTION_INSTANCE'
+  | 'WHATSAPP_WEBHOOK_SECRET'
+  | 'PAGES_HOST';
 
 export function requireOptional(key: OptionalKey, source: Source = process.env): string {
   const value = source[key];

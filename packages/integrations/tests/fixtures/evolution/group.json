@@ -1,0 +1,1 @@
+{"event":"messages.upsert","instance":"demo","data":{"key":{"remoteJid":"120363000000000000@g.us","fromMe":false,"id":"3EB0A1B2C3D4E5F60005","participant":"5519981342207@s.whatsapp.net"},"pushName":"Marcos","message":{"conversation":"Bom dia grupo"},"messageType":"conversation","messageTimestamp":1762877200}}

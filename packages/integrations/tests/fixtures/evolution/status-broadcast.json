@@ -1,0 +1,1 @@
+{"event":"messages.upsert","instance":"demo","data":{"key":{"remoteJid":"status@broadcast","fromMe":false,"id":"3EB0A1B2C3D4E5F60006","participant":"5519981342207@s.whatsapp.net"},"message":{"imageMessage":{"mimetype":"image/jpeg"}},"messageType":"imageMessage","messageTimestamp":1762877300}}
