@@ -20,4 +20,6 @@ export interface WhatsAppProvider {
   sendText(input: { phoneE164: string; text: string; clientMessageId: string }): Promise<{ externalId: string }>;
   normalize(raw: unknown): WhatsAppEvent[];
   connectionQr(): Promise<string | null>;
+  /** Baixa o arquivo de uma mensagem já recebida (Evolution: getBase64FromMediaMessage). */
+  downloadMedia(externalId: string): Promise<{ base64: string; mime: string | null } | null>;
 }

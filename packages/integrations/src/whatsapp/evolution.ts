@@ -138,6 +138,18 @@ export function createEvolutionProvider(config: EvolutionConfig): WhatsAppProvid
       });
     },
 
+    async downloadMedia(externalId) {
+      const res = await doFetch(`${base}/chat/getBase64FromMediaMessage/${encodeURIComponent(config.instance)}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ message: { key: { id: externalId } } }),
+      });
+      if (!res.ok) throw new Error(`A Evolution não entregou a mídia (${res.status}).`);
+      const body: Json = await res.json().catch(() => ({}));
+      const base64 = str(body.base64);
+      return base64 ? { base64, mime: str(body.mimetype) } : null;
+    },
+
     async connectionQr() {
       const res = await doFetch(`${base}/instance/connect/${encodeURIComponent(config.instance)}`, { headers: { apikey: config.apiKey } });
       if (!res.ok) throw new Error(`Não foi possível pedir o QR à Evolution (${res.status}).`);

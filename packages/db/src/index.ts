@@ -10,3 +10,4 @@ export * from './fetch-all';
 export * from './overview';
 export * from './lead-assets';
 export * from './messages';
+export * from './whatsapp-ingest';
