@@ -120,13 +120,6 @@ export function Sidebar({ email, connections }: { email: string; connections: Si
         </nav>
 
         <div className="relative mt-auto space-y-3">
-          {!collapsed && (
-            <div className="rounded-lg border border-border bg-background p-3 max-lg:hidden">
-              <p className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">Lembrete</p>
-              <p className="mt-1 text-xs font-medium">Um clique por mensagem</p>
-              <p className="mt-1 text-xs text-muted-foreground">Sem envio em massa nem automático. No máximo um follow-up para quem não respondeu.</p>
-            </div>
-          )}
           <div className="flex items-center gap-2.5 p-1.5">
             <span className="size-8 shrink-0 rounded-full bg-linear-to-br from-sky-500 to-emerald-300" />
             <div className={`min-w-0 flex-1 ${fade}`}>

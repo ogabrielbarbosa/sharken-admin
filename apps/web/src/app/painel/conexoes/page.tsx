@@ -1,7 +1,7 @@
 import { ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 import { Topbar } from '@/components/layout/topbar';
-import { Card, PageHeader, Status } from '@/components/ui';
+import { Card, Status } from '@/components/ui';
 import { authedDb } from '@/lib/auth';
 import { CONNECTIONS, summarize } from '@/lib/connections';
 
@@ -13,7 +13,6 @@ export default async function ConexoesPage() {
     <>
       <Topbar crumbs={[{ label: 'Conexões' }]} />
       <div className="p-4 lg:p-6">
-        <PageHeader title="Conexões" description="As APIs que o sistema usa. As chaves ficam no .env; aqui você vê o estado de cada uma." />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {CONNECTIONS.map((c) => {
             const s = summary.get(c.slug)!;

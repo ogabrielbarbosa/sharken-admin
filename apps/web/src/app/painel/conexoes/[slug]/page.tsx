@@ -10,7 +10,7 @@ import { ConnectPanel, ConnectionRealtime, InstanceActions } from '@/components/
 import { Markdown } from '@/components/connections/markdown';
 import { Avatar } from '@/components/crm/avatar';
 import { Topbar } from '@/components/layout/topbar';
-import { Card, PageHeader, Status, type Tone } from '@/components/ui';
+import { Card, Status, type Tone } from '@/components/ui';
 import { authedDb } from '@/lib/auth';
 import { CONNECTIONS, displayValue, isConfigured, type ConnectionDef } from '@/lib/connections';
 
@@ -174,7 +174,7 @@ export default async function ConexaoPage({ params }: { params: Promise<{ slug: 
     <>
       <Topbar crumbs={[{ label: 'Conexões', href: '/painel/conexoes' }, { label: def.label }]} />
       <div className="mx-auto max-w-5xl p-4 lg:p-6">
-        <PageHeader title={def.label} description={`${def.provider} · ${def.description}`} />
+        <p className="mb-5 text-sm text-muted-foreground">{def.provider} · {def.description}</p>
         {def.slug === 'whatsapp' ? (
           <WhatsAppConnection def={def} />
         ) : (

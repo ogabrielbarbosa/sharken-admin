@@ -4,7 +4,7 @@ import { Info, MessageCircle, Receipt } from 'lucide-react';
 import Link from 'next/link';
 import { ChargeDrawer } from '@/components/clients/charge-drawer';
 import { Topbar } from '@/components/layout/topbar';
-import { Button, Card, ErrorNote, LinkButton, PageHeader, Status, Table } from '@/components/ui';
+import { Button, Card, ErrorNote, LinkButton, Status, Table } from '@/components/ui';
 import { CopyButton } from '@/components/ui/copy-button';
 import { authedDb } from '@/lib/auth';
 import { formatDate } from '@/lib/lead-labels';
@@ -53,7 +53,6 @@ export default async function PagamentosPage({ searchParams }: { searchParams: P
     <>
       <Topbar crumbs={[{ label: 'Pagamentos' }]} />
       <main className="p-4 lg:p-6">
-        <PageHeader title="Pagamentos" description="Cobranças pelo Asaas. O link sai pelo CRM, com um clique seu." />
         {erro && !target && <div className="mb-4"><ErrorNote>{erro}</ErrorNote></div>}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Stat label="Faturado" value={summary.invoiced} />

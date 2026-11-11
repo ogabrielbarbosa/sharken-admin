@@ -3,7 +3,7 @@ import { formatBRL, phoneMatchCandidates, toMobileE164, type ContractStatus } fr
 import { FileText, Info, MessageCircle, Pencil, Send } from 'lucide-react';
 import Link from 'next/link';
 import { Topbar } from '@/components/layout/topbar';
-import { Button, Card, EmptyState, ErrorNote, LinkButton, PageHeader, Status, Table, type Tone } from '@/components/ui';
+import { Button, Card, EmptyState, ErrorNote, LinkButton, Status, Table, type Tone } from '@/components/ui';
 import { CopyButton } from '@/components/ui/copy-button';
 import { MenuButton, RowMenu } from '@/components/ui/row-menu';
 import { authedDb } from '@/lib/auth';
@@ -44,7 +44,6 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
     <>
       <Topbar crumbs={[{ label: 'Contratos' }]} />
       <main className="p-4 lg:p-6">
-        <PageHeader title="Contratos" description="Criados pelo “Fechar negócio” no CRM e assinados pelo ZapSign." />
         {erro && <div className="mb-4"><ErrorNote>{erro}</ErrorNote></div>}
         <nav className="mb-4 flex flex-wrap gap-2" aria-label="Filtrar por status">
           {tabs.map((t) => {

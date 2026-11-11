@@ -10,7 +10,7 @@ import { Board, boardHref } from '@/components/pipeline/board';
 import { CompleteModal } from '@/components/pipeline/complete-modal';
 import { LinkModal } from '@/components/pipeline/link-modal';
 import type { CardContact } from '@/components/pipeline/lead-card';
-import { Card, PageHeader } from '@/components/ui';
+import { Card, Toolbar } from '@/components/ui';
 import { AutoRefresh } from '@/components/ui/auto-refresh';
 import { loadBatchContext } from '@/lib/batch-context';
 import { leadMeta } from '@/lib/lead-labels';
@@ -145,11 +145,9 @@ export default async function PipelinePage({ params, searchParams }: { params: P
     <>
       {running && <AutoRefresh />}
       {running && <Arriving leads={analyzing} searching={batch.status === 'buscando'} quantity={batch.quantity} />}
-      <PageHeader
-        title="Pipeline"
-        description={all.length ? `${all.length} ${all.length === 1 ? 'lead' : 'leads'} neste batch. Os filtros valem para Novo lead.` : running ? 'A busca está em andamento. Os leads aparecem aqui quando a análise terminar.' : 'Nenhum lead neste batch.'}
-        actions={toReview.length > 0 && <ReviewFilters batchId={id} filter={filter} counts={countByOption(toReview, now)} shown={reviewed.length} total={toReview.length} />}
-      />
+      <Toolbar start={<span className="text-sm text-muted-foreground"><b className="font-medium text-foreground tabular-nums">{all.length}</b> {all.length === 1 ? 'lead' : 'leads'}</span>}>
+        {toReview.length > 0 && <ReviewFilters batchId={id} filter={filter} counts={countByOption(toReview, now)} shown={reviewed.length} total={toReview.length} />}
+      </Toolbar>
       <ActiveFilters batchId={id} filter={filter} shown={reviewed.length} total={toReview.length} />
       {notice && <p role="status" className="mb-4 rounded-md bg-warning-subtle px-3 py-2 text-sm text-warning">{notice}</p>}
       <Board batchId={id} leads={leads} assets={assets} contacts={contacts} query={filterQs} openId={open?.id} />

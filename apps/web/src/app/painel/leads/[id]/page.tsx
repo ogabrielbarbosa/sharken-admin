@@ -44,8 +44,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
         <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Voltar{boardHref ? ' para o quadro' : crmHref ? ' para o CRM' : ''}</Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{lead.name}</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               {contactStatus ? <Status tone={contactStatus.tone}>CRM: {contactStatus.label}</Status> : <Badge>{lead.stage.replace(/_/g, ' ')}</Badge>}
               {lead.flow && <Status tone={flow.tone}>Fluxo: {flow.label}</Status>}
               {leadMeta(lead)}
