@@ -1,4 +1,4 @@
-import { listBatches, listCharges, listEventsSince, listOverviewLeads, rowsFromEvents } from '@lps/db';
+import { countBoxes, listBatches, listCharges, listEventsSince, listOverviewLeads, rowsFromEvents } from '@lps/db';
 import { buildPendencies, formatBRL, pendencyHref, summarizeCharges, summarizeResults, type Summary } from '@lps/domain';
 import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
@@ -51,7 +51,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const since = new Date(startOfTodayBrazil(now).getTime() - (period - 1) * DAY);
   const previousSince = new Date(since.getTime() - period * DAY);
 
-  const [batches, allLeads, allEvents, charges] = await Promise.all([listBatches(db), listOverviewLeads(db), listEventsSince(db, previousSince), listCharges(db)]);
+  const [batches, allLeads, allEvents, charges, boxes] = await Promise.all([listBatches(db), listOverviewLeads(db), listEventsSince(db, previousSince), listCharges(db), countBoxes(db)]);
   const locations = [...new Map(batches.map((b) => [b.location_key, b.location])).entries()];
   const leads = local ? allLeads.filter((l) => l.batches?.location_key === local) : allLeads;
   const leadIds = new Set(leads.map((l) => l.id));
@@ -63,14 +63,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const t = results.totals;
   const finance = summarizeCharges(charges);
   const monthlyInvoiced = summarizeCharges(charges.filter((c) => new Date(c.created_at) >= since)).invoiced;
-  const pendencies = buildPendencies({ leads, overdueCharges: charges.filter((c) => c.status === 'vencido').length, now });
+  const pendencies = buildPendencies({ leads, crm: boxes, overdueCharges: charges.filter((c) => c.status === 'vencido').length });
 
   const dayKey = (d: Date) => new Date(d.getTime() - 3 * 3_600_000).toISOString().slice(0, 10);
   const days = Array.from({ length: period }, (_, i) => new Date(since.getTime() + i * DAY));
   const daily = days.map((d) => {
     const key = dayKey(d);
-    const count = (type: string) => current.filter((e) => e.type === type && dayKey(new Date(e.created_at)) === key).length;
-    return { label: `${key.slice(8)}/${key.slice(5, 7)}`, values: [count('contato_enviado'), count('follow_up_enviado')] };
+    const count = (kind: string) => current.filter((e) => e.type === 'mensagem_enviada' && e.data?.kind === kind && dayKey(new Date(e.created_at)) === key).length;
+    return { label: `${key.slice(8)}/${key.slice(5, 7)}`, values: [count('primeiro'), count('follow_up')] };
   });
   const flows = ['sem_site', 'melhorar_site'].map((f) => ({ label: FLOW_NAMES[f], value: results.byFlow.find((s) => s.key === f)?.contacts ?? 0 }));
 
@@ -106,14 +106,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
           <h2 className="font-medium">Pendências</h2>
           <p className="text-sm text-muted-foreground">O que precisa de você agora.</p>
           {pendencies.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nada pendente.</p> : (
-            <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
               {pendencies.map((p) => (
                 <li key={p.kind}>
                   <Link href={pendencyHref(p)} className="block rounded-lg border border-border p-3 hover:bg-accent/40">
                     <span className="text-sm">{p.label}</span>
                     <span className="mt-1 block text-2xl font-semibold">{p.count}</span>
                     <span className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                      {p.kind === 'cobranca' ? 'em Clientes' : p.batchIds.length === 1 ? 'em 1 batch' : `em ${p.batchIds.length} batches`}<ArrowRight className="size-3.5" />
+                      {p.kind === 'cobranca' ? 'em Clientes' : !p.step ? 'no CRM' : p.batchIds.length === 1 ? 'em 1 batch' : `em ${p.batchIds.length} batches`}<ArrowRight className="size-3.5" />
                     </span>
                   </Link>
                 </li>
@@ -125,7 +125,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
           <Card className="p-5">
             <h2 className="font-medium">Envios por dia</h2>
-            <p className="mb-4 text-sm text-muted-foreground">Primeiros contatos e follow-ups confirmados por você no WhatsApp.</p>
+            <p className="mb-4 text-sm text-muted-foreground">Primeiros contatos e follow-ups enviados por você no WhatsApp.</p>
             <DailyBars days={daily} series={['Primeiro contato', 'Follow-up']} />
           </Card>
           <Card className="p-5">
@@ -137,7 +137,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
 
         <Card className="p-5">
           <h2 className="font-medium">Funil do processo</h2>
-          <p className="mb-4 text-sm text-muted-foreground">Leads que passaram por cada etapa no período. A porcentagem compara com a etapa anterior.</p>
+          <p className="mb-4 text-sm text-muted-foreground">Leads que passaram por cada etapa, até o status no CRM, no período. A porcentagem compara com a etapa anterior.</p>
           <Funnel steps={results.funnel} />
         </Card>
 

@@ -11,8 +11,8 @@ function checkDigit(digits: number[], weights: number[]): number {
 }
 
 export function isValidCpf(value: string): boolean {
-  const digits = digitsOf(value);
-  if (digits.length !== 11 || /^(\d)\1+$/.test(digits)) return false;
+  const digits = normalizeDocument(value);
+  if (!/^\d{11}$/.test(digits) || /^(\d)\1+$/.test(digits)) return false;
   const d = [...digits].map(Number);
   const w = (start: number) => Array.from({ length: start - 1 }, (_, i) => start - i);
   return checkDigit(d.slice(0, 9), w(10)) === d[9] && checkDigit(d.slice(0, 10), w(11)) === d[10];

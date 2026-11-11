@@ -13,6 +13,10 @@ describe('isValidCpf', () => {
     expect(isValidCpf('00000000000')).toBe(false);
     expect(isValidCpf('11.222.333/0001-81')).toBe(false);
   });
+  it('não aceita letras no CPF', () => {
+    expect(isValidCpf('5299822472A')).toBe(false);
+    expect(isValidCpf('529.982.247-2A')).toBe(false);
+  });
 });
 
 describe('isValidCnpj', () => {

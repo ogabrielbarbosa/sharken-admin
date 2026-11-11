@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import type { Lead } from '@lps/domain';
-import { Badge, Button, Status } from '@/components/ui';
+import { Badge, Button } from '@/components/ui';
 import { blockLeadAction, discardLeadAction } from '@/lib/common-lead-actions';
 import { NoteField } from './note-field';
 import { advanceLeadsAction } from '@/app/painel/batches/[id]/revisar/actions';

@@ -1,6 +1,6 @@
-import { clientsByLead, getBatch, getLead, getSite, listBatchStages, listEvents, getVideo } from '@lps/db';
+import { clientsByLead, getBatch, getContactByLead, getLead, getSite, listBatchStages, listEvents, getVideo } from '@lps/db';
 import { availableActions, describeEvent, PROCESS_STEPS, stepOf, summarizeBatch } from '@lps/domain';
-import { ArrowLeft, Check, ExternalLink, EyeOff, Play, X } from 'lucide-react';
+import { ArrowLeft, Check, ExternalLink, EyeOff, MessageCircle, Play, X } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Topbar } from '@/components/layout/topbar';
@@ -10,6 +10,7 @@ import { Stepper } from '@/components/process/stepper';
 import { Badge, Button, Card, LinkButton, Status } from '@/components/ui';
 import { authedDb } from '@/lib/auth';
 import { batchLabel } from '@/lib/batch-context';
+import { STATUS_LABEL } from '@/lib/crm';
 import { flowLabel, formatDateTime, leadMeta, siteLabel } from '@/lib/lead-labels';
 import { removeModelAction } from './actions';
 
@@ -23,13 +24,14 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const db = await authedDb();
   const lead = await getLead(db, id);
   if (!lead) notFound();
-  const [batch, stages, site, video, events, clients] = await Promise.all([
+  const [batch, stages, site, video, events, clients, contact] = await Promise.all([
     lead.batch_id ? getBatch(db, lead.batch_id) : null,
     listBatchStages(db),
     getSite(db, id),
     getVideo(db, id),
     listEvents(db, id),
     clientsByLead(db, [id]),
+    getContactByLead(db, id),
   ]);
   const step = stepOf(lead.stage);
   const stepName = PROCESS_STEPS.find((s) => s.key === step)?.label;
@@ -38,19 +40,21 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const flow = flowLabel(lead);
   const site_ = siteLabel(lead);
   const summary = summarizeBatch(stages.filter((s) => s.batch_id === lead.batch_id));
-  const backHref = batch && step ? `/painel/batches/${batch.id}/${step}` : batch ? `/painel/batches/${batch.id}/revisar` : '/painel/batches';
+  const crmHref = contact ? `/painel/crm?contato=${contact.id}` : null;
+  const contactStatus = contact ? STATUS_LABEL[contact.status] : null;
+  const backHref = batch && step ? `/painel/batches/${batch.id}/${step}` : crmHref ?? (batch ? `/painel/batches/${batch.id}/revisar` : '/painel/batches');
 
   return (
     <>
       <Topbar crumbs={[{ label: 'Batches', href: '/painel/batches' }, ...(batch ? [{ label: batchLabel(batch), href: `/painel/batches/${batch.id}/revisar` }] : []), { label: lead.name }]} />
-      {batch && <Stepper batchId={batch.id} counts={summary.counts} current={step ?? undefined} />}
+      {batch && step && <Stepper batchId={batch.id} counts={summary.counts} current={step ?? undefined} />}
       <main className="space-y-4 p-4 lg:p-6">
-        <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Voltar{stepName ? ` para ${stepName}` : ''}</Link>
+        <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Voltar{stepName ? ` para ${stepName}` : !step && crmHref ? ' para o CRM' : ''}</Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">{lead.name}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <Badge>Etapa: {stepName ?? lead.stage.replace(/_/g, ' ')}</Badge>
+              {stepName ? <Badge>Etapa: {stepName}</Badge> : contactStatus ? <Status tone={contactStatus.tone}>CRM: {contactStatus.label}</Status> : <Badge>{lead.stage.replace(/_/g, ' ')}</Badge>}
               {lead.flow && <Status tone={flow.tone}>Fluxo: {flow.label}</Status>}
               {leadMeta(lead)}
             </div>
@@ -59,6 +63,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
           <div className="flex flex-wrap items-center gap-1">
             {actions.includes('descartar') && actions.includes('nao_contatar') && <ExitButtons leadId={id} />}
             {!actions.includes('descartar') && actions.includes('nao_contatar') && <ExitButtons leadId={id} className="flex [&>form:first-child]:hidden" />}
+            {crmHref && <LinkButton href={crmHref} variant="outline"><MessageCircle />Abrir no CRM</LinkButton>}
             {site?.status === 'modelo' && (
               <form action={removeModelAction}>
                 <input type="hidden" name="leadId" value={id} />
@@ -84,6 +89,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                       : site_.label}
                   </Datum>
                   <Datum label="Instagram">{lead.instagram_url ? <a href={lead.instagram_url} target="_blank" rel="noreferrer" className="underline">Abrir perfil</a> : '—'}</Datum>
+                  {crmHref && <Datum label="Contato"><Link href={crmHref} className="underline">Ver no CRM</Link></Datum>}
                   {clientId && <Datum label="Cliente"><Link href={`/painel/clientes/${clientId}`} className="underline">Ver cliente</Link></Datum>}
                 </dl>
               </Card>

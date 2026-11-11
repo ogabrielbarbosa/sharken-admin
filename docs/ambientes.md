@@ -56,6 +56,37 @@ pnpm dev        # painel em http://localhost:3010 e worker juntos
 
 O banco local usa as portas 57321 a 57324 para não conflitar com outros projetos Supabase da sua máquina.
 
+## Variáveis da v2
+
+Todas ficam no `.env.local` e no `.env.dev`. As da Evolution e o `PAGES_HOST` são opcionais: só são cobradas quando você usa a função.
+
+| Variável | Para quê | Padrão |
+|---|---|---|
+| `EVOLUTION_URL` | Endereço da Evolution API (sem barra no fim) | |
+| `EVOLUTION_API_KEY` | Chave da Evolution | |
+| `EVOLUTION_INSTANCE` | Nome da instância do número de prospecção | |
+| `WHATSAPP_WEBHOOK_SECRET` | Segredo do webhook do WhatsApp (`openssl rand -hex 32`) | |
+| `PAGES_HOST` | Host das páginas geradas (ex.: `pages.seudominio.com.br`) | |
+| `PAGE_TTL_HOURS` | Horas de validade da página depois do envio | 24 |
+| `DAILY_FIRST_CONTACT_LIMIT` | Aviso de primeiros contatos por dia | 20 |
+| `VIDEO_MODE` | `gravado` (você grava e envia) ou `ia` (vídeo gerado pelo worker) | `gravado` |
+| `PAGE_AGENT_MODEL` | Modelo do Claude que gera as páginas | `claude-opus-5-5` |
+| `PROSPECT_WHATSAPP` | WhatsApp de prospecção (E.164, só dígitos), usado no botão da página expirada | |
+
+## WhatsApp (Evolution API)
+
+1. Preencha `EVOLUTION_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE` e `WHATSAPP_WEBHOOK_SECRET`.
+2. Rode `pnpm whatsapp:webhook` (no dev, `pnpm whatsapp:webhook:remoto`). Ele registra na instância o webhook `/api/webhooks/whatsapp` com os eventos de mensagem e de conexão. Rode de novo se a URL do app mudar.
+3. No painel, abra o CRM e conecte o número pelo QR Code.
+
+Para baixar fotos, áudios, vídeos e documentos recebidos, a Evolution precisa guardar as mensagens (`DATABASE_SAVE_DATA_NEW_MESSAGE=true` no servidor dela) ou mandar a mídia em base64 no webhook. O `pnpm whatsapp:webhook` já liga o base64; se a mídia não baixar, confira essas duas opções.
+
+No local, o webhook precisa do túnel descrito abaixo, porque a Evolution não alcança `localhost`.
+
+## Limite de tamanho de arquivo no Supabase
+
+Os vídeos enviados por lead e as mídias do WhatsApp passam pelo Storage. No local o limite é 500 MiB (`file_size_limit` em `supabase/config.toml`); depois de mudar esse valor, aplique com `pnpm db:stop && pnpm db:start` (os dados são mantidos). Na nuvem, o limite é o do plano do Supabase (50 MB no gratuito) e pode ser aumentado em Storage > Settings.
+
 ## Como não perder os dados do banco local
 
 Os dados ficam em um volume do Docker e **continuam lá** quando você para o banco, fecha o Docker ou reinicia a máquina.
@@ -90,7 +121,7 @@ Nunca edite uma migração que já foi aplicada no dev: crie uma nova.
 
 ## Webhooks no local
 
-Apify, ZapSign e Asaas não conseguem chamar `localhost`. Para receber os retornos deles no local, abra um túnel e coloque a URL dele em `WEBHOOK_BASE_URL`:
+Apify, ZapSign, Asaas e a Evolution não conseguem chamar `localhost`. Para receber os retornos deles no local, abra um túnel e coloque a URL dele em `WEBHOOK_BASE_URL`:
 
 ```bash
 cloudflared tunnel --url http://localhost:3010
@@ -125,5 +156,6 @@ Cadastre estas URLs nos painéis dos serviços, trocando `<dominio>` pelo endere
 | Apify | registrado automaticamente a cada busca | segredo na URL |
 | ZapSign | `https://<dominio>/api/webhooks/zapsign?secret=<segredo>` | segredo na URL |
 | Asaas | `https://<dominio>/api/webhooks/asaas` | campo "Token de autenticação" igual ao `<segredo>` |
+| Evolution | `https://<dominio>/api/webhooks/whatsapp?token=<WHATSAPP_WEBHOOK_SECRET>`, registrado por `pnpm whatsapp:webhook:remoto` | segredo na URL |
 
 O cron de retenção roda sozinho na Vercel, pelo `vercel.json`.

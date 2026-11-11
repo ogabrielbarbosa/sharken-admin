@@ -74,7 +74,7 @@ export function CloseDealDrawer({ contactName, defaults, existingClient, closeHr
           {existingClient && <p className="rounded-md bg-secondary px-3 py-2 text-sm text-muted-foreground">Este contato já é cliente. O serviço novo fica nele, e os campos alterados atualizam o cadastro.</p>}
           <div className="grid gap-3 sm:grid-cols-2">
             <Labeled label="Nome ou razão social" fromCrm={crm(defaults.client.legal_name)} error={fields.legal_name}><Input value={client.legal_name} onChange={setC('legal_name')} required /></Labeled>
-            <Labeled label="CPF ou CNPJ" error={fields.document}><Input value={client.document} onChange={setC('document')} placeholder="00.000.000/0000-00" inputMode="numeric" required aria-invalid={!!fields.document} /></Labeled>
+            <Labeled label="CPF ou CNPJ" error={fields.document}><Input value={client.document} onChange={setC('document')} placeholder="00.000.000/0000-00" required aria-invalid={!!fields.document} /></Labeled>
             <Labeled label="Quem assina" fromCrm={crm(defaults.client.contact_name)}><Input value={client.contact_name} onChange={setC('contact_name')} placeholder="Nome de quem assina" /></Labeled>
             <Labeled label="Telefone" fromCrm={crm(defaults.client.phone)}><Input value={client.phone} onChange={setC('phone')} /></Labeled>
           </div>

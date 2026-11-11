@@ -22,30 +22,35 @@ describe('summarizeResults', () => {
   it('monta o funil com a taxa sobre a etapa anterior', () => {
     expect(out.funnel[0]).toMatchObject({ label: 'Revisados', count: 3, rate: null });
     expect(out.funnel[1]).toMatchObject({ label: 'Avançados', count: 2, rate: 67 });
-    expect(out.funnel.at(-1)).toMatchObject({ label: 'Vendidos', count: 1, rate: 100 });
+    expect(out.funnel.at(-1)).toMatchObject({ label: 'Fechados', count: 1, rate: 100 });
   });
 });
 
 describe('pendências', () => {
-  const now = new Date('2026-11-06T12:00:00Z');
   const leads = [
-    { batch_id: 'a', stage: 'revisar', contacted_at: null },
-    { batch_id: 'b', stage: 'revisar', contacted_at: null },
-    { batch_id: 'a', stage: 'crm', contacted_at: '2026-11-01T00:00:00Z' },
-    { batch_id: 'a', stage: 'crm', contacted_at: '2026-11-06T00:00:00Z' },
-    { batch_id: 'a', stage: 'descartado', contacted_at: null },
+    { batch_id: 'a', stage: 'revisar' },
+    { batch_id: 'b', stage: 'revisar' },
+    { batch_id: 'a', stage: 'crm' },
+    { batch_id: 'a', stage: 'descartado' },
   ] as never;
-  const list = buildPendencies({ leads, overdueCharges: 2, now });
+  const list = buildPendencies({ leads, crm: { hoje: 3, novos: 0, em_conversa: 1 }, overdueCharges: 2 });
   it('conta só o que precisa de ação', () => {
-    expect(list.find((p) => p.kind === 'follow_up')?.count).toBe(1);
+    expect(list.find((p) => p.kind === 'hoje')?.count).toBe(3);
+    expect(list.find((p) => p.kind === 'em_conversa')?.count).toBe(1);
+    expect(list.find((p) => p.kind === 'novos')).toBeUndefined();
     expect(list.find((p) => p.kind === 'revisar')?.count).toBe(2);
     expect(list.find((p) => p.kind === 'cobranca')?.count).toBe(2);
     expect(list.find((p) => p.kind === 'completar')).toBeUndefined();
   });
-  it('abre direto com um batch e a lista filtrada com vários', () => {
-    expect(pendencyHref(list.find((p) => p.kind === 'follow_up')!)).toBe('/painel/crm');
+  it('abre a caixa do CRM, o batch ou a lista filtrada', () => {
+    expect(pendencyHref(list.find((p) => p.kind === 'hoje')!)).toBe('/painel/crm?caixa=hoje');
+    expect(pendencyHref(list.find((p) => p.kind === 'em_conversa')!)).toBe('/painel/crm?caixa=em_conversa');
     expect(pendencyHref(list.find((p) => p.kind === 'revisar')!)).toBe('/painel/batches?etapa=revisar');
     expect(pendencyHref(list.find((p) => p.kind === 'cobranca')!)).toBe('/painel/clientes?situacao=em_atraso');
+  });
+  it('abre direto com um só batch', () => {
+    const one = buildPendencies({ leads: [{ batch_id: 'a', stage: 'completar' }] as never, crm: { hoje: 0, novos: 0, em_conversa: 0 }, overdueCharges: 0 });
+    expect(pendencyHref(one[0])).toBe('/painel/batches/a/completar');
   });
 });
 

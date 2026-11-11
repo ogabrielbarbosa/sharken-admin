@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { buildWhatsAppLink, renderMessage, selectFirstMessage, type MessageTemplates } from '../src/messages';
-import { canContact, isFollowUpDue } from '../src/contact-rules';
-import { blockEntry } from '../src/contact-rules';
 import { completeLead, improveLead } from './fixtures/leads';
 
 const templates: MessageTemplates = {
@@ -11,8 +9,6 @@ const templates: MessageTemplates = {
   follow_up: 'De novo: [link]',
 };
 const vars = { link: 'https://x.co/p/a' };
-const now = new Date('2026-11-06T12:00:00Z');
-const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
 
 describe('buildWhatsAppLink', () => {
   it('mantém &, acentos e quebras de linha', () => {
@@ -45,41 +41,5 @@ describe('selectFirstMessage', () => {
   });
   it('nunca usa o comentário interno', () => {
     expect(selectFirstMessage({ ...improveLead, comment: 'Dona Carla' }, templates, vars)).not.toContain('Carla');
-  });
-});
-
-describe('canContact', () => {
-  const lead = { ...completeLead, stage: 'crm' as const };
-  const ctx = { blocked: false, now, lastContactAt: null };
-  it('libera lead em CRM', () => expect(canContact(lead, ctx).allowed).toBe(true));
-  it('nega lead bloqueado', () => expect(canContact(lead, { ...ctx, blocked: true }).allowed).toBe(false));
-  it('nega fora de CRM', () => expect(canContact({ ...lead, stage: 'revisar' }, ctx).allowed).toBe(false));
-  it('nega sem celular', () => expect(canContact({ ...lead, phone_e164: null }, ctx).allowed).toBe(false));
-  it('nega quando o mesmo telefone foi contatado há menos de 180 dias', () => {
-    expect(canContact(lead, { ...ctx, lastContactAt: new Date(hoursAgo(24 * 179)) }).allowed).toBe(false);
-    expect(canContact(lead, { ...ctx, lastContactAt: new Date(hoursAgo(24 * 181)) }).allowed).toBe(true);
-  });
-  it('libera follow-up de lead no CRM', () => {
-    expect(canContact({ ...lead, stage: 'crm' }, ctx, 'follow_up').allowed).toBe(true);
-    expect(canContact({ ...lead, stage: 'vendido' }, ctx, 'follow_up').allowed).toBe(false);
-  });
-});
-
-describe('isFollowUpDue', () => {
-  const aguardando = { stage: 'crm' as const };
-  it('vence ao completar 3 dias', () => {
-    expect(isFollowUpDue({ ...aguardando, contacted_at: hoursAgo(71) }, now)).toBe(false);
-    expect(isFollowUpDue({ ...aguardando, contacted_at: hoursAgo(72) }, now)).toBe(true);
-  });
-  it('não vence em outras etapas', () => {
-    for (const stage of ['vendido', 'revisar', 'nao_contatar'] as const) {
-      expect(isFollowUpDue({ stage, contacted_at: hoursAgo(200) }, now)).toBe(false);
-    }
-  });
-});
-
-describe('blockEntry', () => {
-  it('bloqueia telefone e negócio', () => {
-    expect(blockEntry(completeLead, 'Pediu para parar')).toEqual({ phone_e164: '5519987654321', place_id: 'p1', reason: 'Pediu para parar' });
   });
 });

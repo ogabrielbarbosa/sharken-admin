@@ -36,16 +36,3 @@ export async function addToDoNotContact(db: Db, entry: { phone_e164: string | nu
     );
   }
 }
-
-export const SEND_EVENTS = ['contato_enviado', 'follow_up_enviado'];
-
-export async function countEventsSince(db: Db, types: string[], since: Date, batchId?: string): Promise<number> {
-  let query = db
-    .from('events')
-    .select(batchId ? 'id, leads!inner(batch_id)' : 'id', { count: 'exact', head: true })
-    .in('type', types)
-    .gte('created_at', since.toISOString());
-  if (batchId) query = query.eq('leads.batch_id', batchId);
-  const { count } = await query;
-  return count ?? 0;
-}

@@ -104,6 +104,10 @@ export async function getContact(db: Db, id: string): Promise<Contact | null> {
   return data as Contact | null;
 }
 
+export function getContactByLead(db: Db, leadId: string): Promise<Contact | null> {
+  return findOne(db, 'lead_id', [leadId]);
+}
+
 export async function findContactByPhone(db: Db, e164: string): Promise<Contact | null> {
   return findOne(db, 'phone_e164', phoneMatchCandidates(e164));
 }

@@ -4,34 +4,33 @@ Sistema de um único usuário para encontrar negócios locais, montar uma págin
 
 **Objetivo:** gerar caixa rápido, com pouco esforço operacional.
 
-**Status:** primeira versão implementada. Spec em `docs/superpowers/specs/2026-11-06-sistema-de-prospeccao-design.md`, plano em `docs/superpowers/plans/2026-11-06-sistema-de-prospeccao.md`, telas em `untitled.pen`. Ambientes e comandos em `docs/ambientes.md`.
+**Status:** v2 implementada. Specs em `docs/superpowers/specs/2026-11-11-v2-*.md` (visão geral, leads, material, crm, contrato, pagamento), plano em `docs/superpowers/plans/2026-11-11-v2.md`, telas em `untitled.pen` (frames "v2 · 01".."v2 · 12"). A primeira versão fica em `docs/superpowers/specs/2026-11-06-sistema-de-prospeccao-design.md`, substituída onde a v2 diz o contrário. Ambientes e comandos em `docs/ambientes.md`, operação em `docs/operacao.md`.
 
 **Banco local:** nunca rodar `supabase db reset`, `supabase stop --no-backup` ou `supabase stop --all` sem o Gabriel pedir. Os dados locais devem ser preservados, e há outros projetos Supabase na máquina.
 
 ## Decisões
 
-- **Processo:** o batch é a unidade de trabalho. Dentro dele, o lead segue Revisar → Material → Abordar → Aguardar → Conversa → Vendido.
+- **Processo:** Batch (localização + tipo de negócio) → Leads → Completar → Material, depois CRM global → Contrato → Pagamento. O batch é a unidade de trabalho até o Material; do CRM em diante o contato vale por si, com ou sem lead.
 - **Busca:** localização e tipo de negócio em campos livres. Definir nichos, preços, metas e testes comerciais é com o Gabriel.
-- **Dois fluxos:** sem site (inclui site fora do ar) e melhorar site. O sistema analisa, e o Gabriel revisa e decide em Revisar.
-- **Comentário e motivo:** o comentário é interno. O motivo é um campo próprio, que aparece para o lead na mensagem e no vídeo.
-- **Templates:** um único template em código, que se adapta a qualquer tipo de negócio.
-- **Configuração:** roteiros, mensagens, gravações e prompts ficam em arquivos do projeto, sem tela.
-- **Primeiro contato:** WhatsApp. O app prepara o texto e o link, abre a conversa, e o Gabriel envia. Identificação clara, um follow-up no máximo e parar assim que a pessoa pedir. Sem disparo automático.
-- **Depois:** se a abordagem funcionar, o Gabriel pode fazer um CRM conectado ao WhatsApp. Não faz parte desta versão.
+- **Dois fluxos:** sem site (inclui site fora do ar) e melhorar site. O sistema analisa, e o Gabriel revisa e decide em Leads.
+- **Comentário e motivo:** o comentário é interno. O motivo é um campo próprio, que aparece para o lead na mensagem.
+- **Página:** gerada por um agente no worker (API do Claude, custo por página no evento `pagina_gerada`), publicada em `PAGES_HOST` e válida 24 h após o envio (`PAGE_TTL_HOURS`).
+- **Vídeo:** gravado pelo Gabriel e enviado por lead. O vídeo por IA (roteiro, ElevenLabs, Remotion) fica desligado, atrás de `VIDEO_MODE=ia`.
+- **Configuração:** roteiros, mensagens, prompts e guia de design das páginas ficam em arquivos do projeto (`packages/config`), sem tela.
+- **Primeiro contato:** WhatsApp pela Evolution API (não oficial), com uma instância própria para o número de prospecção. O Gabriel conversa no CRM do app; cada mensagem sai de um clique dele, um contato por vez. Identificação clara, no máximo um follow-up para quem nunca respondeu (o agendado só avisa) e parar assim que a pessoa pedir.
 - **Modo de operação:** human in the loop. A IA propõe e o Gabriel aprova ou reprova.
-- **Vídeo:** gerado pelo worker, com roteiro por fluxo, narração gravada pelo Gabriel e clone de voz nos campos variáveis. Fica só dentro da página de exemplo.
-- **Transparência:** o vídeo pode mostrar que a demo foi preparada para aquele negócio, mas não deve dizer que o Gabriel gravou tudo pessoalmente para ele.
-- **Clientes:** um cliente tem vários serviços, com contrato pelo ZapSign e cobrança pelo Asaas.
-- **Stack:** TypeScript, Next.js na Vercel, Supabase, Apify, API do Claude, ElevenLabs, ZapSign, Asaas e Remotion (renderizando no Mac do Gabriel na primeira versão).
+- **Clientes:** um cliente tem vários serviços, com contrato pelo ZapSign e cobrança pelo Asaas. O CRM tem o botão "Fechar negócio" que leva ao contrato.
+- **Stack:** TypeScript, Next.js na Vercel, Supabase, Apify, API do Claude, Evolution API, ZapSign, Asaas, e ElevenLabs e Remotion só no vídeo por IA (renderiza no Mac do Gabriel).
 
-## Restrições do WhatsApp (verificado em 2026-11-05)
+## Restrições do WhatsApp
 
-- A política do WhatsApp Business exige que a pessoa tenha fornecido o número e dado permissão para receber mensagens. Número raspado não atende a isso.
-- Os termos do WhatsApp proíbem mensagens em massa e automáticas não autorizadas, e a conta pode ser suspensa ou banida.
-- Automação é permitida na API oficial dentro da janela de 24 horas após a mensagem da pessoa, com opção de falar com um humano.
-- Não construir disparo frio automatizado nem rotação de números para evitar bloqueio.
+- A conexão pela Evolution API não é oficial e pode levar ao banimento do número. O Gabriel aceitou esse risco em 2026-11-11. A política do WhatsApp Business (verificada em 2026-11-05) exige que a pessoa tenha fornecido o número e dado permissão; número raspado não atende a isso.
+- Os termos do WhatsApp proíbem mensagens em massa e automáticas não autorizadas.
+- Não construir envio em massa nem automático, nem rotação de números para evitar bloqueio. Uma mensagem por clique, um contato por vez, no máximo um follow-up para quem nunca respondeu, e parar assim que a pessoa pedir.
+- O provedor fica atrás de uma interface (`packages/integrations/src/whatsapp/`), para trocar depois pela API oficial.
 
 ## Em aberto
 
+- Nome comercial e domínio das páginas (as telas usam Sharken)
 - Modelo de contrato no ZapSign
-- Confirmação do nome comercial (as telas usam Sharken)
+- Versão da Evolution API no servidor (v1 ou v2)
