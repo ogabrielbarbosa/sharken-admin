@@ -93,7 +93,7 @@ export default async function RevisarPage({ params, searchParams }: { params: Pr
       {progress}
       <PageHeader
         title="Leads"
-        description={`${allLeads.length} ${allLeads.length === 1 ? 'lead analisado aguardando' : 'leads analisados aguardando'} sua revisão. Avance os bons e descarte o resto.`}
+        description={`${allLeads.length} ${allLeads.length === 1 ? 'lead analisado' : 'leads analisados'}. Abra o nome para ver a análise completa.`}
         actions={<ReviewFilters batchId={id} filter={filter} counts={countByOption(allLeads, now)} shown={leads.length} total={allLeads.length} />}
       />
       <ActiveFilters batchId={id} filter={filter} shown={leads.length} total={allLeads.length} />
@@ -103,6 +103,7 @@ export default async function RevisarPage({ params, searchParams }: { params: Pr
       {open && (
         <LeadDrawer
           lead={open}
+          position={`${openIndex + 1} de ${leads.length}`}
           batchId={id}
           prevHref={openIndex > 0 ? hrefFor(leads[openIndex - 1].id) : null}
           nextHref={openIndex < leads.length - 1 ? hrefFor(leads[openIndex + 1].id) : null}

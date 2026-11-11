@@ -6,7 +6,7 @@ import { useState } from 'react';
 import type { Lead } from '@lps/domain';
 import { Button, Status } from '@/components/ui';
 import { discardLeadAction } from '@/lib/common-lead-actions';
-import { siteLabel, leadMeta, formatDate } from '@/lib/lead-labels';
+import { siteLabel, leadMeta, instagramLabel } from '@/lib/lead-labels';
 import { advanceLeadsAction, discardLeadsAction } from '@/app/painel/batches/[id]/revisar/actions';
 import { BulkBar } from './bulk-bar';
 
@@ -16,13 +16,12 @@ const fullUrl = (url: string) => (/^https?:/i.test(url) ? url : `https://${url}`
 export const scoreTone = (score: number) => (score >= 70 ? 'bg-success' : score >= 50 ? 'bg-warning' : 'bg-destructive');
 
 function Instagram({ lead }: { lead: Lead }) {
-  if (!lead.instagram_url) return <span className="text-muted-foreground">—</span>;
   const active = lead.score_reasons?.find((r) => r.label.startsWith('Instagram'))?.met;
+  const { label, tone } = instagramLabel(lead, active);
   return (
-    <span className="inline-flex items-center gap-2">
-      <Status tone={active ? 'success' : 'warning'}>{active ? 'Ativo' : 'Parado'}</Status>
-      <span className="text-xs text-muted-foreground">{formatDate(lead.instagram_last_post_at)}</span>
-      <a href={fullUrl(lead.instagram_url)} target="_blank" rel="noreferrer" aria-label="Abrir Instagram" className="text-muted-foreground hover:text-foreground"><ExternalLink className="size-3" /></a>
+    <span className="inline-flex items-center gap-1.5">
+      <Status tone={tone}>{label}</Status>
+      {lead.instagram_url && <a href={fullUrl(lead.instagram_url)} target="_blank" rel="noreferrer" aria-label="Abrir Instagram" className="text-muted-foreground hover:text-foreground"><ExternalLink className="size-3" /></a>}
     </span>
   );
 }
@@ -76,15 +75,15 @@ export function LeadTable({ leads, batchId, openId, hrefFor }: { leads: Lead[]; 
                     </div>
                   </td>
                   <td className="px-3 py-2.5">
-                    <div className="flex gap-1">
+                    <div className="flex items-center justify-end gap-1">
+                      <form action={discardLeadAction}>
+                        <input type="hidden" name="leadId" value={lead.id} />
+                        <Button type="submit" variant="ghost" className="px-2" aria-label="Descartar"><Trash2 /></Button>
+                      </form>
                       <form action={advanceLeadsAction}>
                         <input type="hidden" name="batchId" value={batchId} />
                         <input type="hidden" name="ids" value={lead.id} />
-                        <Button type="submit" className="px-2"><ArrowRight />Avançar</Button>
-                      </form>
-                      <form action={discardLeadAction}>
-                        <input type="hidden" name="leadId" value={lead.id} />
-                        <Button type="submit" variant="ghost" className="px-2"><Trash2 />Descartar</Button>
+                        <Button type="submit" variant="outline" className="px-2"><ArrowRight />Avançar</Button>
                       </form>
                     </div>
                   </td>
