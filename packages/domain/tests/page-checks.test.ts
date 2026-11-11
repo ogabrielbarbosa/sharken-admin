@@ -30,6 +30,22 @@ describe('checkPageHtml', () => {
     const html = clean.replace('</body>', '<a href="mailto:a@b.com">e</a><link rel="stylesheet" href="https://evil.com/s.css"></body>');
     expect(checkPageHtml(html, facts)).toEqual(['Carrega recurso de fora: https://evil.com/s.css']);
   });
+  it('permite links externos em <a>, mas não <link>, <iframe> nem <base>', () => {
+    const ok = clean.replace('</body>', '<a href="https://instagram.com/x">ig</a><a href="https://maps.google.com/?q=1">m</a></body>');
+    expect(checkPageHtml(ok, facts)).toEqual([]);
+    const bad = clean.replace('</body>', '<link href="https://evil.com/a.css"><iframe src="https://evil.com/f"></iframe><base href="https://evil.com/"></body>');
+    expect(checkPageHtml(bad, facts)).toEqual([
+      'Carrega recurso de fora: https://evil.com/a.css',
+      'Carrega recurso de fora: https://evil.com/f',
+      'Carrega recurso de fora: https://evil.com/',
+    ]);
+  });
+  it('recusa handlers inline e javascript:', () => {
+    const msg = 'A página tem JavaScript embutido.';
+    expect(checkPageHtml(clean.replace('<h1>', '<h1 onclick="x()">'), facts)).toContain(msg);
+    expect(checkPageHtml(clean.replace('</body>', '<a href="javascript:alert(1)">x</a></body>'), facts)).toContain(msg);
+    expect(checkPageHtml(clean, facts)).not.toContain(msg);
+  });
   it('exige nome e telefone', () => {
     const html = clean.replace(/Clínica Dr\. João/g, 'X').replace('(19) 98765-4321', '');
     const out = checkPageHtml(html, facts);

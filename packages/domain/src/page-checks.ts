@@ -12,10 +12,10 @@ function hostOf(url: string): string | null {
 }
 
 function isOutside(url: string, isLink: boolean, allowed: string[]): boolean {
+  if (isLink) return false; // <a href> não carrega nada
   const host = hostOf(url);
   if (!host) return false; // relative, #, data:, mailto:, tel:
-  if (allowed.includes(host)) return false;
-  return !(isLink && host === 'wa.me');
+  return !allowed.includes(host);
 }
 
 function references(html: string): { url: string; isLink: boolean }[] {
@@ -57,6 +57,10 @@ export function checkPageHtml(html: string, facts: PageFacts): string[] {
   const problems: string[] = [];
   if (!/data-slot\s*=\s*["']video["']/i.test(html)) problems.push('Falta o espaço do vídeo (data-slot="video").');
   if (/<script\b/i.test(html)) problems.push('A página tem <script>.');
+  const inlineJs =
+    /<\w+\b[^>]*\son[a-z]+\s*=/i.test(html) ||
+    /\s(?:src|href|poster|data|action|formaction)\s*=\s*["']?\s*javascript:/i.test(html);
+  if (inlineJs) problems.push('A página tem JavaScript embutido.');
 
   const allowed = [...FONT_HOSTS, ...facts.allowedHosts.map((h) => h.toLowerCase())];
   const outside = new Set<string>();

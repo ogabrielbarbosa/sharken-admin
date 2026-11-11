@@ -10,6 +10,7 @@ export type PageAccessRow = {
 
 export function pageAccess(site: PageAccessRow, now: Date): 'ok' | 'indisponivel' {
   if (site.status !== 'modelo') return 'indisponivel';
+  if (!site.published_at && !site.expires_at) return 'indisponivel';
   if (site.expires_at && new Date(site.expires_at) <= now) return 'indisponivel';
   if (!site.sent_at && site.published_at && now.getTime() - new Date(site.published_at).getTime() > UNSENT_DAYS * 24 * HOUR) {
     return 'indisponivel';

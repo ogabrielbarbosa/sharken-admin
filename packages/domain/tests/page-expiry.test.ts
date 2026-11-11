@@ -16,6 +16,9 @@ describe('pageAccess', () => {
     expect(pageAccess({ ...sent, expires_at: '2026-11-12T10:00:00Z' }, now)).toBe('ok');
     expect(pageAccess({ ...sent, expires_at: '2026-11-11T11:00:00Z' }, now)).toBe('indisponivel');
   });
+  it('sem published_at e sem expires_at fica indisponível', () => {
+    expect(pageAccess(base, now)).toBe('indisponivel');
+  });
   it('removida fica indisponível', () => {
     expect(pageAccess({ ...base, status: 'removido', published_at: '2026-11-11T00:00:00Z' }, now)).toBe('indisponivel');
   });
