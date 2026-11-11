@@ -1,10 +1,10 @@
 import { listBatches, listCharges, listEventsSince, listOverviewLeads, rowsFromEvents } from '@lps/db';
 import { buildPendencies, formatBRL, pendencyHref, summarizeCharges, summarizeResults, type Summary } from '@lps/domain';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, BadgeDollarSign, Eye, Hourglass, MessageSquareReply, Send, Trophy, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Topbar } from '@/components/layout/topbar';
 import { DailyBars, Donut, Funnel } from '@/components/overview/charts';
-import { Card, EmptyState, PageHeader, Table } from '@/components/ui';
+import { Card, EmptyState, Table, Toolbar } from '@/components/ui';
 import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
 import { authedDb } from '@/lib/auth';
 import { startOfTodayBrazil } from '@/lib/dates';
@@ -14,12 +14,15 @@ const PERIODS = [7, 30, 90];
 const pct = (part: number, total: number) => (total ? Math.round((part / total) * 100) : 0);
 const FLOW_NAMES: Record<string, string> = { sem_site: 'Sem site', melhorar_site: 'Melhorar site' };
 
-function Kpi({ label, value, note }: { label: string; value: string | number; note: string }) {
+function Kpi({ label, value, note, icon: Icon, up }: { label: string; value: string | number; note: string; icon: LucideIcon; up?: boolean }) {
   return (
-    <Card className="p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{note}</p>
+    <Card interactive className="overflow-hidden p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <span className="grid size-7 place-items-center rounded-md border border-brand-border bg-brand-muted text-brand-soft"><Icon className="size-3.5" /></span>
+      </div>
+      <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
+      <p className={`mt-1 text-xs ${up === undefined ? 'text-muted-foreground' : up ? 'text-success-foreground' : 'text-muted-foreground'}`}>{note}</p>
     </Card>
   );
 }
@@ -78,10 +81,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     <>
       <Topbar crumbs={[{ label: 'Overview' }]} />
       <main className="space-y-4 p-4 lg:p-6">
-        <PageHeader
-          title="Overview"
-          description="Como está a sua prospecção, do primeiro contato até a venda."
-          actions={
+        <Toolbar>
             <form className="flex flex-wrap gap-2">
               <AutoSubmitSelect name="local" defaultValue={local ?? ''} aria-label="Localização" className="w-48">
                 <option value="">Localização: Todas</option>
@@ -91,29 +91,27 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                 {PERIODS.map((p) => <option key={p} value={p}>Últimos {p} dias</option>)}
               </AutoSubmitSelect>
             </form>
-          }
-        />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-          <Kpi label="Contatos" value={t.contacts} note={delta(t.contacts, before.contacts)} />
-          <Kpi label="Taxa de abertura" value={`${pct(t.opens, t.contacts)}%`} note={delta(pct(t.opens, t.contacts), pct(before.opens, before.contacts), ' pp')} />
-          <Kpi label="Taxa de resposta" value={`${pct(t.replies, t.contacts)}%`} note={delta(pct(t.replies, t.contacts), pct(before.replies, before.contacts), ' pp')} />
-          <Kpi label="Vendas" value={t.sales} note={delta(t.sales, before.sales)} />
-          <Kpi label="Faturado" value={formatBRL(monthlyInvoiced)} note={`Emitido nos últimos ${period} dias`} />
-          <Kpi label="Em aberto" value={formatBRL(finance.open)} note={`${formatBRL(finance.overdue)} em atraso`} />
+        </Toolbar>
+        <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <Kpi icon={Send} label="Contatos" value={t.contacts} note={delta(t.contacts, before.contacts)} up={t.contacts > before.contacts} />
+          <Kpi icon={Eye} label="Taxa de abertura" value={`${pct(t.opens, t.contacts)}%`} note={delta(pct(t.opens, t.contacts), pct(before.opens, before.contacts), ' pp')} up={pct(t.opens, t.contacts) > pct(before.opens, before.contacts)} />
+          <Kpi icon={MessageSquareReply} label="Taxa de resposta" value={`${pct(t.replies, t.contacts)}%`} note={delta(pct(t.replies, t.contacts), pct(before.replies, before.contacts), ' pp')} up={pct(t.replies, t.contacts) > pct(before.replies, before.contacts)} />
+          <Kpi icon={Trophy} label="Vendas" value={t.sales} note={delta(t.sales, before.sales)} up={t.sales > before.sales} />
+          <Kpi icon={BadgeDollarSign} label="Faturado" value={formatBRL(monthlyInvoiced)} note={`Emitido nos últimos ${period} dias`} />
+          <Kpi icon={Hourglass} label="Em aberto" value={formatBRL(finance.open)} note={`${formatBRL(finance.overdue)} em atraso`} />
         </div>
 
         <Card className="p-5">
           <h2 className="font-medium">Pendências</h2>
-          <p className="text-sm text-muted-foreground">O que precisa de você agora.</p>
           {pendencies.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nada pendente.</p> : (
-            <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <ul className="stagger mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {pendencies.map((p) => (
                 <li key={p.kind}>
-                  <Link href={pendencyHref(p)} className="block rounded-lg border border-border p-3 hover:bg-accent/40">
+                  <Link href={pendencyHref(p)} className="group/p glow-card press block rounded-lg border border-border bg-white/[0.02] p-3">
                     <span className="text-sm">{p.label}</span>
-                    <span className="mt-1 block text-2xl font-semibold">{p.count}</span>
+                    <span className="mt-1 block bg-linear-to-br from-white to-brand-light bg-clip-text text-2xl font-semibold text-transparent tabular-nums">{p.count}</span>
                     <span className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                      {p.kind === 'cobranca' ? 'em Clientes' : p.batchIds.length === 1 ? 'em 1 batch' : `em ${p.batchIds.length} batches`}<ArrowRight className="size-3.5" />
+                      {p.kind === 'cobranca' ? 'em Clientes' : p.batchIds.length === 1 ? 'em 1 batch' : `em ${p.batchIds.length} batches`}<ArrowRight className="size-3.5 transition-[translate,color] duration-200 group-hover/p:translate-x-0.5 group-hover/p:text-brand-soft" />
                     </span>
                   </Link>
                 </li>
@@ -124,20 +122,17 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
 
         <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
           <Card className="p-5">
-            <h2 className="font-medium">Envios por dia</h2>
-            <p className="mb-4 text-sm text-muted-foreground">Primeiros contatos e follow-ups confirmados por você no WhatsApp.</p>
+            <h2 className="mb-4 font-medium">Envios por dia</h2>
             <DailyBars days={daily} series={['Primeiro contato', 'Follow-up']} />
           </Card>
           <Card className="p-5">
-            <h2 className="font-medium">Contatos por fluxo</h2>
-            <p className="mb-4 text-sm text-muted-foreground">Divisão dos {t.contacts} contatos do período.</p>
+            <h2 className="mb-4 font-medium">Contatos por fluxo</h2>
             <Donut parts={flows} total={flows.reduce((a, b) => a + b.value, 0)} unit="contatos" />
           </Card>
         </div>
 
         <Card className="p-5">
-          <h2 className="font-medium">Funil do processo</h2>
-          <p className="mb-4 text-sm text-muted-foreground">Leads que passaram por cada etapa no período. A porcentagem compara com a etapa anterior.</p>
+          <h2 className="mb-4 font-medium">Funil do processo</h2>
           <Funnel steps={results.funnel} />
         </Card>
 

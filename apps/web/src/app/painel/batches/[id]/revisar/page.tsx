@@ -4,7 +4,7 @@ import { ArrowRight, Check, ExternalLink, Inbox, Loader2, Phone, Plus, Star, Tra
 import Link from 'next/link';
 import { ExitButtons } from '@/components/leads/exit-buttons';
 import { NoteField } from '@/components/leads/note-field';
-import { Badge, Button, Card, EmptyState, ErrorNote, Input, LinkButton, PageHeader, Status } from '@/components/ui';
+import { Badge, Button, Card, EmptyState, ErrorNote, Input, LinkButton, Status, Toolbar } from '@/components/ui';
 import { AutoRefresh } from '@/components/ui/auto-refresh';
 import { ActiveFilters, ReviewFilters } from '@/components/batches/review-filters';
 import { loadBatchContext } from '@/lib/batch-context';
@@ -32,11 +32,11 @@ function LeadCard({ lead, batchId }: { lead: Lead; batchId: string }) {
   const score = lead.score ?? 0;
   const formId = `advance-${lead.id}`;
   return (
-    <Card className="flex flex-col gap-4 p-4 lg:flex-row lg:p-5">
-      <input type="checkbox" name="selected" value={lead.id} form="bulk" aria-label={`Selecionar ${lead.name}`} className="mt-1 size-4 shrink-0 accent-neutral-200" />
+    <Card interactive className="flex flex-col gap-4 p-4 lg:flex-row lg:p-5">
+      <input type="checkbox" name="selected" value={lead.id} form="bulk" aria-label={`Selecionar ${lead.name}`} className="mt-1 size-4 shrink-0 accent-blue-500" />
       <div className="min-w-0 flex-1 space-y-3">
         <div>
-          <Link href={`/painel/leads/${lead.id}`} className="font-medium hover:underline">{lead.name}</Link>
+          <Link href={`/painel/leads/${lead.id}`} className="font-medium transition-colors hover:text-brand-light">{lead.name}</Link>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>{leadMeta(lead)}</span>
             <span className="text-foreground"><Status tone={site.tone}>{site.label}</Status></span>
@@ -66,9 +66,9 @@ function LeadCard({ lead, batchId }: { lead: Lead; batchId: string }) {
       <div className="flex w-full shrink-0 flex-col gap-3 lg:w-60">
         <div className="lg:text-right">
           <p className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">Pontuação</p>
-          <p className="text-2xl font-semibold">{score}<span className="ml-1 text-sm font-normal text-muted-foreground">/100</span></p>
+          <p className="text-2xl font-semibold tabular-nums">{score}<span className="ml-1 text-sm font-normal text-muted-foreground">/100</span></p>
           <div className="mt-1 ml-auto h-1.5 w-24 overflow-hidden rounded-full bg-secondary">
-            <div className={`h-full ${scoreTone(score)}`} style={{ width: `${score}%` }} />
+            <div className={`h-full origin-left animate-grow-x rounded-full ${scoreTone(score)}`} style={{ width: `${score}%` }} />
           </div>
         </div>
         <form id={formId} action={advanceLeadAction}>
@@ -91,7 +91,7 @@ function Arriving({ leads, searching, quantity }: { leads: Lead[]; searching: bo
   return (
     <Card className="mb-6">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3 text-sm font-medium">
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        <Loader2 className="size-4 animate-spin text-brand-soft" />
         {title}
       </div>
       {leads.length === 0 ? (
@@ -101,7 +101,7 @@ function Arriving({ leads, searching, quantity }: { leads: Lead[]; searching: bo
           {leads.map((lead) => {
             const link = lead.website_url ?? lead.instagram_url;
             return (
-              <li key={lead.id} className="flex flex-col gap-1 px-4 py-2.5 text-sm lg:flex-row lg:items-center lg:gap-4">
+              <li key={lead.id} className="flex animate-rise flex-col gap-1 px-4 py-2.5 text-sm lg:flex-row lg:items-center lg:gap-4">
                 <span className="min-w-0 font-medium lg:w-64 lg:truncate">{lead.name}</span>
                 <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{lead.address ?? leadMeta(lead)}</span>
                 <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -142,7 +142,6 @@ export default async function RevisarPage({ params, searchParams }: { params: Pr
     return (
       <>
         {progress}
-        <PageHeader title="Revisar" description="Nenhum lead aguardando revisão." />
         <EmptyState
           icon={<Inbox />}
           title="Nenhum lead para revisar"
@@ -156,11 +155,9 @@ export default async function RevisarPage({ params, searchParams }: { params: Pr
   return (
     <>
       {progress}
-      <PageHeader
-        title="Revisar"
-        description={`${allLeads.length} ${allLeads.length === 1 ? 'lead analisado aguardando' : 'leads analisados aguardando'} sua revisão. Avance os bons e descarte o resto.`}
-        actions={<ReviewFilters batchId={id} filter={filter} counts={countByOption(allLeads, now)} shown={leads.length} total={allLeads.length} />}
-      />
+      <Toolbar start={<span className="text-sm text-muted-foreground"><b className="font-medium text-foreground tabular-nums">{allLeads.length}</b> {allLeads.length === 1 ? 'lead para revisar' : 'leads para revisar'}</span>}>
+        <ReviewFilters batchId={id} filter={filter} counts={countByOption(allLeads, now)} shown={leads.length} total={allLeads.length} />
+      </Toolbar>
       <ActiveFilters batchId={id} filter={filter} shown={leads.length} total={allLeads.length} />
       {semMotivo && <div className="mb-4"><ErrorNote>Leads com site funcionando precisam de um motivo para avançar.</ErrorNote></div>}
       <form id="bulk" action={bulkAction} className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
@@ -172,7 +169,7 @@ export default async function RevisarPage({ params, searchParams }: { params: Pr
         </div>
       </form>
       {leads.length === 0 && <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">Nenhum lead bate com esse filtro.</p>}
-      <div className="space-y-4">{leads.map((lead) => <LeadCard key={lead.id} lead={lead} batchId={id} />)}</div>
+      <div className="stagger space-y-4">{leads.map((lead) => <LeadCard key={lead.id} lead={lead} batchId={id} />)}</div>
     </>
   );
 }

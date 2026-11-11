@@ -1,6 +1,6 @@
 import { getClient, getLead, listCharges, listContracts, listServices } from '@lps/db';
 import { clientStanding, formatBRL, summarizeCharges, type ChargeStatus, type ContractStatus } from '@lps/domain';
-import { ArrowLeft, Plus, Send } from 'lucide-react';
+import { Plus, Send } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ClientDrawer } from '@/components/clients/client-drawer';
@@ -56,15 +56,11 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
   return (
     <>
       <Topbar crumbs={[{ label: 'Clientes', href: '/painel/clientes' }, { label: client.legal_name }]} />
-      <main className="space-y-4 p-4 lg:p-6">
-        <Link href="/painel/clientes" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Voltar para Clientes</Link>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{client.legal_name}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <Badge tone={standing === 'em_dia' ? 'success' : 'danger'}>{standing === 'em_dia' ? 'Em dia' : 'Em atraso'}</Badge>
-              Cliente desde {formatDate(client.created_at)}{client.location && ` · ${client.location}`}
-            </div>
+      <main className="stagger space-y-4 p-4 lg:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <Badge tone={standing === 'em_dia' ? 'success' : 'danger'}>{standing === 'em_dia' ? 'Em dia' : 'Em atraso'}</Badge>
+            Cliente desde {formatDate(client.created_at)}{client.location && ` · ${client.location}`}
           </div>
           <div className="flex gap-2">
             <LinkButton href={`${here}?editar=1`} variant="outline">Editar</LinkButton>
@@ -83,26 +79,26 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
               <Datum label="E-mail">{client.email ?? '—'}</Datum>
               <Datum label="Telefone">{client.phone ?? '—'}</Datum>
               <Datum label="Endereço">{client.address ?? '—'}</Datum>
-              {lead && <Datum label="Lead de origem"><Link href={`/painel/leads/${lead.id}`} className="underline">{lead.name}</Link></Datum>}
+              {lead && <Datum label="Lead de origem"><Link href={`/painel/leads/${lead.id}`} className="text-brand-soft hover:underline">{lead.name}</Link></Datum>}
             </dl>
           </Card>
           <Card className="p-5">
             <h2 className="mb-4 font-medium">Resumo financeiro</h2>
             <dl className="grid grid-cols-2 gap-3">
               {([['Faturado', summary.invoiced, ''], ['Recebido', summary.received, 'text-success-foreground'], ['Em aberto', summary.open, 'text-warning'], ['Em atraso', summary.overdue, 'text-destructive']] as const).map(([label, value, color]) => (
-                <div key={label} className="rounded-lg border border-border p-3">
+                <div key={label} className="rounded-lg border border-border bg-white/[0.02] p-3">
                   <dt className="text-xs text-muted-foreground">{label}</dt>
                   <dd className={`mt-1 text-lg font-semibold ${color}`}>{formatBRL(value)}</dd>
                 </div>
               ))}
             </dl>
-            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-secondary"><div className="h-full bg-success" style={{ width: `${percent}%` }} /></div>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full origin-left animate-grow-x rounded-full bg-linear-to-r from-brand to-brand-soft shadow-[0_0_10px_#3b82f680]" style={{ width: `${percent}%` }} /></div>
             <p className="mt-1 text-right text-xs text-muted-foreground">{percent}% do faturado</p>
           </Card>
         </div>
 
         <Card>
-          <h2 className="flex items-center gap-2 px-4 py-3 font-medium">Serviços <Badge>{services.length}</Badge></h2>
+          <h2 className="flex items-center gap-2 px-4 py-3 font-medium">Serviços <Badge tone="brand">{services.length}</Badge></h2>
           {services.length === 0 ? <p className="px-4 pb-4 text-sm text-muted-foreground">Nenhum serviço ainda.</p> : (
             <Table head={['Serviço', 'Tipo', 'Valor', 'Início', 'Status', 'Contrato', '']}>
               {services.map((s) => {
@@ -137,7 +133,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
         </Card>
 
         <Card>
-          <h2 className="flex items-center gap-2 px-4 py-3 font-medium">Contratos <Badge>{contracts.length}</Badge><span className="text-xs font-normal text-muted-foreground">Assinatura pelo ZapSign</span></h2>
+          <h2 className="flex items-center gap-2 px-4 py-3 font-medium">Contratos <Badge tone="brand">{contracts.length}</Badge><span className="text-xs font-normal text-muted-foreground">Assinatura pelo ZapSign</span></h2>
           {contracts.length === 0 ? <p className="px-4 pb-4 text-sm text-muted-foreground">O contrato é criado junto com o serviço.</p> : (
             <Table head={['Serviço', 'Status', 'Data', '']}>
               {contracts.map((c) => {
@@ -173,7 +169,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
 
         <Card>
           <div className="flex items-center justify-between px-4 py-3">
-            <h2 className="flex items-center gap-2 font-medium">Cobranças <Badge>{charges.length}</Badge><span className="text-xs font-normal text-muted-foreground">Cobrança pelo Asaas</span></h2>
+            <h2 className="flex items-center gap-2 font-medium">Cobranças <Badge tone="brand">{charges.length}</Badge><span className="text-xs font-normal text-muted-foreground">Cobrança pelo Asaas</span></h2>
             {billable.length > 0 && <LinkButton href={`${here}?cobranca=1`} variant="outline"><Plus />Nova cobrança</LinkButton>}
           </div>
           {charges.length === 0 ? <p className="px-4 pb-4 text-sm text-muted-foreground">Nenhuma cobrança ainda.</p> : (

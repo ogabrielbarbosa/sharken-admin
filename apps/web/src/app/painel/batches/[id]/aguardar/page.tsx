@@ -5,7 +5,7 @@ import { MessageSquareReply } from 'lucide-react';
 import Link from 'next/link';
 import { ContactComposer } from '@/components/leads/contact-composer';
 import { ExitButtons } from '@/components/leads/exit-buttons';
-import { Badge, Button, Card, PageHeader, Status, Table } from '@/components/ui';
+import { Button, Card, SectionTitle, Status, Table } from '@/components/ui';
 import { loadBatchContext } from '@/lib/batch-context';
 import { daysBetween } from '@/lib/dates';
 import { formatDate, leadMeta } from '@/lib/lead-labels';
@@ -38,11 +38,10 @@ export default async function AguardarPage({ params }: { params: Promise<{ id: s
 
   return (
     <>
-      <PageHeader title="Aguardar" description="Leads já contatados. Follow-ups vencidos ficam no topo. Cada lead recebe no máximo um follow-up." />
       {due.length > 0 && (
         <>
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-medium">Follow-up vencido <Badge tone="warning">{due.length}</Badge></h2>
-          <div className="mb-8 grid gap-4 xl:grid-cols-2">
+          <SectionTitle count={due.length} tone="warning">Follow-up vencido</SectionTitle>
+          <div className="stagger mb-8 grid gap-4 xl:grid-cols-2">
             {due.map((lead) => {
               const slug = sites.get(lead.id)?.slug;
               return (
@@ -53,7 +52,7 @@ export default async function AguardarPage({ params }: { params: Promise<{ id: s
                       <p className="text-xs text-muted-foreground">{leadMeta(lead)}</p>
                       <p className="mt-1 text-xs text-muted-foreground">Enviado em {formatDate(lead.contacted_at)} · há {daysBetween(lead.contacted_at!, now)} dias</p>
                     </div>
-                    <Status tone="danger">Follow-up vencido</Status>
+                    <Status tone="danger" live>Follow-up vencido</Status>
                   </div>
                   <ContactComposer
                     key={lead.id}
@@ -73,7 +72,7 @@ export default async function AguardarPage({ params }: { params: Promise<{ id: s
           </div>
         </>
       )}
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-medium">Contatados <Badge>{others.length}</Badge></h2>
+      <SectionTitle count={others.length}>Contatados</SectionTitle>
       <Card>
         {others.length === 0 ? <p className="p-4 text-sm text-muted-foreground">Nenhum lead aguardando.</p> : (
           <Table head={['Lead', 'Data do envio', 'Situação', '']}>

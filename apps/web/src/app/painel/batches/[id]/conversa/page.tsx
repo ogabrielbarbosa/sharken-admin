@@ -3,7 +3,7 @@ import { Check, MessageCircle, MessagesSquare, X } from 'lucide-react';
 import Link from 'next/link';
 import { ExitButtons } from '@/components/leads/exit-buttons';
 import { ReplyAssistant } from '@/components/leads/reply-assistant';
-import { Badge, Button, Card, EmptyState, LinkButton, PageHeader, Status } from '@/components/ui';
+import { Badge, Button, Card, EmptyState, LinkButton, Status } from '@/components/ui';
 import { loadBatchContext } from '@/lib/batch-context';
 import { flowLabel, formatDate, leadMeta } from '@/lib/lead-labels';
 import { markNoInterestAction, markSoldAction } from './actions';
@@ -13,13 +13,9 @@ export default async function ConversaPage({ params, searchParams }: { params: P
   const { lead: selectedId } = await searchParams;
   const { db } = await loadBatchContext(id);
   const leads = await listLeads(db, id, ['conversa']);
-  const description = 'Leads que responderam. Cole a mensagem recebida e use a sugestão como ponto de partida.';
   if (!leads.length) {
     return (
-      <>
-        <PageHeader title="Conversa" description={description} />
-        <EmptyState icon={<MessagesSquare />} title="Nenhuma resposta ainda" description="Quando um lead responder, marque em Aguardar e ele aparece aqui." />
-      </>
+      <EmptyState icon={<MessagesSquare />} title="Nenhuma resposta ainda" description="Quando um lead responder, marque em Aguardar e ele aparece aqui." />
     );
   }
   const incoming = await lastEventOf(db, leads.map((l) => l.id), 'mensagem_recebida');
@@ -29,14 +25,13 @@ export default async function ConversaPage({ params, searchParams }: { params: P
 
   return (
     <>
-      <PageHeader title="Conversa" description={description} />
       <div className="grid gap-4 xl:grid-cols-[20rem_1fr]">
         <Card className="h-fit p-2">
-          <h2 className="flex items-center gap-2 px-2 py-2 text-sm font-medium">Responderam <Badge>{leads.length}</Badge></h2>
-          <ul className="space-y-1">
+          <h2 className="flex items-center gap-2 px-2 py-2 text-sm font-medium">Responderam <Badge tone="brand">{leads.length}</Badge></h2>
+          <ul className="stagger space-y-1">
             {leads.map((l) => (
               <li key={l.id}>
-                <Link href={`?lead=${l.id}`} className={`block rounded-md px-2 py-2 text-sm ${l.id === lead.id ? 'bg-accent' : 'hover:bg-accent/50'}`}>
+                <Link href={`?lead=${l.id}`} className={`press block rounded-md px-2 py-2 text-sm ${l.id === lead.id ? 'bg-linear-to-r from-brand-bright/15 to-transparent ring-1 ring-inset ring-brand-border' : 'hover:bg-white/5'}`}>
                   <span className="flex justify-between gap-2"><span className="truncate font-medium">{l.name}</span><span className="shrink-0 text-xs text-muted-foreground">{formatDate(l.responded_at)}</span></span>
                   {lastText(l.id) && <span className="mt-0.5 block truncate text-xs text-muted-foreground">“{lastText(l.id)}”</span>}
                 </Link>
@@ -47,7 +42,7 @@ export default async function ConversaPage({ params, searchParams }: { params: P
         <Card className="space-y-4 p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <Link href={`/painel/leads/${lead.id}`} className="text-lg font-semibold hover:underline">{lead.name}</Link>
+              <Link href={`/painel/leads/${lead.id}`} className="text-lg font-semibold transition-colors hover:text-brand-light">{lead.name}</Link>
               <p className="mt-1 text-sm text-muted-foreground">{lead.phone_raw} · {leadMeta(lead)}</p>
               <div className="mt-1"><Status tone={flow.tone}>{flow.label}</Status></div>
             </div>

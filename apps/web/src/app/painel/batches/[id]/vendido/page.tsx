@@ -4,7 +4,7 @@ import { BadgeCheck } from 'lucide-react';
 import Link from 'next/link';
 import { createClientFromLeadAction } from '@/app/painel/clientes/actions';
 import { ClientDrawer } from '@/components/clients/client-drawer';
-import { Card, EmptyState, LinkButton, PageHeader, Status, Table } from '@/components/ui';
+import { Card, EmptyState, LinkButton, Status, Table, Toolbar } from '@/components/ui';
 import { loadBatchContext } from '@/lib/batch-context';
 import { formatDate } from '@/lib/lead-labels';
 
@@ -20,11 +20,9 @@ export default async function VendidoPage({ params, searchParams }: { params: Pr
 
   return (
     <>
-      <PageHeader
-        title="Vendido"
-        description="Fim do processo. Negócios deste batch que fecharam com você."
-        actions={<span className="text-sm text-muted-foreground">Vendas: <b className="text-foreground">{leads.length}</b> · Este mês: <b className="text-foreground">{leads.filter((l) => l.sold_at && new Date(l.sold_at) >= monthStart).length}</b></span>}
-      />
+      <Toolbar>
+        <span className="text-sm text-muted-foreground">Vendas: <b className="text-foreground">{leads.length}</b> · Este mês: <b className="text-foreground">{leads.filter((l) => l.sold_at && new Date(l.sold_at) >= monthStart).length}</b></span>
+      </Toolbar>
       {leads.length === 0 ? <EmptyState icon={<BadgeCheck />} title="Nenhuma venda neste batch" description="Marque a venda em Conversa e ela aparece aqui." /> : (
         <Card>
           <Table head={['Nome', 'Localização', 'Tipo de negócio', 'Data da venda', 'Cliente', '']}>
@@ -46,7 +44,6 @@ export default async function VendidoPage({ params, searchParams }: { params: Pr
               );
             })}
           </Table>
-          <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Vendido é a última etapa. Leads aqui não voltam para a fila de contato.</p>
         </Card>
       )}
       {lead && (

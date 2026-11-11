@@ -1,6 +1,6 @@
 import { clientsByLead, getBatch, getLead, getSite, listBatchStages, listEvents, getVideo } from '@lps/db';
 import { availableActions, describeEvent, PROCESS_STEPS, stepOf, summarizeBatch } from '@lps/domain';
-import { ArrowLeft, Check, ExternalLink, EyeOff, MessageSquareReply, Play, X } from 'lucide-react';
+import { Check, ExternalLink, EyeOff, MessageSquareReply, Play, X } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Topbar } from '@/components/layout/topbar';
@@ -38,19 +38,16 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const flow = flowLabel(lead);
   const site_ = siteLabel(lead);
   const summary = summarizeBatch(stages.filter((s) => s.batch_id === lead.batch_id));
-  const backHref = batch && step ? `/painel/batches/${batch.id}/${step}` : batch ? `/painel/batches/${batch.id}/revisar` : '/painel/batches';
 
   return (
     <>
       <Topbar crumbs={[{ label: 'Batches', href: '/painel/batches' }, ...(batch ? [{ label: batchLabel(batch), href: `/painel/batches/${batch.id}/revisar` }] : []), { label: lead.name }]} />
       {batch && <Stepper batchId={batch.id} counts={summary.counts} current={step ?? undefined} />}
-      <main className="space-y-4 p-4 lg:p-6">
-        <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Voltar{stepName ? ` para ${stepName}` : ''}</Link>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <main className="stagger space-y-4 p-4 lg:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{lead.name}</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <Badge>Etapa: {stepName ?? lead.stage.replace(/_/g, ' ')}</Badge>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <Badge tone="brand">Etapa: {stepName ?? lead.stage.replace(/_/g, ' ')}</Badge>
               {lead.flow && <Status tone={flow.tone}>Fluxo: {flow.label}</Status>}
               {leadMeta(lead)}
             </div>
@@ -92,7 +89,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               </Card>
               <Card className="p-5">
                 <h2 className="mb-2 font-medium">Análise e pontuação</h2>
-                <p className="text-3xl font-semibold">{lead.score ?? '—'}<span className="ml-1 text-sm font-normal text-muted-foreground">/100</span></p>
+                <p className="bg-linear-to-br from-white to-brand-light bg-clip-text text-3xl font-semibold text-transparent tabular-nums">{lead.score ?? '—'}<span className="ml-1 text-sm font-normal text-muted-foreground">/100</span></p>
                 <ul className="mt-3 space-y-1.5 text-sm">
                   {lead.score_reasons?.map((r) => (
                     <li key={r.label} className="flex items-center gap-2">
@@ -125,9 +122,10 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
           </div>
           <Card className="h-fit p-5">
             <h2 className="mb-3 font-medium">Histórico</h2>
-            <ol className="space-y-3">
-              {events.map((e) => (
-                <li key={e.id} className="flex justify-between gap-3 text-sm">
+            <ol className="relative space-y-3 before:absolute before:inset-y-1 before:left-[3px] before:w-px before:bg-linear-to-b before:from-brand-bright/60 before:to-transparent">
+              {events.map((e, i) => (
+                <li key={e.id} className="relative flex justify-between gap-3 pl-5 text-sm">
+                  <span aria-hidden className={`absolute top-1.5 left-0 size-[7px] rounded-full ${i === 0 ? 'bg-brand-bright shadow-[0_0_8px_#3b82f6]' : 'bg-zinc-600'}`} />
                   <span>{describeEvent(e)}</span>
                   <span className="shrink-0 text-xs text-muted-foreground">{formatDateTime(e.created_at)}</span>
                 </li>

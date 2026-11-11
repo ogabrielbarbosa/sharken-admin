@@ -5,7 +5,7 @@ import { ArrowRight, Ban, CheckCircle2, ExternalLink, PhoneOff, Play } from 'luc
 import Link from 'next/link';
 import { ContactComposer } from '@/components/leads/contact-composer';
 import { ExitButtons } from '@/components/leads/exit-buttons';
-import { Badge, Button, Card, EmptyState, ErrorNote, LinkButton, PageHeader, Status } from '@/components/ui';
+import { Badge, Button, Card, EmptyState, ErrorNote, LinkButton, Status, Toolbar } from '@/components/ui';
 import { loadBatchContext } from '@/lib/batch-context';
 import { startOfTodayBrazil } from '@/lib/dates';
 import { flowLabel, leadMeta } from '@/lib/lead-labels';
@@ -14,7 +14,7 @@ import { askedToStopAction, invalidNumberAction } from '../contact-actions';
 const Metric = ({ label, value }: { label: string; value: string | number }) => (
   <div className="rounded-lg border border-border bg-card px-3 py-2 text-right">
     <p className="text-xs text-muted-foreground">{label}</p>
-    <p className="font-semibold">{value}</p>
+    <p className="font-semibold tabular-nums">{value}</p>
   </div>
 );
 
@@ -27,8 +27,8 @@ export default async function AbordarPage({ params }: { params: Promise<{ id: st
     countEventsSince(db, SEND_EVENTS, today),
     countEventsSince(db, ['contato_enviado'], today, id),
   ]);
-  const header = (description: string, position: string) => (
-    <PageHeader title="Abordar" description={description} actions={<><Metric label="Posição na fila" value={position} /><Metric label="Envios hoje" value={sentAll} /></>} />
+  const header = (position: string) => (
+    <Toolbar><Metric label="Posição na fila" value={position} /><Metric label="Envios hoje" value={sentAll} /></Toolbar>
   );
 
   if (!queue.length) {
@@ -38,14 +38,14 @@ export default async function AbordarPage({ params }: { params: Promise<{ id: st
     ]);
     return (
       <>
-        {header('Fila de hoje concluída.', '—')}
+        {header('—')}
         <EmptyState
           icon={<CheckCircle2 />}
           title="Fila concluída"
           description={`Você enviou ${sentBatch} ${sentBatch === 1 ? 'mensagem' : 'mensagens'} hoje neste batch. Os leads contatados estão em Aguardar, onde aparecem os follow-ups quando vencerem.`}
           actions={<><LinkButton href={`/painel/batches/${id}/material`} variant="outline">Ver Material</LinkButton><LinkButton href={`/painel/batches/${id}/aguardar`}>Ir para Aguardar<ArrowRight /></LinkButton></>}
         />
-        <div className="mt-4 grid grid-cols-3 gap-3">
+        <div className="stagger mt-4 grid grid-cols-3 gap-3">
           <Metric label="Enviadas" value={sentBatch} />
           <Metric label="Número inválido" value={invalid} />
           <Metric label="Pediu para parar" value={stopped} />
@@ -70,15 +70,15 @@ export default async function AbordarPage({ params }: { params: Promise<{ id: st
 
   return (
     <>
-      {header('Um lead por vez. Abra no WhatsApp, envie você mesmo e confirme aqui.', `${sentBatch + 1} de ${sentBatch + queue.length}`)}
+      {header(`${sentBatch + 1} de ${sentBatch + queue.length}`)}
       {sentAll >= DAILY_SEND_WARNING && (
         <div className="mb-4"><ErrorNote>Você já enviou {sentAll} mensagens hoje. O volume recomendado para o início é de {DAILY_SEND_WARNING} por dia.</ErrorNote></div>
       )}
       <div className="grid gap-4 xl:grid-cols-[1fr_20rem]">
-        <Card className="space-y-4 p-5">
+        <Card className="animate-rise space-y-4 p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <Link href={`/painel/leads/${lead.id}`} className="text-lg font-semibold hover:underline">{lead.name}</Link>
+              <Link href={`/painel/leads/${lead.id}`} className="text-lg font-semibold transition-colors hover:text-brand-light">{lead.name}</Link>
               <p className="mt-1 text-sm text-muted-foreground">{lead.phone_raw} · {leadMeta(lead)}</p>
             </div>
             <div className="text-right">
@@ -102,9 +102,9 @@ export default async function AbordarPage({ params }: { params: Promise<{ id: st
           </div>
         </Card>
         <Card className="h-fit p-4">
-          <h2 className="mb-3 flex items-center justify-between text-sm font-medium">Próximos na fila <Badge>{next.length}</Badge></h2>
+          <h2 className="mb-3 flex items-center justify-between text-sm font-medium">Próximos na fila <Badge tone="brand">{next.length}</Badge></h2>
           {next.length === 0 && <p className="text-sm text-muted-foreground">Este é o último da fila.</p>}
-          <ol className="space-y-2">
+          <ol className="stagger space-y-2">
             {next.slice(0, 8).map((n, i) => {
               const f = flowLabel(n);
               return (
