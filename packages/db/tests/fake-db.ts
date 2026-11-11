@@ -20,7 +20,7 @@ export function fakeDb(pg: PGlite): Db {
     const run = async () => {
       const params: unknown[] = [];
       const p = (v: unknown) => (params.push(v), `$${params.length}`);
-      const conds = s.filters.map(([c, k, v]) => (k === 'in' ? `${c} = any(${p(v)})` : `${c} ${k} ${p(v)}`));
+      const conds = s.filters.map(([c, k, v]) => (k === 'in' ? `${c} = any(${p(v)})` : k === 'is' ? `${c} is ${v === null ? 'null' : String(v)}` : `${c} ${k} ${p(v)}`));
       for (const expr of s.ors) {
         // Só o formato `coluna.ilike.valor,coluna.ilike.valor` usado pela busca.
         conds.push('(' + expr.split(',').map((part) => {
@@ -57,6 +57,7 @@ export function fakeDb(pg: PGlite): Db {
       lt: filter('<'),
       gte: filter('>='),
       in: filter('in'),
+      is: filter('is'),
       or: (expr: string) => (s.ors.push(expr), b),
       order: (c: string, o: { ascending?: boolean; nullsFirst?: boolean } = {}) => (
         (s.order = ` order by ${c} ${o.ascending === false ? 'desc' : 'asc'} nulls ${o.nullsFirst ? 'first' : 'last'}`), b

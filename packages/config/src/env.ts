@@ -14,6 +14,7 @@ const schema = z.object({
   ANTHROPIC_WORKSPACE_ID: z.string().optional(),
   COMMERCIAL_NAME: z.string().default('Sharken'),
   PAGE_AGENT_MODEL: z.string().default('claude-opus-5-5'),
+  PAGE_TTL_HOURS: z.coerce.number().int().positive().default(24),
   WEBHOOK_BASE_URL: z.string().url().optional(),
 });
 
