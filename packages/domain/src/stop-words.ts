@@ -1,4 +1,4 @@
-import { STOP_WORDS } from '@lps/config';
+import { STOP_WORDS } from '@lps/config/messages';
 
 function normalize(text: string): string {
   return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();

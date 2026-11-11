@@ -1,4 +1,4 @@
-import { MESSAGES } from '@lps/config';
+import { MESSAGES } from '@lps/config/messages';
 import { selectFirstMessage } from './messages';
 import type { Lead } from './types';
 

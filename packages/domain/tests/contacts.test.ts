@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MESSAGES } from '@lps/config';
+import { MESSAGES } from '@lps/config/messages';
 import {
   canSetStatus, statusAfterSend, statusAfterInbound, sendBlockReason, followUpDueAt, sendKind, firstContactText, followUpText,
 } from '../src/contacts';
