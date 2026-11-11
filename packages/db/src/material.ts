@@ -1,7 +1,22 @@
 import type { SiteContent, VideoStatus } from '@lps/domain';
 import type { Db } from './client';
 
-export type SiteRecord = { id: string; lead_id: string; slug: string; content: SiteContent; status: 'modelo' | 'removido'; expires_at: string };
+export type SiteScreenshots = { mobile: string; desktop: string };
+export type SiteRecord = {
+  id: string;
+  lead_id: string;
+  slug: string;
+  content: SiteContent;
+  status: 'modelo' | 'removido';
+  expires_at: string | null;
+  generator: 'template' | 'agente';
+  html_path: string | null;
+  screenshots: SiteScreenshots | null;
+  published_at: string | null;
+  sent_at: string | null;
+  attempts: number;
+  instruction: string | null;
+};
 export type VideoRecord = { lead_id: string; status: VideoStatus; progress: number; storage_path: string | null; duration_seconds: number | null; error: string | null };
 
 export async function getSite(db: Db, leadId: string): Promise<SiteRecord | null> {
@@ -15,8 +30,24 @@ export async function listSites(db: Db, leadIds: string[]): Promise<Map<string, 
   return new Map((data as SiteRecord[]).map((s) => [s.lead_id, s]));
 }
 
-export async function saveSite(db: Db, site: { lead_id: string; slug: string; content: SiteContent; expires_at: string }) {
-  const { error } = await db.from('sites').upsert({ ...site, status: 'modelo' }, { onConflict: 'lead_id' });
+export async function saveSite(db: Db, site: { lead_id: string; slug: string; content: SiteContent; expires_at: string | null }) {
+  const { error } = await db
+    .from('sites')
+    .upsert({ ...site, status: 'modelo', generator: 'template', html_path: null, screenshots: null }, { onConflict: 'lead_id' });
+  if (error) throw new Error(error.message);
+}
+
+/** Página escrita pelo agente. Fica sem validade e sem publicação até a aprovação em Material. */
+export async function saveAgentSite(
+  db: Db,
+  site: { lead_id: string; slug: string; html_path: string; screenshots: SiteScreenshots; attempts: number; instruction: string | null },
+) {
+  const { error } = await db
+    .from('sites')
+    .upsert(
+      { ...site, content: {}, status: 'modelo', generator: 'agente', expires_at: null, published_at: null },
+      { onConflict: 'lead_id' },
+    );
   if (error) throw new Error(error.message);
 }
 

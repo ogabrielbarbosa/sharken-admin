@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const { data } = await createAdminClient().from('sites').select('content').eq('slug', slug).maybeSingle();
   return {
-    title: (data?.content as SiteContent | undefined)?.business.name ?? 'Modelo',
+    title: (data?.content as SiteContent | undefined)?.business?.name ?? 'Modelo',
     robots: { index: false, follow: false },
   };
 }

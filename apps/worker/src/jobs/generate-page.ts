@@ -1,35 +1,9 @@
 import { VIDEO_ENABLED } from '@lps/config';
-import { enqueueJob, getLead, getSite, logEvent, moveLead, saveSite, saveVideo, updateLead, type Db } from '@lps/db';
-import { buildSiteContent, buildSourceText, checkReadiness, expiryFrom, findUnsupportedClaims, needsStockPhotos, newSiteSlug, type Lead, type SitePhoto } from '@lps/domain';
-import { generatePageCopy, searchStockPhotos, uploadMedia } from '@lps/integrations';
+import { enqueueJob, getLead, getSite, logEvent, moveLead, saveSite, saveVideo, updateLead } from '@lps/db';
+import { buildSiteContent, buildSourceText, checkReadiness, expiryFrom, findUnsupportedClaims, newSiteSlug } from '@lps/domain';
+import { generatePageCopy } from '@lps/integrations';
+import { collectPhotos } from '../photos';
 import type { Handler } from './types';
-
-const MAX_PHOTOS = 8;
-
-async function copyPhoto(db: Db, url: string, path: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
-    const type = res.headers.get('content-type') ?? '';
-    if (!res.ok || !type.startsWith('image/')) return null;
-    return await uploadMedia(db, path, Buffer.from(await res.arrayBuffer()), type);
-  } catch {
-    return null;
-  }
-}
-
-async function collectPhotos(db: Db, lead: Lead, slug: string): Promise<SitePhoto[]> {
-  const sources = [...lead.photos, ...(lead.flow === 'melhorar_site' ? lead.site_data?.images ?? [] : [])].slice(0, MAX_PHOTOS);
-  const copied = await Promise.all(sources.map((url, i) => copyPhoto(db, url, `sites/${slug}/foto-${i}`)));
-  const own = copied.filter((u): u is string => !!u);
-  const photos: SitePhoto[] = own.map((url) => ({ url, stock: false }));
-  if (!needsStockPhotos(own) || !process.env.PEXELS_API_KEY) return photos;
-  try {
-    const stock = await searchStockPhotos(lead.business_type ?? 'comércio local', 3 - own.length);
-    return [...photos, ...stock.map((url) => ({ url, stock: true }))];
-  } catch {
-    return photos;
-  }
-}
 
 export const generatePageJob: Handler = async (db, job) => {
   const lead = await getLead(db, job.payload.lead_id);

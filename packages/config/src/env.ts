@@ -13,6 +13,7 @@ const schema = z.object({
   ANTHROPIC_MODEL: z.string().default('claude-opus-5-5'),
   ANTHROPIC_WORKSPACE_ID: z.string().optional(),
   COMMERCIAL_NAME: z.string().default('Sharken'),
+  PAGE_AGENT_MODEL: z.string().default('claude-opus-5-5'),
   WEBHOOK_BASE_URL: z.string().url().optional(),
 });
 
