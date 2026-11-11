@@ -59,7 +59,7 @@ export function CloseDealDrawer({ contactName, defaults, existingClient, closeHr
     start(async () => {
       const out = await closeDealAction(input);
       if (out.ok) {
-        router.replace(`/painel/clientes/${out.clientId}`);
+        router.replace(`/painel/contratos?contrato=${out.contractId}`);
         return;
       }
       setFields(out.fields ?? {});

@@ -59,6 +59,23 @@ export async function listContracts(db: Db, serviceIds?: string[]) {
   if (serviceIds) q = q.in('service_id', serviceIds);
   return unwrap<ContractRecord[]>(await q);
 }
+export type ContractWithClient = { contract: ContractRecord; service: ServiceRecord; client: ClientRecord };
+/** Todos os contratos com serviço e cliente, do status mais recente para o mais antigo. */
+export async function listContractsWithClient(db: Db, status?: ContractStatus): Promise<ContractWithClient[]> {
+  let q = db.from('contracts').select().order('status_at', { ascending: false });
+  if (status) q = q.eq('status', status);
+  const contracts = unwrap<ContractRecord[]>(await q);
+  if (!contracts.length) return [];
+  const services = unwrap<ServiceRecord[]>(await db.from('services').select().in('id', [...new Set(contracts.map((c) => c.service_id))]));
+  const clients = unwrap<ClientRecord[]>(await db.from('clients').select().in('id', [...new Set(services.map((s) => s.client_id))]));
+  const serviceById = new Map(services.map((s) => [s.id, s]));
+  const clientById = new Map(clients.map((c) => [c.id, c]));
+  return contracts.flatMap((contract) => {
+    const service = serviceById.get(contract.service_id);
+    const client = service && clientById.get(service.client_id);
+    return service && client ? [{ contract, service, client }] : [];
+  });
+}
 export async function getContract(db: Db, id: string) {
   return unwrap<ContractRecord | null>(await db.from('contracts').select().eq('id', id).maybeSingle());
 }

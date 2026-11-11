@@ -13,6 +13,11 @@ import { authedDb } from '@/lib/auth';
 const text = (form: FormData, key: string) => String(form.get(key) ?? '').trim();
 const withError = (href: string, message: string) => `${href}${href.includes('?') ? '&' : '?'}erro=${encodeURIComponent(message)}`;
 const refresh = () => revalidatePath('/painel', 'layout');
+/** Telas diferentes mandam o formulário e querem voltar para si mesmas. */
+const backTo = (form: FormData, fallback: string) => {
+  const back = text(form, 'back');
+  return back.startsWith('/painel/') ? back : fallback;
+};
 
 function clientFields(form: FormData) {
   return {
@@ -97,7 +102,7 @@ export async function sendContractAction(form: FormData) {
   const service = contract && (await getService(db, contract.service_id));
   const client = service && (await getClient(db, service.client_id));
   if (!contract || !service || !client) return;
-  const back = `/painel/clientes/${client.id}`;
+  const back = backTo(form, `/painel/clientes/${client.id}`);
   try {
     const { docToken, signUrl } = await getContractProvider().send(client, service, contract.id);
     await updateContract(db, contract.id, { status: 'enviado', zapsign_doc_token: docToken, sign_url: signUrl, sent_at: new Date().toISOString() });
@@ -116,7 +121,7 @@ export async function openContractAction(form: FormData) {
     url = await getContractProvider().fileUrl(contract.zapsign_doc_token);
   } catch (err) {
     const service = await getService(db, contract.service_id);
-    redirect(withError(`/painel/clientes/${service?.client_id}`, (err as Error).message));
+    redirect(withError(backTo(form, `/painel/clientes/${service?.client_id}`), (err as Error).message));
   }
   if (url) redirect(url);
 }
