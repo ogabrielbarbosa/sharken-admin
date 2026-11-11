@@ -28,9 +28,10 @@ Sistema de um único usuário para encontrar negócios locais, montar uma págin
 - Os termos do WhatsApp proíbem mensagens em massa e automáticas não autorizadas.
 - Não construir envio em massa nem automático, nem rotação de números para evitar bloqueio. Uma mensagem por clique, um contato por vez, no máximo um follow-up para quem nunca respondeu, e parar assim que a pessoa pedir.
 - O provedor fica atrás de uma interface (`packages/integrations/src/whatsapp/`), para trocar depois pela API oficial.
+- Evolution API v2.3.7 (última estável em 2026-11-11). No local roda no Docker (`pnpm evolution:up`, `infra/evolution/`); referência em `docs/evolution-api/`. A conexão do celular fica em Conexões › WhatsApp.
+- CRM: o atendimento tem três estados, separados do status comercial: aberto, pendente (mensagem recebida num atendimento fechado, ou número novo) e fechado. Abrir um pendente o passa para aberto.
 
 ## Em aberto
 
 - Nome comercial e domínio das páginas (as telas usam Sharken)
 - Modelo de contrato no ZapSign
-- Versão da Evolution API no servidor (v1 ou v2)

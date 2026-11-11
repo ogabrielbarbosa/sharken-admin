@@ -39,6 +39,14 @@ export function webhookBaseUrl(env: Pick<Env, 'APP_URL' | 'WEBHOOK_BASE_URL'>): 
   return env.WEBHOOK_BASE_URL ?? env.APP_URL;
 }
 
+/** Endereço que a Evolution usa para chamar o painel. No local, a Evolution roda no Docker e chama host.docker.internal. */
+export function whatsappWebhookUrl(env: Pick<Env, 'APP_URL' | 'WEBHOOK_BASE_URL'>, source: Source = process.env): string | null {
+  const secret = source.WHATSAPP_WEBHOOK_SECRET;
+  if (!secret) return null;
+  const base = (source.WHATSAPP_WEBHOOK_BASE_URL || webhookBaseUrl(env)).replace(/\/+$/, '');
+  return `${base}/api/webhooks/whatsapp?token=${secret}`;
+}
+
 export type OptionalKey =
   | 'ELEVENLABS_API_KEY'
   | 'ELEVENLABS_VOICE_ID'
@@ -52,6 +60,7 @@ export type OptionalKey =
   | 'EVOLUTION_API_KEY'
   | 'EVOLUTION_INSTANCE'
   | 'WHATSAPP_WEBHOOK_SECRET'
+  | 'WHATSAPP_WEBHOOK_BASE_URL'
   | 'PAGES_HOST'
   | 'PROSPECT_WHATSAPP';
 

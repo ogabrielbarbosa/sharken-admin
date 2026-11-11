@@ -4,3 +4,4 @@ export * from './prompts';
 export * from './video';
 export * from './messages';
 export * from './scripts';
+export * from './quick-replies';

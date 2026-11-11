@@ -1,12 +1,14 @@
 import {
   expiryAfterSend,
   followUpDueAt,
+  isDemoPhone,
   outreachKind,
   phoneMatchCandidates,
   sendBlockReason,
   statusAfterSend,
   type Contact,
   type Message,
+  type OutboundMedia,
   type SendKind,
   type WhatsAppProvider,
 } from '@lps/domain';
@@ -67,17 +69,19 @@ const isUniqueViolation = (e: { message: string; code?: string }) => e.code === 
  */
 export async function sendMessage(
   db: Db,
-  provider: Pick<WhatsAppProvider, 'sendText'>,
-  input: { contactId: string; text: string; clientMessageId: string },
+  provider: Pick<WhatsAppProvider, 'sendText'> & Partial<Pick<WhatsAppProvider, 'sendMedia'>>,
+  input: { contactId: string; text: string; clientMessageId: string; media?: OutboundMedia & { path: string } },
   now: Date,
   opts: { pageTtlHours?: number } = {},
 ): Promise<Message> {
   const text = input.text.trim();
-  if (!text) throw new Error('Escreva a mensagem antes de enviar.');
+  const media = input.media;
+  if (!text && !media) throw new Error('Escreva a mensagem antes de enviar.');
   if (!input.clientMessageId) throw new Error('Identificador da mensagem ausente.');
 
   const contact = await getContact(db, input.contactId);
   if (!contact) throw new Error('Contato não encontrado.');
+  if (isDemoPhone(contact.phone_e164)) throw new Error('Contato de exemplo: nada foi enviado.');
 
   // Reenvio do mesmo clique (duplo clique, rede lenta): devolve o que já existe.
   const previous = await findByClientId(db, input.clientMessageId);
@@ -96,7 +100,10 @@ export async function sendMessage(
     contact_id: contact.id,
     direction: 'saida',
     sent_from: 'painel',
-    body: text,
+    kind: media?.kind ?? 'texto',
+    body: text || null,
+    media_path: media?.path ?? null,
+    media_mime: media?.mime ?? null,
     status: 'pendente',
     client_message_id: input.clientMessageId,
     is_first_contact: kind === 'primeiro',
@@ -107,7 +114,12 @@ export async function sendMessage(
 
   let externalId: string;
   try {
-    ({ externalId } = await provider.sendText({ phoneE164: contact.phone_e164, text, clientMessageId: input.clientMessageId }));
+    if (media) {
+      if (!provider.sendMedia) throw new Error('Este provedor não envia arquivos.');
+      ({ externalId } = await provider.sendMedia({ phoneE164: contact.phone_e164, media, caption: media.kind === 'audio' ? null : text || null }));
+    } else {
+      ({ externalId } = await provider.sendText({ phoneE164: contact.phone_e164, text, clientMessageId: input.clientMessageId }));
+    }
   } catch (err) {
     const invalid = (err as { invalidNumber?: boolean }).invalidNumber === true;
     const message = invalid ? INVALID_NUMBER_MESSAGE : ((err as Error).message || 'Não foi possível enviar.');

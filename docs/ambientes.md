@@ -87,6 +87,19 @@ No local, o webhook precisa do túnel descrito abaixo, porque a Evolution não a
 
 Os vídeos enviados por lead e as mídias do WhatsApp passam pelo Storage. No local o limite é 500 MiB (`file_size_limit` em `supabase/config.toml`); depois de mudar esse valor, aplique com `pnpm db:stop && pnpm db:start` (os dados são mantidos). Na nuvem, o limite é o do plano do Supabase (50 MB no gratuito) e pode ser aumentado em Storage > Settings.
 
+## WhatsApp no local (Evolution API)
+
+A Evolution v2.3.7 roda no Docker, com Postgres e Redis próprios, na porta 8085:
+
+```bash
+pnpm evolution:up     # sobe a Evolution (usa EVOLUTION_API_KEY do .env.local)
+pnpm evolution:down   # para, mantendo a sessão do celular
+```
+
+No `.env.local`: `EVOLUTION_URL=http://localhost:8085`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, `WHATSAPP_WEBHOOK_SECRET` e `WHATSAPP_WEBHOOK_BASE_URL=http://host.docker.internal:<porta do painel>` (o container chama o painel por esse endereço). Depois, em **Conexões › WhatsApp**, clique em Conectar celular e leia o QR. O botão cria a instância e registra o webhook.
+
+Conversas de exemplo: `pnpm crm:demo` cria 8 contatos com DDD 00 (o envio para eles é bloqueado) e `pnpm crm:demo --remover` apaga.
+
 ## Como não perder os dados do banco local
 
 Os dados ficam em um volume do Docker e **continuam lá** quando você para o banco, fecha o Docker ou reinicia a máquina.

@@ -43,8 +43,8 @@ describe('pendências', () => {
     expect(list.find((p) => p.kind === 'completar')).toBeUndefined();
   });
   it('abre a caixa do CRM, o batch ou a lista filtrada', () => {
-    expect(pendencyHref(list.find((p) => p.kind === 'hoje')!)).toBe('/painel/crm?caixa=hoje');
-    expect(pendencyHref(list.find((p) => p.kind === 'em_conversa')!)).toBe('/painel/crm?caixa=em_conversa');
+    expect(pendencyHref(list.find((p) => p.kind === 'hoje')!)).toBe('/painel/crm?aba=pendente');
+    expect(pendencyHref(list.find((p) => p.kind === 'em_conversa')!)).toBe('/painel/crm?aba=aberto');
     expect(pendencyHref(list.find((p) => p.kind === 'revisar')!)).toBe('/painel/batches?etapa=revisar');
     expect(pendencyHref(list.find((p) => p.kind === 'cobranca')!)).toBe('/painel/clientes?situacao=em_atraso');
   });

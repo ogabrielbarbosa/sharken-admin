@@ -13,13 +13,16 @@ import {
   listMessages,
   logEvent,
   markRead,
+  MEDIA_BUCKET,
+  mediaExtension,
   retryMessage,
   sendMessage,
+  setChatState,
   setContactStatus,
   updateContact,
   updateLead,
 } from '@lps/db';
-import { normalizeDocument, renewExpiry, toMobileE164, validateCloseDeal, type CloseDealInput, type ContactStatus } from '@lps/domain';
+import { normalizeDocument, renewExpiry, toMobileE164, validateCloseDeal, type CloseDealInput, type ContactStatus, type OutboundMedia } from '@lps/domain';
 import { getWhatsAppProvider, suggestConversationReply } from '@lps/integrations';
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
@@ -236,4 +239,66 @@ export async function closeDealAction(input: CloseDealInput): Promise<CloseDealR
     const known = err instanceof Error && /^(Contato não encontrado|Contato marcado como Não contatar)/.test(err.message);
     return { ok: false, error: known ? (err as Error).message : 'Não foi possível fechar o negócio. Confira os dados e tente de novo.' };
   }
+}
+
+/** Abrir um atendimento pendente: passa para aberto. Só muda se ainda estiver pendente. */
+export async function attendChatAction(contactId: string): Promise<Result> {
+  return guarded(async () => { await setChatState(await authedDb(), contactId, 'aberto', 'pendente'); });
+}
+
+export async function closeChatAction(contactId: string): Promise<Result> {
+  return guarded(async () => { await setChatState(await authedDb(), contactId, 'fechado'); });
+}
+
+export async function reopenChatAction(contactId: string): Promise<Result> {
+  return guarded(async () => { await setChatState(await authedDb(), contactId, 'aberto'); });
+}
+
+const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
+
+function mediaKind(mime: string, asAudio: boolean): OutboundMedia['kind'] {
+  if (asAudio || mime.startsWith('audio/')) return 'audio';
+  if (mime.startsWith('image/')) return 'imagem';
+  if (mime.startsWith('video/')) return 'video';
+  return 'documento';
+}
+
+/**
+ * Arquivo ou áudio gravado no painel: guarda no bucket (o balão mostra pelo caminho) e envia pela Evolution.
+ * FormData: contactId, clientMessageId, caption, file, audio ("1" para mensagem de voz).
+ */
+export async function sendMediaAction(form: FormData) {
+  return guarded(async () => {
+    const contactId = text(form.get('contactId'));
+    const clientMessageId = text(form.get('clientMessageId'));
+    const file = form.get('file');
+    if (!contactId || !clientMessageId || !(file instanceof File) || !file.size) throw new Error('Escolha um arquivo para enviar.');
+    if (file.size > MAX_MEDIA_BYTES) throw new Error('Arquivo maior que 16 MB.');
+    const db = await authedDb();
+    const mime = file.type || 'application/octet-stream';
+    const kind = mediaKind(mime, form.get('audio') === '1');
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const path = `${contactId}/saida-${clientMessageId}.${mediaExtension(mime)}`;
+    const { error } = await db.storage.from(MEDIA_BUCKET).upload(path, buffer, { contentType: mime, upsert: true });
+    if (error) throw new Error(`Falha ao guardar o arquivo: ${error.message}`);
+    const message = await sendMessage(
+      db,
+      getWhatsAppProvider(),
+      { contactId, text: text(form.get('caption')), clientMessageId, media: { kind, mime, base64: buffer.toString('base64'), fileName: file.name || `arquivo.${mediaExtension(mime)}`, path } },
+      new Date(),
+      { pageTtlHours: getEnv().PAGE_TTL_HOURS },
+    );
+    return { messageId: message.id };
+  });
+}
+
+/** Nota interna: fica na conversa, não vai para o WhatsApp. */
+export async function saveNoteAction(contactId: string, body: string) {
+  return guarded(async () => {
+    const note = text(body);
+    if (!contactId || !note) throw new Error('Escreva a nota antes de salvar.');
+    const db = await authedDb();
+    const { error } = await db.from('messages').insert({ contact_id: contactId, direction: 'nota', kind: 'texto', body: note, status: 'recebida', sent_from: 'painel', at: new Date().toISOString() });
+    if (error) throw new Error(error.message);
+  });
 }

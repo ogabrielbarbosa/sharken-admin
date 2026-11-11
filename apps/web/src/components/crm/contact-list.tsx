@@ -1,106 +1,130 @@
-import { looksLikeStopRequest, type Contact } from '@lps/domain';
-import type { CrmBox } from '@lps/db';
+import { looksLikeStopRequest, type ChatState, type Contact } from '@lps/domain';
+import type { ChatCounts } from '@lps/db';
+import { CheckCheck, Search, X } from 'lucide-react';
 import Link from 'next/link';
-import { isFollowUpDue, listTime, STATUS_LABEL } from '@/lib/crm';
+import { crmHref, isFollowUpDue, listTime } from '@/lib/crm';
+import { Avatar } from './avatar';
 import { NewContactDialog } from './new-contact-dialog';
-import { ConnectionBadge, type ConnectionState } from './connection-badge';
 
-const BOXES: { key: CrmBox; label: string }[] = [
-  { key: 'hoje', label: 'Hoje' },
-  { key: 'novos', label: 'Novos' },
-  { key: 'aguardando', label: 'Aguardando' },
-  { key: 'em_conversa', label: 'Em conversa' },
-  { key: 'fechados', label: 'Fechados' },
-  { key: 'perdidos', label: 'Perdidos' },
-  { key: 'todos', label: 'Todos' },
+export const TABS: { key: ChatState; label: string }[] = [
+  { key: 'aberto', label: 'Abertos' },
+  { key: 'pendente', label: 'Pendentes' },
+  { key: 'fechado', label: 'Fechados' },
 ];
 
-const DOT = { neutral: 'bg-neutral-500', success: 'bg-success', danger: 'bg-destructive', warning: 'bg-warning' } as const;
 
-function href(box: CrmBox, extra: { contato?: string; q?: string }) {
-  const p = new URLSearchParams({ caixa: box });
-  if (extra.q) p.set('q', extra.q);
-  if (extra.contato) p.set('contato', extra.contato);
-  return `/painel/crm?${p}`;
+export type ConnectionInfo = { state: 'conectado' | 'desconectado' | 'conectando' | null; phone: string | null };
+
+function ConnectionLine({ connection }: { connection: ConnectionInfo }) {
+  if (connection.state === 'conectado') {
+    return (
+      <Link href="/painel/conexoes/whatsapp" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" title="WhatsApp conectado">
+        <span className="size-1.5 rounded-full bg-success" />{connection.phone ?? 'Conectado'}
+      </Link>
+    );
+  }
+  return null;
 }
 
-function Line({ contact, now }: { contact: Contact; now: Date }) {
-  const stoppedAsking = contact.last_inbound_at && contact.last_inbound_at === contact.last_message_at && contact.last_message_preview && looksLikeStopRequest(contact.last_message_preview);
-  const { label, tone } = stoppedAsking
-    ? { label: 'Pediu para parar', tone: 'danger' as const }
-    : isFollowUpDue(contact, now)
-      ? { label: 'Follow-up', tone: 'warning' as const }
-      : contact.origin === 'whatsapp_direto' && contact.status === 'em_conversa'
-        ? { label: 'WhatsApp direto', tone: 'neutral' as const }
-        : STATUS_LABEL[contact.status];
+function Disconnected({ connection }: { connection: ConnectionInfo }) {
+  if (connection.state === 'conectado') return null;
+  const connecting = connection.state === 'conectando';
   return (
-    <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-      <span className={`size-1.5 rounded-full ${DOT[tone]}`} />{label}
-    </p>
+    <Link href="/painel/conexoes/whatsapp" className={`mx-3 mb-2 flex items-center justify-between gap-2 rounded-md px-3 py-2 text-xs ${connecting ? 'bg-warning-subtle text-warning' : 'bg-destructive-subtle text-destructive'}`}>
+      <span className="flex items-center gap-2"><span className={`size-1.5 rounded-full ${connecting ? 'bg-warning' : 'bg-destructive'}`} />{connecting ? 'WhatsApp conectando…' : 'WhatsApp desconectado'}</span>
+      <span className="font-medium underline-offset-2 hover:underline">{connecting ? 'Ver' : 'Conectar'}</span>
+    </Link>
   );
 }
 
-export function ContactList({ contacts, counts, box, selectedId, search, now, connection, firstToday, dailyLimit }: {
+function Preview({ contact, now }: { contact: Contact; now: Date }) {
+  const outbound = !!contact.last_message_at && contact.last_outbound_at === contact.last_message_at;
+  const stop = !outbound && contact.last_message_preview && looksLikeStopRequest(contact.last_message_preview);
+  const followUp = isFollowUpDue(contact, now);
+  return (
+    <span className="flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground">
+      {outbound && <CheckCheck className="size-3.5 shrink-0 text-sky-400" aria-label="Você" />}
+      {stop && <span className="shrink-0 rounded-sm bg-destructive-subtle px-1 text-[10px] font-medium text-destructive">Pediu para parar</span>}
+      {followUp && !stop && <span className="shrink-0 rounded-sm bg-warning-subtle px-1 text-[10px] font-medium text-warning">Follow-up</span>}
+      <span className={`truncate ${contact.unread_count ? 'text-foreground' : ''}`}>{contact.last_message_preview ?? (contact.status === 'novo' ? 'Pronto para o primeiro contato' : 'Sem mensagens')}</span>
+    </span>
+  );
+}
+
+export function ContactList({ contacts, counts, tab, selectedId, search, now, connection }: {
   contacts: Contact[];
-  counts: Record<CrmBox, number>;
-  box: CrmBox;
+  counts: ChatCounts;
+  tab: ChatState;
   selectedId: string | null;
   search: string;
   now: Date;
-  connection: ConnectionState;
-  firstToday: number;
-  dailyLimit: number;
+  connection: ConnectionInfo;
 }) {
-  const pct = Math.min(100, Math.round((firstToday / dailyLimit) * 100));
   return (
     <section aria-label="Conversas" className="flex min-h-0 flex-col border-r border-border">
-      <div className="space-y-3 p-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <h1 className="text-sm font-semibold">Conversas</h1>
-            <NewContactDialog />
-          </div>
-          <ConnectionBadge state={connection} href={`${href(box, { contato: selectedId ?? undefined, q: search })}&conexao=1`} />
+      <div className="flex items-center justify-between gap-2 px-4 pb-3 pt-4">
+        <div className="min-w-0">
+          <h1 className="text-base font-semibold leading-tight">Conversas</h1>
+          <ConnectionLine connection={connection} />
         </div>
-        <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span className="whitespace-nowrap">Primeiros contatos hoje</span>
-          <div className="h-1 min-w-8 flex-1 rounded-full bg-secondary" role="progressbar" aria-valuenow={firstToday} aria-valuemax={dailyLimit}>
-            <div className={`h-full rounded-full ${firstToday >= dailyLimit ? 'bg-warning' : 'bg-foreground'}`} style={{ width: `${pct}%` }} />
-          </div>
-          <span className="whitespace-nowrap font-mono text-foreground">{firstToday} de {dailyLimit}</span>
-        </div>
-        <form action="/painel/crm">
-          <input type="hidden" name="caixa" value={box} />
-          <input name="q" defaultValue={search} placeholder="Buscar nome ou telefone" aria-label="Buscar nome ou telefone" className="h-9 w-full rounded-md border border-input bg-input-bg px-3 text-sm outline-none placeholder:text-muted-foreground focus:border-neutral-400" />
-        </form>
-        <nav className="flex flex-wrap gap-1.5" aria-label="Caixas">
-          {BOXES.map((b) => (
-            <Link key={b.key} href={href(b.key, { q: search })} aria-current={b.key === box ? 'page' : undefined} className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium ${b.key === box ? 'bg-foreground text-background' : 'bg-secondary text-foreground hover:bg-neutral-700'}`}>
-              {b.label}<span className={b.key === box ? 'opacity-60' : 'text-muted-foreground'}>{counts[b.key] ?? 0}</span>
-            </Link>
-          ))}
-        </nav>
+        <NewContactDialog />
       </div>
+      <Disconnected connection={connection} />
+
+      <form action="/painel/crm" className="relative mx-3 mb-3">
+        <input type="hidden" name="aba" value={tab} />
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <input name="q" defaultValue={search} placeholder="Buscar nome ou telefone" aria-label="Buscar nome ou telefone" className="h-9 w-full rounded-lg border border-transparent bg-secondary pl-9 pr-8 text-sm outline-none placeholder:text-muted-foreground focus:border-neutral-500" />
+        {search && <Link href={crmHref(tab)} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="size-4" /></Link>}
+      </form>
+
+      {!search && (
+        <nav className="mx-3 mb-2 grid grid-cols-3 gap-1 rounded-lg bg-secondary p-1" aria-label="Estado do atendimento">
+          {TABS.map((t) => {
+            const active = t.key === tab;
+            const n = counts[t.key] ?? 0;
+            const alert = t.key === 'pendente' && n > 0;
+            return (
+              <Link key={t.key} href={crmHref(t.key)} aria-current={active ? 'page' : undefined} className={`flex h-8 items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors ${active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+                {t.label}
+                <span className={`min-w-5 rounded-full px-1.5 text-center text-[10px] leading-4 ${alert ? 'bg-success text-background' : active ? 'bg-secondary text-foreground' : 'text-muted-foreground'}`}>{n}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      )}
+      {search && <p className="px-4 pb-2 text-xs text-muted-foreground">{contacts.length} resultado{contacts.length === 1 ? '' : 's'} em todas as conversas</p>}
+
       <ul className="min-h-0 flex-1 overflow-y-auto">
-        {contacts.length === 0 && <li className="px-4 py-8 text-center text-sm text-muted-foreground">{search ? 'Nenhum contato encontrado.' : 'Nenhum contato nesta caixa.'}</li>}
-        {contacts.map((c) => (
-          <li key={c.id}>
-            <Link href={href(box, { contato: c.id, q: search })} aria-current={c.id === selectedId ? 'true' : undefined} className={`flex gap-3 border-b border-border px-4 py-3 hover:bg-accent/60 ${c.id === selectedId ? 'bg-accent' : ''}`}>
-              <span className="size-9 shrink-0 rounded-full bg-gradient-to-br from-sky-500 to-emerald-300" />
-              <span className="min-w-0 flex-1">
-                <span className="flex items-baseline justify-between gap-2">
-                  <span className={`truncate text-sm ${c.unread_count ? 'font-semibold' : 'font-medium'}`}>{c.name}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{listTime(c.last_message_at, now)}</span>
-                </span>
-                <span className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm text-foreground/80">{c.last_message_preview ?? 'Pronto para o primeiro contato'}</span>
-                  {c.unread_count > 0 && <span aria-label={`${c.unread_count} não lidas`} className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-success text-xs font-semibold text-background">{c.unread_count}</span>}
-                </span>
-                <Line contact={c} now={now} />
-              </span>
-            </Link>
+        {contacts.length === 0 && (
+          <li className="px-6 py-12 text-center text-sm text-muted-foreground">
+            {search ? 'Nenhum contato encontrado.' : tab === 'pendente' ? 'Nenhum atendimento pendente.' : tab === 'aberto' ? 'Nenhum atendimento aberto.' : 'Nenhum atendimento fechado.'}
           </li>
-        ))}
+        )}
+        {contacts.map((c) => {
+          const selected = c.id === selectedId;
+          return (
+            <li key={c.id}>
+              <Link
+                href={crmHref(search ? c.chat_state : tab, { contato: c.id, q: search })}
+                aria-current={selected ? 'true' : undefined}
+                className={`mx-1.5 flex items-center gap-3 rounded-lg px-2.5 py-2.5 transition-colors ${selected ? 'bg-accent' : 'hover:bg-accent/50'}`}
+              >
+                <Avatar name={c.name} src={c.avatar_url} seed={c.id} size={44} />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className={`truncate text-sm ${c.unread_count ? 'font-semibold' : 'font-medium'}`}>{c.name}</span>
+                    <span className={`shrink-0 text-[11px] ${c.unread_count ? 'font-medium text-success-foreground' : 'text-muted-foreground'}`}>{listTime(c.last_message_at ?? c.created_at, now)}</span>
+                  </span>
+                  <span className="mt-0.5 flex items-center justify-between gap-2">
+                    <Preview contact={c} now={now} />
+                    {c.unread_count > 0 && <span aria-label={`${c.unread_count} não lidas`} className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-success px-1.5 text-[11px] font-semibold text-background">{c.unread_count > 99 ? '99+' : c.unread_count}</span>}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
