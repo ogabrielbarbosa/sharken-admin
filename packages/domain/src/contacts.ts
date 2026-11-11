@@ -25,6 +25,7 @@ export type Contact = {
   last_message_at: string | null;
   last_message_preview: string | null;
   last_inbound_at: string | null;
+  last_outbound_at: string | null;
   unread_count: number;
   comment: string | null;
 };
