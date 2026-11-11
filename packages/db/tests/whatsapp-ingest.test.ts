@@ -120,7 +120,7 @@ describe('ingestEvent', () => {
 
   it('pedido para parar grava evento no lead', async () => {
     const batch = await pg.query<{ id: string }>(`insert into batches (location, location_key, business_type, quantity, criteria) values ('Rio', 'rio', 'padaria', 5, '{}') returning id`);
-    const lead = (await pg.query<{ id: string }>(`insert into leads (place_id, name, stage, batch_id) values ($1, 'L', 'revisar_material', $2) returning id`, [`p-${++n}`, batch.rows[0]!.id])).rows[0]!;
+    const lead = (await pg.query<{ id: string }>(`insert into leads (place_id, name, stage, batch_id) values ($1, 'L', 'video', $2) returning id`, [`p-${++n}`, batch.rows[0]!.id])).rows[0]!;
     const c = await mk('contatado', { lead_id: lead.id });
     await ingestEvent(db, msg({ phoneE164: c.phone_e164, text: 'não quero, pode parar' }), now);
     const events = (await pg.query(`select data from events where lead_id = $1 and type = 'pedido_parar'`, [lead.id])).rows;

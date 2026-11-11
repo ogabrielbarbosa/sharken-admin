@@ -5,17 +5,27 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
 let db: PGlite;
+// A conversão da v1 usa etapas que a 0006 já não aceita; esse teste roda no banco até a 0005.
+let v1: PGlite;
 
-beforeAll(async () => {
-  db = new PGlite();
-  await db.exec(`
+/** Banco novo com as migrações aplicadas em ordem; `through` limita até o prefixo dado (ex.: '0005'). */
+async function migrated(through?: string): Promise<PGlite> {
+  const pg = new PGlite();
+  await pg.exec(`
     create role anon; create role authenticated; create role service_role;
     create schema storage;
     create table storage.buckets (id text primary key, name text, public boolean);
   `);
   for (const file of readdirSync(dir).sort()) {
-    await db.exec(readFileSync(join(dir, file), 'utf8'));
+    if (through && file.slice(0, 4) > through) break;
+    await pg.exec(readFileSync(join(dir, file), 'utf8'));
   }
+  return pg;
+}
+
+beforeAll(async () => {
+  db = await migrated();
+  v1 = await migrated('0005');
 });
 
 describe('migrações', () => {
@@ -57,18 +67,18 @@ describe('migrações', () => {
   });
 
   it('converte leads da v1 em contatos', async () => {
-    await db.query(`insert into leads (place_id, name, phone_e164, stage, contacted_at) values
+    await v1.query(`insert into leads (place_id, name, phone_e164, stage, contacted_at) values
       ('v1a', 'Aguardando', '5511900000001', 'aguardando', now()),
       ('v1b', 'Conversa', '5511900000002', 'conversa', now())`);
-    await db.query(`select migrate_v1_leads_to_contacts()`);
-    const { rows } = await db.query<{ phone_e164: string; status: string; origin: string }>(
+    await v1.query(`select migrate_v1_leads_to_contacts()`);
+    const { rows } = await v1.query<{ phone_e164: string; status: string; origin: string }>(
       `select phone_e164, status, origin from contacts where phone_e164 in ('5511900000001','5511900000002') order by phone_e164`,
     );
     expect(rows).toEqual([
       { phone_e164: '5511900000001', status: 'contatado', origin: 'batch' },
       { phone_e164: '5511900000002', status: 'em_conversa', origin: 'batch' },
     ]);
-    const leads = await db.query<{ stage: string }>(`select stage from leads where place_id in ('v1a','v1b')`);
+    const leads = await v1.query<{ stage: string }>(`select stage from leads where place_id in ('v1a','v1b')`);
     expect(leads.rows.map((r) => r.stage)).toEqual(['crm', 'crm']);
   });
 
@@ -79,11 +89,11 @@ describe('migrações', () => {
   });
 
   it('descarta leads da v1 sem contato e copia os campos dos demais', async () => {
-    const batch = await db.query<{ id: string }>(
+    const batch = await v1.query<{ id: string }>(
       `insert into batches (location, location_key, business_type, quantity, criteria) values ('x', 'x', 'x', 1, '{}') returning id`,
     );
     const batchId = batch.rows[0]!.id;
-    await db.query(
+    await v1.query(
       `insert into leads (place_id, name, phone_e164, stage, batch_id, contacted_at, follow_up_at, responded_at) values
         ('d1', 'Repetido A', '5511900000010', 'aguardando', $1, '2026-01-01T10:00:00Z', '2026-01-03T10:00:00Z', '2026-01-02T10:00:00Z'),
         ('d2', 'Repetido B', '5511900000010', 'aguardando', null, null, null, null),
@@ -92,9 +102,9 @@ describe('migrações', () => {
         ('d5', 'Vendido', '5511900000012', 'vendido', null, null, null, null)`,
       [batchId],
     );
-    await db.query(`select migrate_v1_leads_to_contacts()`);
+    await v1.query(`select migrate_v1_leads_to_contacts()`);
 
-    const leads = await db.query<{ place_id: string; stage: string; exit_reason: string | null }>(
+    const leads = await v1.query<{ place_id: string; stage: string; exit_reason: string | null }>(
       `select place_id, stage, exit_reason from leads where place_id in ('d1','d2','d3','d4','d5') order by place_id`,
     );
     expect(leads.rows).toEqual([
@@ -105,10 +115,10 @@ describe('migrações', () => {
       { place_id: 'd5', stage: 'vendido', exit_reason: null },
     ]);
 
-    const shared = await db.query(`select 1 from contacts where phone_e164 = '5511900000010'`);
+    const shared = await v1.query(`select 1 from contacts where phone_e164 = '5511900000010'`);
     expect(shared.rows).toHaveLength(1);
 
-    const contacts = await db.query<{ phone_e164: string; status: string; follow_ups_without_reply: number }>(
+    const contacts = await v1.query<{ phone_e164: string; status: string; follow_ups_without_reply: number }>(
       `select phone_e164, status, follow_ups_without_reply from contacts
        where phone_e164 in ('5511900000011','5511900000012') order by phone_e164`,
     );
@@ -117,11 +127,11 @@ describe('migrações', () => {
       { phone_e164: '5511900000012', status: 'fechado', follow_ups_without_reply: 0 },
     ]);
 
-    const copied = await db.query<Record<string, string | null>>(
+    const copied = await v1.query<Record<string, string | null>>(
       `select batch_id, first_contact_at::text, follow_up_at::text, responded_at::text, name, lead_id
        from contacts where phone_e164 = '5511900000010'`,
     );
-    const lead = await db.query<{ id: string }>(`select id from leads where place_id = 'd1'`);
+    const lead = await v1.query<{ id: string }>(`select id from leads where place_id = 'd1'`);
     expect(copied.rows[0]).toEqual({
       batch_id: batchId,
       first_contact_at: '2026-01-01 10:00:00+00',
@@ -130,5 +140,55 @@ describe('migrações', () => {
       name: 'Repetido A',
       lead_id: lead.rows[0]!.id,
     });
+  });
+
+  it('aceita pagina e video e recusa as etapas removidas', async () => {
+    await db.query(`insert into leads (place_id, name, stage) values ('s1', 'x', 'pagina'), ('s2', 'x', 'video')`);
+    for (const stage of ['gerando_material', 'revisar_material', 'abordar', 'aguardando', 'follow_up_feito', 'conversa']) {
+      await expect(db.query(`insert into leads (place_id, name, stage) values ('bad-${stage}', 'x', '${stage}')`)).rejects.toThrow(/leads_stage_check/);
+    }
+  });
+
+  it('stage_changed_at muda com a etapa e não com o comentário', async () => {
+    const { rows } = await db.query<{ id: string }>(`insert into leads (place_id, name, stage) values ('sc', 'x', 'revisar') returning id`);
+    const id = rows[0]!.id;
+    const read = async () => (await db.query<{ t: string }>(`select stage_changed_at::text as t from leads where id = $1`, [id])).rows[0]!.t;
+    const born = await read();
+    await db.query(`select pg_sleep(0.05)`);
+    await db.query(`update leads set comment = 'oi' where id = $1`, [id]);
+    expect(await read()).toBe(born);
+    const before = (await db.query<{ t: string }>(`select clock_timestamp()::text as t`)).rows[0]!.t;
+    await db.query(`update leads set stage = 'completar' where id = $1`, [id]);
+    const after = (await db.query<{ t: string }>(`select clock_timestamp()::text as t`)).rows[0]!.t;
+    const changed = await read();
+    expect(changed > born).toBe(true);
+    expect(changed >= before.slice(0, 19)).toBe(true);
+    expect(changed <= after).toBe(true);
+  });
+
+  it('converte leads em material para pagina e cancela a geração automática pendente', async () => {
+    const old = await migrated('0005');
+    await old.query(`insert into leads (place_id, name, stage) values ('m1', 'x', 'gerando_material'), ('m2', 'x', 'revisar_material'), ('m3', 'x', 'crm')`);
+    await old.query(`insert into jobs (type, payload, dedupe_key) values
+      ('build_page', '{}', 'k1'), ('generate_page', '{}', 'k2'), ('render_video', '{}', 'k3'), ('transcode_video', '{}', 'k4'), ('analyze_lead', '{}', 'k5')`);
+    await old.query(`insert into jobs (type, payload, dedupe_key, status) values ('build_page', '{}', 'k6', 'concluido')`);
+    await old.exec(readFileSync(join(dir, '0006_pipeline.sql'), 'utf8'));
+
+    const leads = await old.query<{ place_id: string; stage: string }>(`select place_id, stage from leads order by place_id`);
+    expect(leads.rows).toEqual([
+      { place_id: 'm1', stage: 'pagina' },
+      { place_id: 'm2', stage: 'pagina' },
+      { place_id: 'm3', stage: 'crm' },
+    ]);
+    const jobs = await old.query<{ dedupe_key: string; status: string; error: string | null }>(`select dedupe_key, status, error from jobs order by dedupe_key`);
+    const cancelled = { status: 'erro', error: 'Cancelado: geração automática removida' };
+    expect(jobs.rows).toEqual([
+      { dedupe_key: 'k1', ...cancelled },
+      { dedupe_key: 'k2', ...cancelled },
+      { dedupe_key: 'k3', ...cancelled },
+      { dedupe_key: 'k4', ...cancelled },
+      { dedupe_key: 'k5', status: 'pendente', error: null },
+      { dedupe_key: 'k6', status: 'concluido', error: null },
+    ]);
   });
 });

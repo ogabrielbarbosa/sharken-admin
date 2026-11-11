@@ -75,4 +75,7 @@ export type Lead = {
   follow_up_at: string | null;
   responded_at: string | null;
   sold_at: string | null;
+  page_url: string | null;
+  loom_url: string | null;
+  stage_changed_at: string;
 };

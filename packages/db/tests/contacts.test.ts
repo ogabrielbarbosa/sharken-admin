@@ -51,7 +51,7 @@ function fakeDb(pg: PGlite): Db {
 async function insertLead(name: string, phone: string | null): Promise<Lead> {
   const batch = await pg.query<{ id: string }>(`insert into batches (location, location_key, business_type, quantity, criteria) values ('Rio', 'rio', 'padaria', 5, '{}') returning id`);
   const { rows } = await pg.query<Lead>(
-    `insert into leads (place_id, name, phone_e164, stage, batch_id) values ($1, $2, $3, 'revisar_material', $4) returning *`,
+    `insert into leads (place_id, name, phone_e164, stage, batch_id) values ($1, $2, $3, 'video', $4) returning *`,
     [`p-${name}`, name, phone, batch.rows[0].id],
   );
   return rows[0];

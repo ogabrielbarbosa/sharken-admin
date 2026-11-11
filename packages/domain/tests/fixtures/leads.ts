@@ -9,6 +9,7 @@ const base: Lead = {
   site_status: 'sem_link', site_checks: [], site_data: null, site_signals: null, flow: 'sem_site', summary: null, reason: null,
   comment: null, score: 86, score_reasons: null, stage: 'revisar', exit_reason: null, needs_data: false, error: null,
   contacted_at: null, follow_up_at: null, responded_at: null, sold_at: null,
+  page_url: null, loom_url: null, stage_changed_at: '2026-01-01T00:00:00Z',
 };
 
 export const completeLead: Lead = base;
