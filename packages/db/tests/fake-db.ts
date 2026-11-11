@@ -14,6 +14,7 @@ export function fakeDb(pg: PGlite): Db {
       order: '',
       single: false,
       limit: 0,
+      head: false,
       conflict: null as { column: string; ignore: boolean } | null,
     };
     const run = async () => {
@@ -38,6 +39,7 @@ export function fakeDb(pg: PGlite): Db {
       else sql = `select * from ${table}${where}${s.order}${s.limit ? ` limit ${s.limit}` : ''}`;
       try {
         const { rows } = await pg.query(sql, params);
+        if (s.head) return { data: null, count: rows.length, error: null };
         return { data: s.single ? (rows[0] ?? null) : rows, error: null };
       } catch (e) {
         return { data: null, error: { message: (e as Error).message, code: (e as { code?: string }).code } };
@@ -45,7 +47,7 @@ export function fakeDb(pg: PGlite): Db {
     };
     const filter = (k: string) => (c: string, v: unknown) => (s.filters.push([c, k, v]), b);
     const b: Record<string, unknown> = {
-      select: () => b,
+      select: (_c?: string, o?: { count?: string; head?: boolean }) => ((s.head = !!o?.head), b),
       insert: (v: Record<string, unknown>) => ((s.op = 'insert'), (s.values = v), b),
       upsert: (v: Record<string, unknown>, o: { onConflict: string; ignoreDuplicates?: boolean }) => (
         (s.op = 'upsert'), (s.values = v), (s.conflict = { column: o.onConflict, ignore: !!o.ignoreDuplicates }), b
@@ -69,10 +71,10 @@ export function fakeDb(pg: PGlite): Db {
   const rpc = async (fn: string, args: Record<string, unknown> = {}) => {
     const keys = Object.keys(args);
     try {
-      const { rows } = await pg.query(`select * from ${fn}(${keys.map((k, i) => `${k} => $${i + 1}`).join(',')})`, keys.map((k) => args[k]));
+      const { rows } = await pg.query(`select * from ${fn}(${keys.map((k, i) => `${k} => $${i + 1}`).join(',')})`, keys.map((k) => (args[k] !== null && typeof args[k] === 'object' ? JSON.stringify(args[k]) : args[k])));
       // Funções escalares voltam como uma linha com uma coluna; as de conjunto, como lista de valores.
       const cols = rows.length ? Object.keys(rows[0] as object) : [];
-      const data = fn === 'crm_box_counts' ? (rows[0] as Record<string, unknown>)[cols[0]] : rows.map((r) => (r as Record<string, unknown>)[cols[0]]);
+      const data = fn === 'crm_insert_message' ? rows : fn === 'crm_box_counts' ? (rows[0] as Record<string, unknown>)[cols[0]] : rows.map((r) => (r as Record<string, unknown>)[cols[0]]);
       return { data, error: null };
     } catch (e) {
       return { data: null, error: { message: (e as Error).message } };

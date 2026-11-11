@@ -27,26 +27,12 @@ export async function listMessages(db: Db, contactId: string, limit = 200): Prom
   return (data as Message[]).reverse();
 }
 
-/** Grava a mensagem e atualiza o contato. Devolve nulo se o external_id ou o client_message_id já existia. */
+/** Grava a mensagem e atualiza o contato numa só transação (função SQL). Devolve nulo se o external_id ou o client_message_id já existia. */
 export async function insertMessage(db: Db, row: NewMessage): Promise<Message | null> {
-  const values = { kind: 'texto', at: new Date().toISOString(), ...row };
-  const conflict = row.external_id ? 'external_id' : row.client_message_id ? 'client_message_id' : null;
-  const query = conflict
-    ? db.from('messages').upsert(values, { onConflict: conflict, ignoreDuplicates: true })
-    : db.from('messages').insert(values);
-  const { data, error } = await query.select();
+  const payload = { kind: 'texto', ...row, preview: messagePreview({ kind: row.kind ?? 'texto', body: row.body ?? null }) };
+  const { data, error } = await db.rpc('crm_insert_message', { p: payload });
   if (error) throw new Error(error.message);
-  const message = ((data as Message[] | null) ?? [])[0] ?? null;
-  if (!message) return null;
-
-  const { error: touchError } = await db.rpc('crm_touch_contact', {
-    p_contact: message.contact_id,
-    p_at: message.at,
-    p_preview: messagePreview(message),
-    p_direction: message.direction,
-  });
-  if (touchError) throw new Error(touchError.message);
-  return message;
+  return ((data as Message[] | null) ?? [])[0] ?? null;
 }
 
 // Para onde cada status pode avançar: só a partir de status mais baixos. `recebida` nunca muda.
@@ -109,12 +95,12 @@ export async function firstContactsToday(db: Db, now: Date): Promise<number> {
   const local = new Date(now.getTime() - SAO_PAULO_OFFSET_MS);
   const start = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) + SAO_PAULO_OFFSET_MS);
   const end = new Date(start.getTime() + 24 * 3600_000);
-  const { data, error } = await db
+  const { count, error } = await db
     .from('messages')
-    .select('id')
+    .select('id', { count: 'exact', head: true })
     .eq('is_first_contact', true)
     .gte('at', start.toISOString())
     .lt('at', end.toISOString());
   if (error) throw new Error(error.message);
-  return ((data as unknown[] | null) ?? []).length;
+  return count ?? 0;
 }

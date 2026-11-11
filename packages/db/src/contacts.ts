@@ -73,7 +73,7 @@ export async function listContacts(db: Db, opts: { box: CrmBox; search?: string;
   }
   if (opts.batchId) query = query.eq('batch_id', opts.batchId);
   // Vírgula, parênteses e curingas têm sentido na sintaxe do filtro; saem da busca.
-  const term = opts.search?.replace(/[,()%*\\]/g, ' ').trim();
+  const term = opts.search?.replace(/[,()%*"\\]/g, ' ').trim();
   if (term) query = query.or(`name.ilike.%${term}%,phone_e164.ilike.%${term}%`);
   const { data, error } = await query.order('last_message_at', { ascending: false, nullsFirst: false }).limit(LIST_LIMIT);
   if (error) throw new Error(error.message);
@@ -131,12 +131,15 @@ export async function updateContact(db: Db, id: string, patch: Partial<Contact>)
  */
 export async function setContactStatus(db: Db, contact: Pick<Contact, 'id' | 'status' | 'lead_id' | 'phone_e164'>, to: ContactStatus, eventData: object = {}): Promise<void> {
   if (!canSetStatus(contact.status, to)) throw new Error(`Não dá para mudar de ${contact.status} para ${to}.`);
-  await updateContact(db, contact.id, { status: to, status_at: new Date().toISOString() });
-
   if (to === 'nao_contatar') {
+    // Primeiro o bloqueio: se o status falhar depois, o número já não recebe mensagem.
     const { error } = await db.from('do_not_contact').upsert({ phone_e164: contact.phone_e164, reason: 'pediu para não receber mensagens' }, { onConflict: 'phone_e164', ignoreDuplicates: true });
     if (error) throw new Error(error.message);
   }
+  const patch: Partial<Contact> = { status: to, status_at: new Date().toISOString() };
+  if (to === 'perdido' || to === 'nao_contatar') patch.follow_up_at = null;
+  await updateContact(db, contact.id, patch);
+
   if (!contact.lead_id) return;
 
   await logEvent(db, contact.lead_id, `contato_${to}`, { contact_id: contact.id, ...eventData });

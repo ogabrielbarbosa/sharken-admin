@@ -58,7 +58,7 @@ describe('mensagens', () => {
     expect((await getContact(db, c.id))?.unread_count).toBe(1);
   });
 
-  it('insertMessage atualiza prévia e contadores, mas não com mensagem atrasada', async () => {
+  it('insertMessage atualiza prévia e contadores', async () => {
     const c = await mk();
     await insertMessage(db, { contact_id: c.id, direction: 'entrada', body: 'x'.repeat(200), external_id: 'e1', at: ago(60_000) });
     let got = await getContact(db, c.id);
@@ -74,7 +74,7 @@ describe('mensagens', () => {
     await insertMessage(db, { contact_id: c.id, direction: 'entrada', body: 'atrasada', external_id: 'e3', at: ago(120_000) });
     got = await getContact(db, c.id);
     expect(got?.last_message_preview).toBe('📷 Imagem');
-    expect(got?.unread_count).toBe(1);
+    expect(got?.unread_count).toBe(2);
   });
 
   it('findPendingEcho, markStalePending e markRead', async () => {
@@ -103,6 +103,39 @@ describe('mensagens', () => {
     await insertMessage(db, { ...base, external_id: 'f4', at: '2026-11-11T03:00:00Z' }); // amanhã
     await insertMessage(db, { contact_id: c.id, direction: 'saida', external_id: 'f5', at: '2026-11-10T12:00:00Z' }); // não é primeiro
     expect(await firstContactsToday(db, now)).toBe(2);
+  });
+});
+
+describe('contadores', () => {
+  it('mensagem atrasada conta como não lida e move last_inbound_at, sem mexer na prévia', async () => {
+    const c = await mk();
+    await insertMessage(db, { contact_id: c.id, direction: 'saida', body: 'recente', external_id: 'l1', at: ago(30_000) });
+    await insertMessage(db, { contact_id: c.id, direction: 'entrada', body: 'atrasada', external_id: 'l2', at: ago(60_000) });
+    const got = await getContact(db, c.id);
+    expect(got?.unread_count).toBe(1);
+    expect(got?.last_inbound_at).not.toBeNull();
+    expect(got?.last_message_preview).toBe('recente');
+  });
+
+  it('duas recebidas no mesmo instante contam as duas e a prévia acompanha', async () => {
+    const c = await mk();
+    const at = ago(10_000);
+    await insertMessage(db, { contact_id: c.id, direction: 'entrada', body: 'um', external_id: 'm1', at });
+    await insertMessage(db, { contact_id: c.id, direction: 'entrada', body: 'dois', external_id: 'm2', at });
+    const got = await getContact(db, c.id);
+    expect(got?.unread_count).toBe(2);
+    expect(got?.last_message_preview).toBe('dois');
+  });
+
+  it('duplicata não mexe nos contadores do contato', async () => {
+    const c = await mk();
+    const row = { contact_id: c.id, direction: 'entrada' as const, body: 'oi', external_id: 'd1' };
+    await insertMessage(db, row);
+    const before = await getContact(db, c.id);
+    expect(await insertMessage(db, { ...row, body: 'outro texto' })).toBeNull();
+    expect(await getContact(db, c.id)).toEqual(before);
+    expect(await insertMessage(db, { contact_id: c.id, direction: 'saida', body: 'a', client_message_id: 'dup-c' })).not.toBeNull();
+    expect(await insertMessage(db, { contact_id: c.id, direction: 'saida', body: 'b', client_message_id: 'dup-c' })).toBeNull();
   });
 });
 
@@ -137,6 +170,10 @@ describe('contatos', () => {
     await setContactStatus(db, noLead, 'contatado');
     expect((await pg.query(`select count(*)::int as n from events`)).rows[0]).toEqual({ n: 2 });
     await expect(setContactStatus(db, { ...noLead, status: 'contatado' }, 'contatado')).rejects.toThrow();
+
+    const withFollowUp = await mk('follow_up', { follow_up_at: ago(1000) } as Partial<Contact>);
+    await setContactStatus(db, withFollowUp, 'perdido');
+    expect((await getContact(db, withFollowUp.id))?.follow_up_at).toBeNull();
   });
 
   it('nao_contatar bloqueia o telefone e leva o lead para nao_contatar', async () => {
@@ -167,12 +204,15 @@ describe('caixas', () => {
 
     let boxes = await countBoxes(db);
     expect(boxes).toEqual({ hoje: 0, novos: 1, aguardando: 2, em_conversa: 1, fechados: 1, perdidos: 2, todos: 7 });
+    expect(await listContacts(db, { box: 'perdidos' })).toHaveLength(2);
 
     // Hoje: recebida sem resposta.
     await insertMessage(db, { contact_id: conversa.id, direction: 'entrada', body: 'oi', external_id: 'h1', at: ago(60_000) });
-    // Respondida depois: sai.
-    await insertMessage(db, { contact_id: perdido.id, direction: 'entrada', body: 'oi', external_id: 'h2', at: ago(60_000) });
-    await insertMessage(db, { contact_id: perdido.id, direction: 'saida', body: 'olá', external_id: 'h3', at: ago(30_000) });
+    // Perdido com recebida sem resposta: fica fora de Hoje.
+    await insertMessage(db, { contact_id: perdido.id, direction: 'entrada', body: 'x', external_id: 'hp', at: ago(10_000) });
+    // Respondida depois: sai (follow_up).
+    await insertMessage(db, { contact_id: followUp.id, direction: 'entrada', body: 'oi', external_id: 'h2', at: ago(60_000) });
+    await insertMessage(db, { contact_id: followUp.id, direction: 'saida', body: 'olá', external_id: 'h3', at: ago(30_000) });
     // Follow-up vencido.
     await updateContact(db, contatado.id, { follow_up_at: ago(1000) });
     // Follow-up futuro: não entra.
