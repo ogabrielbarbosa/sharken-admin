@@ -2,6 +2,7 @@ import { looksLikeStopRequest, type Contact } from '@lps/domain';
 import type { CrmBox } from '@lps/db';
 import Link from 'next/link';
 import { isFollowUpDue, listTime, STATUS_LABEL } from '@/lib/crm';
+import { NewContactDialog } from './new-contact-dialog';
 import { ConnectionBadge, type ConnectionState } from './connection-badge';
 
 const BOXES: { key: CrmBox; label: string }[] = [
@@ -55,7 +56,10 @@ export function ContactList({ contacts, counts, box, selectedId, search, now, co
     <section aria-label="Conversas" className="flex min-h-0 flex-col border-r border-border">
       <div className="space-y-3 p-4">
         <div className="flex items-center justify-between gap-2">
-          <h1 className="text-sm font-semibold">Conversas</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-semibold">Conversas</h1>
+            <NewContactDialog />
+          </div>
           <ConnectionBadge state={connection} href={`${href(box, { contato: selectedId ?? undefined, q: search })}&conexao=1`} />
         </div>
         <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">

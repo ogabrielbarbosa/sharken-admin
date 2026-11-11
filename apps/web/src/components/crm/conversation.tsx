@@ -1,7 +1,8 @@
 'use client';
 
 import { canSetStatus, type Contact, type ContactStatus } from '@lps/domain';
-import { ShieldAlert, X } from 'lucide-react';
+import { ChevronLeft, ShieldAlert, X } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { markReadAction, retryMessageAction, sendMessageAction, setStatusAction, suggestReplyAction } from '@/app/painel/crm/actions';
@@ -22,16 +23,18 @@ export type ConversationProps = {
   draft: string;
   templates: Template[];
   blockReason: string | null;
+  backHref: string;
   stopRequest: boolean;
   dailyCount: number;
   dailyLimit: number;
 };
 
-export function Conversation({ contact, messages, legacy, pageOpens, expiresIn, now, draft, templates, blockReason, stopRequest, dailyCount, dailyLimit }: ConversationProps) {
+export function Conversation({ contact, messages, legacy, pageOpens, expiresIn, now, draft, templates, blockReason, backHref, stopRequest, dailyCount, dailyLimit }: ConversationProps) {
   const router = useRouter();
   const [optimistic, setOptimistic] = useState<ThreadMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissedFor, setDismissedFor] = useState<string | null>(null);
+  const lastInboundId = [...messages].reverse().find((m) => m.direction === 'entrada')?.id ?? null;
 
   // O servidor traz a mensagem real: o balão local sai assim que o clientMessageId aparece.
   const serverIds = useMemo(() => new Set(messages.map((m) => m.client_message_id).filter(Boolean)), [messages]);
@@ -47,7 +50,7 @@ export function Conversation({ contact, messages, legacy, pageOpens, expiresIn, 
     return () => clearTimeout(timer);
   }, [contact.id, contact.unread_count, router]);
 
-  async function send(text: string, clientMessageId: string): Promise<null> {
+  async function send(text: string, clientMessageId: string): Promise<void> {
     setError(null);
     const local: ThreadMessage = {
       id: `local-${clientMessageId}`, created_at: new Date().toISOString(), contact_id: contact.id, direction: 'saida', sent_from: 'painel', kind: 'texto', body: text,
@@ -56,7 +59,6 @@ export function Conversation({ contact, messages, legacy, pageOpens, expiresIn, 
     setOptimistic((list) => [...list, local]);
     const out = await sendMessageAction(contact.id, text, clientMessageId);
     if (!out.ok) setOptimistic((list) => list.map((m) => (m.client_message_id === clientMessageId ? { ...m, status: 'erro', error: out.error } : m)));
-    return null;
   }
 
   async function retry(m: ThreadMessage) {
@@ -82,6 +84,7 @@ export function Conversation({ contact, messages, legacy, pageOpens, expiresIn, 
     <section aria-label="Conversa" className="flex min-h-0 flex-col">
       <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
+          <Link href={backHref} aria-label="Voltar" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground lg:hidden"><ChevronLeft className="size-4" />Voltar</Link>
           <span className="size-9 shrink-0 rounded-full bg-gradient-to-br from-sky-500 to-emerald-300" />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{contact.name}</p>
@@ -100,12 +103,12 @@ export function Conversation({ contact, messages, legacy, pageOpens, expiresIn, 
         </select>
       </header>
 
-      {stopRequest && !dismissed && contact.status !== 'nao_contatar' && (
+      {stopRequest && dismissedFor !== lastInboundId && contact.status !== 'nao_contatar' && (
         <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-warning-subtle px-4 py-2 text-sm">
           <span className="flex items-center gap-2"><ShieldAlert className="size-4 text-warning" />Marcar como Não contatar?</span>
           <span className="flex items-center gap-2">
             <Button variant="outline" onClick={() => void changeStatus('nao_contatar')}>Sim, marcar</Button>
-            <button type="button" aria-label="Fechar aviso" onClick={() => setDismissed(true)} className="cursor-pointer text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+            <button type="button" aria-label="Fechar aviso" onClick={() => setDismissedFor(lastInboundId)} className="cursor-pointer text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
           </span>
         </div>
       )}

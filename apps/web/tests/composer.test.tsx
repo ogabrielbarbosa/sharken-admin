@@ -10,7 +10,7 @@ const lead = { name: 'Pet Shop Feliz', city: 'Campinas', flow: 'sem_site', site_
 const LINK = 'https://pages.exemplo.com.br/feliz-a81c';
 const now = new Date('2026-11-11T15:00:00Z');
 
-const base = { blockReason: null, templates: [], firstContact: false, dailyCount: 0, dailyLimit: 20, onSend: vi.fn(async () => null), onSuggest: vi.fn(async () => ({})) };
+const base = { blockReason: null, templates: [], firstContact: false, dailyCount: 0, dailyLimit: 20, onSend: vi.fn(async () => {}), onSuggest: vi.fn(async () => ({})) };
 
 describe('composerDraft', () => {
   it('em novo vem a mensagem de primeiro contato com o link', () => {
@@ -48,7 +48,7 @@ describe('Composer', () => {
   });
 
   it('envia com um clientMessageId e limpa o campo', async () => {
-    const onSend = vi.fn(async () => null);
+    const onSend = vi.fn(async () => {});
     render(<Composer {...base} onSend={onSend} initialText="Olá" />);
     fireEvent.click(screen.getByRole('button', { name: /Enviar/ }));
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
@@ -59,7 +59,7 @@ describe('Composer', () => {
   });
 
   it('passou do limite do dia: pede confirmação e não envia se recusar', async () => {
-    const onSend = vi.fn(async () => null);
+    const onSend = vi.fn(async () => {});
     vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<Composer {...base} onSend={onSend} firstContact dailyCount={20} dailyLimit={20} initialText="Olá" />);
     fireEvent.click(screen.getByRole('button', { name: /Enviar/ }));

@@ -4,6 +4,10 @@ import { AlertCircle, Calendar, Check, CheckCheck, Clock, Eye, FileText, RotateC
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { Message } from '@lps/domain';
 import { clock, dayKey, dayLabel } from '@/lib/crm';
+import { createUrlCache } from '@/lib/media-cache';
+
+// Assinadas por 24 h no servidor; o cliente troca a URL só depois de 20 h.
+const urlCache = createUrlCache(20 * 3600_000);
 
 export type LegacyLine = { at: string; label: string };
 export type ThreadMessage = Message & { mediaUrl?: string | null };
@@ -25,9 +29,10 @@ function Ticks({ status }: { status: Message['status'] }) {
   return null;
 }
 
-function Media({ m }: { m: ThreadMessage }) {
-  if (m.kind === 'texto') return null;
-  const label = { imagem: 'Imagem', audio: 'Áudio', video: 'Vídeo', documento: 'Documento', outro: 'Arquivo' }[m.kind];
+function Media({ m: msg }: { m: ThreadMessage }) {
+  if (msg.kind === 'texto') return null;
+  const m = { ...msg, mediaUrl: msg.media_path ? urlCache.resolve(msg.media_path, msg.mediaUrl) : msg.mediaUrl };
+  const label = { imagem: 'Imagem', audio: 'Áudio', video: 'Vídeo', documento: 'Documento', outro: 'Arquivo' }[msg.kind];
   if (!m.mediaUrl) return <p className="mb-1 text-xs italic text-muted-foreground">{label} (arquivo indisponível)</p>;
   if (m.kind === 'imagem') return <a href={m.mediaUrl} target="_blank" rel="noreferrer"><img src={m.mediaUrl} alt="Imagem recebida" className="mb-1 max-h-64 rounded-md" /></a>;
   if (m.kind === 'audio') return <audio controls src={m.mediaUrl} className="mb-1 max-w-full" />;

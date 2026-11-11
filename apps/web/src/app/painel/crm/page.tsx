@@ -48,7 +48,7 @@ function eventLabel(e: EventRow): string | null {
 async function mediaUrls(db: Awaited<ReturnType<typeof authedDb>>, messages: ThreadMessage[]) {
   const paths = messages.map((m) => m.media_path).filter((p): p is string => !!p);
   if (!paths.length) return new Map<string, string>();
-  const { data } = await db.storage.from('whatsapp-media').createSignedUrls(paths, 3600);
+  const { data } = await db.storage.from('whatsapp-media').createSignedUrls(paths, 24 * 3600);
   return new Map((data ?? []).flatMap((d) => (d.path && d.signedUrl ? [[d.path, d.signedUrl] as const] : [])));
 }
 
@@ -151,6 +151,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           draft={composerDraft({ contact: selected, lead, link, texto: params.texto, now })}
           templates={templates}
           blockReason={blockReason}
+          backHref={base}
           stopRequest={stopRequestPending(messages)}
           dailyCount={firstToday}
           dailyLimit={dailyLimit}

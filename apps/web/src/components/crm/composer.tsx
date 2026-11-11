@@ -15,8 +15,8 @@ type Props = {
   firstContact: boolean;
   dailyCount: number;
   dailyLimit: number;
-  /** Devolve o erro em texto, ou nulo quando deu certo. */
-  onSend: (text: string, clientMessageId: string) => Promise<string | null>;
+  /** O balão da conversa mostra o erro e o "Tentar de novo". */
+  onSend: (text: string, clientMessageId: string) => Promise<void>;
   onSuggest: () => Promise<{ text?: string; error?: string }>;
 };
 
@@ -39,12 +39,8 @@ export function Composer({ initialText, blockReason, templates, firstContact, da
     setError(null);
     setText('');
     setSuggested(false);
-    const failure = await onSend(body, crypto.randomUUID());
+    await onSend(body, crypto.randomUUID());
     sending.current = false;
-    if (failure) {
-      setError(failure);
-      setText((current) => current || body);
-    }
   }
 
   async function suggest() {
