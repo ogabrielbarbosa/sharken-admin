@@ -1,40 +1,28 @@
 'use server';
 
-import { getLead, moveLead, type Db } from '@lps/db';
-import { canAdvance, type Lead } from '@lps/domain';
+import { getLead, moveLead } from '@lps/db';
+import type { Lead } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { authedDb } from '@/lib/auth';
 
-async function advance(db: Db, lead: Lead): Promise<boolean> {
-  if (lead.stage !== 'revisar' || !canAdvance(lead).allowed) return false;
-  await moveLead(db, lead, 'completar', { error: null });
-  return true;
+async function selected(form: FormData) {
+  const db = await authedDb();
+  const ids = form.getAll('ids').map(String);
+  const leads = (await Promise.all(ids.map((id) => getLead(db, id)))).filter((l): l is Lead => !!l && l.stage === 'revisar');
+  return { db, batchId: String(form.get('batchId')), leads };
 }
 
-export async function advanceLeadAction(form: FormData) {
-  const db = await authedDb();
-  const lead = await getLead(db, String(form.get('leadId')));
-  const batchId = String(form.get('batchId'));
-  if (!lead) return;
-  const reason = form.get('reason');
-  const comment = form.get('comment');
-  const merged = { ...lead, ...(reason !== null ? { reason: String(reason) } : {}), ...(comment !== null ? { comment: String(comment) } : {}) };
-  const moved = await advance(db, merged);
+/** Move os selecionados para Completar e abre a tela com eles, na ordem recebida. */
+export async function advanceLeadsAction(form: FormData) {
+  const { db, batchId, leads } = await selected(form);
+  for (const lead of leads) await moveLead(db, lead, 'completar', { error: null });
   revalidatePath(`/painel/batches/${batchId}`, 'layout');
-  if (!moved) redirect(`/painel/batches/${batchId}/revisar?semMotivo=1`);
+  redirect(`/painel/batches/${batchId}/completar?ids=${leads.map((l) => l.id).join(',')}`);
 }
 
-export async function bulkAction(form: FormData) {
-  const db = await authedDb();
-  const batchId = String(form.get('batchId'));
-  const action = String(form.get('bulk'));
-  const leads = (await Promise.all(form.getAll('selected').map((id) => getLead(db, String(id))))).filter((l): l is Lead => !!l);
-  let skipped = 0;
-  for (const lead of leads) {
-    if (action === 'descartar') await moveLead(db, lead, 'descartado', { exit_reason: 'Descartado por você' });
-    else if (!(await advance(db, lead))) skipped += 1;
-  }
+export async function discardLeadsAction(form: FormData) {
+  const { db, batchId, leads } = await selected(form);
+  for (const lead of leads) await moveLead(db, lead, 'descartado', { exit_reason: 'Descartado por você' });
   revalidatePath(`/painel/batches/${batchId}`, 'layout');
-  if (skipped) redirect(`/painel/batches/${batchId}/revisar?semMotivo=${skipped}`);
 }
