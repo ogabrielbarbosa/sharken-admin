@@ -50,7 +50,8 @@ export type OptionalKey =
   | 'EVOLUTION_API_KEY'
   | 'EVOLUTION_INSTANCE'
   | 'WHATSAPP_WEBHOOK_SECRET'
-  | 'PAGES_HOST';
+  | 'PAGES_HOST'
+  | 'PROSPECT_WHATSAPP';
 
 export function requireOptional(key: OptionalKey, source: Source = process.env): string {
   const value = source[key];
