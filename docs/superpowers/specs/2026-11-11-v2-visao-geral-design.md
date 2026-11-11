@@ -10,17 +10,19 @@ A primeira versão termina no envio manual pelo `wa.me` e registra a conversa co
 
 - deixa a tela de leads mais limpa e acrescenta um passo para completar cada lead com mais material;
 - gera páginas com design de verdade, publicadas em um subdomínio e com validade curta;
-- troca a geração de vídeo por IA por um vídeo gravado pelo Gabriel, com o resto automatizado;
+- troca a geração de vídeo por IA por um vídeo gravado pelo Gabriel e enviado por lead;
 - troca Abordar, Aguardar e Conversa por um CRM ligado ao WhatsApp;
 - leva o contato do CRM ao contrato e ao pagamento, sem redigitar dados.
 
 ## 2. Fluxo
 
 ```
-Batch:     Leads → Completar → Material ──┐
-                                          ▼
-Global:                    CRM → Contrato → Pagamento → Cliente
+Batch (localização + tipo de negócio):  Leads → Completar → Material ──┐
+                                                                       ▼
+Global:                                         CRM → Contrato → Pagamento → Cliente
 ```
+
+Tudo começa em **Batches**: o Gabriel cria um batch escolhendo a localização e o tipo de negócio (drawer Novo batch, em 3 passos, como na v1). Dentro do batch ficam os leads, que seguem Leads → Completar → Material.
 
 | Etapa | Onde | Spec |
 |---|---|---|
@@ -88,7 +90,6 @@ O painel chama a Evolution direto (ela está em um servidor sempre ligado). As m
 | `lead_assets` | Nova: links, arquivos e textos extras de cada lead | Leads |
 | `sites` | Ganha `html_path`, `generator`, `published_at`, `sent_at` e `expires_at` opcional | Material |
 | `videos` | Ganha `source` (`gravado` ou `ia`) e `original_path` | Material |
-| `recording_sessions` | Nova: gravação longa com marcações por lead | Material |
 | `contacts`, `messages` | Novas | CRM |
 | `whatsapp_connection` | Nova, com uma linha: estado da conexão | CRM |
 | `clients` | Ganha `contact_id` | Contrato |
@@ -114,11 +115,11 @@ O contato herda `contacted_at`, `follow_up_at` e `responded_at` do lead. O hist�
 
 | Tela | Situação |
 |---|---|
+| Batches e Novo batch | Mantidas. A coluna "Leads por etapa" passa a contar Leads, Completar, Material e CRM |
 | Barra de etapas do batch | Leads, Completar e Material |
 | Leads | Reescrita (spec de Leads) |
 | Completar | Nova, em tela cheia, lead por lead |
 | Material | Reescrita, com página e vídeo |
-| Sessão de gravação | Nova |
 | CRM | Nova, no menu lateral |
 | Contratos | Nova, no menu lateral |
 | Pagamentos | Nova, no menu lateral |

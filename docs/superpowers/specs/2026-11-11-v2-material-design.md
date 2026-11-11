@@ -1,7 +1,7 @@
 # Versão 2: Material
 
 **Data:** 2026-11-11
-**Status:** aguarda a revisão do Gabriel. As seções 2 (como gerar a página) e 5 (vídeo) são recomendações que ele precisa confirmar.
+**Status:** aguarda a revisão do Gabriel. A seção 2 (como gerar a página) é uma recomendação que ele precisa confirmar. O vídeo (seção 5) foi definido por ele: envio por lead, sem tela de gravação.
 **Visão geral:** `2026-11-11-v2-visao-geral-design.md`
 
 ## 1. Objetivo
@@ -100,28 +100,15 @@ Duas seções, como hoje:
 
 Aprovar leva o lead para `crm` e cria o contato com status `novo` (spec do CRM). O vídeo não é obrigatório para aprovar.
 
-Um botão no topo, **Gravar vídeos**, abre a sessão de gravação com os leads prontos que ainda não têm vídeo.
-
 ## 5. Vídeo gravado
 
 O vídeo por IA (roteiro, ElevenLabs e Remotion) fica desligado (`VIDEO_MODE=gravado`). O código continua no projeto.
 
-### Sessão de gravação (recomendada)
+### Envio por lead
 
-Para gravar muitos vídeos de uma vez, o Gabriel grava uma tela só, longa, e o sistema corta:
+O Gabriel grava o vídeo de cada lead do jeito que preferir e, no cartão do lead, clica em **Enviar vídeo** para mandar o arquivo (MP4, MOV ou WebM, até 500 MB). O worker converte para MP4 H.264 de até 1080p e grava em `videos`. **Trocar vídeo** substitui o arquivo.
 
-1. Em Material, **Gravar vídeos** abre a sessão em tela cheia, com a página do primeiro lead e uma faixa discreta no topo, com o nome do negócio, "1 de 12" e **Próximo**.
-2. O Gabriel começa a gravar a tela (QuickTime, OBS ou o que preferir) e clica em **Começar**. A sessão marca o horário.
-3. Ele fala sobre a página e clica em **Próximo**. Cada clique marca o fim de um lead e o início do outro.
-4. No fim, ele clica em **Terminar** e envia o arquivo longo na mesma tela.
-5. O worker corta o vídeo pelas marcações (ffmpeg), converte cada parte para MP4 H.264 de até 1080p e grava em `videos` de cada lead.
-6. A sessão mostra os cortes, com uma prévia, e um ajuste único de atraso ("o Começar aparece em 00:07"), que desloca todos os cortes. Corrigido o atraso, o worker refaz os cortes.
-
-A faixa do topo não aparece no vídeo final se o Gabriel gravar só a janela da página. A faixa fica em uma janela separada e pequena, que a sessão abre ao começar.
-
-### Envio avulso
-
-Em cada cartão, **Enviar vídeo** aceita um arquivo pronto (MP4, MOV ou WebM, até 500 MB). O worker converte para MP4 H.264 do mesmo jeito.
+O sistema não tem tela própria de gravação nem corta vídeos longos (decisão do Gabriel em 2026-11-11).
 
 ### Regras
 
@@ -146,40 +133,28 @@ Em cada cartão, **Enviar vídeo** aceita um arquivo pronto (MP4, MOV ou WebM, a
 
 ### `videos`
 
-Ganha `source` (`gravado` ou `ia`), `original_path` e `session_id`.
-
-### `recording_sessions`
-
-| Coluna | Observação |
-|---|---|
-| `id`, `created_at` | |
-| `batch_id` | |
-| `lead_ids` | Ordem da sessão |
-| `marks` | `[{ lead_id, start_ms, end_ms }]`, relativos ao Começar |
-| `offset_ms` | Atraso entre o início da gravação e o Começar |
-| `upload_path` | Arquivo longo |
-| `status` | `gravando`, `enviando`, `cortando`, `pronto`, `erro` |
+Ganha `source` (`gravado` ou `ia`) e `original_path`.
 
 ## 7. Erros
 
 - **Agente falha 3 vezes:** erro no lead, com "Tentar de novo" e "Usar template simples".
 - **Upload interrompido:** o envio em partes continua de onde parou.
-- **Vídeo mais curto que as marcações:** os leads sem trecho ficam sem vídeo, com aviso.
-- **Mac desligado:** páginas e cortes esperam na fila, como hoje.
+- **Vídeo em formato que não converte:** o cartão mostra o erro e pede outro arquivo.
+- **Mac desligado:** páginas e conversões esperam na fila, como hoje.
 
 ## 8. Testes
 
 - Slug: normalização de acentos e colisão.
 - Validade: sem prazo antes do envio, 24 h depois, renovação e 7 dias sem envio.
 - Checagens do HTML: com script, sem o espaço do vídeo, com domínio externo e com afirmação inventada.
-- Cortes: marcações com atraso, última marcação depois do fim do vídeo.
+- Conversão: MOV do iPhone (HEVC) vira MP4 H.264.
 - Middleware: host de páginas e host do painel.
-- Manual: gerar 3 páginas de tipos de negócio diferentes, abrir no celular, gravar uma sessão de 3 leads e conferir os cortes.
+- Manual: gerar 3 páginas de tipos de negócio diferentes, abrir no celular, enviar um vídeo do iPhone e conferir que ele toca no Chrome e no Safari.
 
 ## 9. Arquivos principais
 
 - `apps/worker/src/jobs/build-page.ts` (substitui `generate-page.ts`, que fica para o template simples)
-- `apps/worker/src/jobs/cut-recording.ts` e `transcode-video.ts`
+- `apps/worker/src/jobs/transcode-video.ts`
 - `packages/config/src/page-design/GUIA.md` e `config.ts`
 - `packages/domain/src/page-checks.ts`, `page-expiry.ts`, `recording-cuts.ts`
 - `apps/web/src/middleware.ts`, `apps/web/src/app/p/[slug]/route.ts`
