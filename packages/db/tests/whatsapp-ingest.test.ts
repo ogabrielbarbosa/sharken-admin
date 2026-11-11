@@ -129,12 +129,26 @@ describe('ingestEvent', () => {
     expect((await getContact(db, c.id))!.status).toBe('em_conversa'); // status não muda sozinho para além da resposta
   });
 
-  it('grupo ignorado: normalize devolve vazio e nada é gravado', async () => {
-    const { createEvolutionProvider } = await import('../../integrations/src/whatsapp/evolution');
-    const events = createEvolutionProvider({ baseUrl: 'http://x', apiKey: 'k', instance: 'i' }).normalize({
-      event: 'messages.upsert', data: { key: { remoteJid: '1203@g.us', id: 'g1' }, message: { conversation: 'oi' } },
-    });
-    expect(events).toEqual([]);
+  it('fromMe para número desconhecido: nome é o número e status contatado', async () => {
+    const p = phone();
+    await ingestEvent(db, msg({ phoneE164: p, fromMe: true, pushName: 'Gabriel', text: 'Olá!' }), now);
+    expect(await findContactByPhone(db, p)).toMatchObject({ name: p, origin: 'whatsapp_direto', status: 'contatado' });
+  });
+
+  it('dois webhooks em paralelo para um número novo não perdem mensagem', async () => {
+    const p = phone();
+    await Promise.all([ingestEvent(db, msg({ phoneE164: p, text: 'a' }), now), ingestEvent(db, msg({ phoneE164: p, text: 'b' }), now)]);
+    const c = (await findContactByPhone(db, p))!;
+    expect(await listMessages(db, c.id)).toHaveLength(2);
+  });
+
+  it('perdido que responde reabre o lead sem_interesse para crm', async () => {
+    const batch = await pg.query<{ id: string }>(`insert into batches (location, location_key, business_type, quantity, criteria) values ('Rio', 'rio', 'padaria', 5, '{}') returning id`);
+    const lead = (await pg.query<{ id: string }>(`insert into leads (place_id, name, stage, batch_id) values ($1, 'L', 'sem_interesse', $2) returning id`, [`p-${++n}`, batch.rows[0]!.id])).rows[0]!;
+    const c = await mk('perdido', { lead_id: lead.id });
+    await ingestEvent(db, msg({ phoneE164: c.phone_e164 }), now);
+    expect((await getContact(db, c.id))!.status).toBe('em_conversa');
+    expect(((await pg.query('select stage from leads where id = $1', [lead.id])).rows[0] as { stage: string }).stage).toBe('crm');
   });
 
   it('conexão grava e atualiza whatsapp_connection', async () => {

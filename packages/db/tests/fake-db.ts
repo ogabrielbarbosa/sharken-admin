@@ -33,7 +33,7 @@ export function fakeDb(pg: PGlite): Db {
       const keys = Object.keys(s.values);
       let sql: string;
       if (s.op === 'insert' || s.op === 'upsert') {
-        const onConflict = s.conflict ? ` on conflict (${s.conflict.column}) do nothing` : '';
+        const onConflict = s.conflict ? (s.conflict.ignore || !keys.filter((k) => k !== s.conflict!.column).length ? ` on conflict (${s.conflict.column}) do nothing` : ` on conflict (${s.conflict.column}) do update set ${keys.filter((k) => k !== s.conflict!.column).map((k) => `${k} = excluded.${k}`).join(',')}`) : '';
         sql = `insert into ${table} (${keys.join(',')}) values (${keys.map((k) => p(enc(s.values[k]))).join(',')})${onConflict} returning *`;
       } else if (s.op === 'update') sql = `update ${table} set ${keys.map((k) => `${k} = ${p(enc(s.values[k]))}`).join(',')}${where} returning *`;
       else sql = `select * from ${table}${where}${s.order}${s.limit ? ` limit ${s.limit}` : ''}`;

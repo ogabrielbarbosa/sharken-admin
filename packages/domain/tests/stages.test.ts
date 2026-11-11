@@ -10,6 +10,7 @@ const allowed: [LeadStage, LeadStage][] = [
   ['revisar_material', 'crm'],
   ['crm', 'vendido'],
   ['crm', 'sem_interesse'],
+  ['sem_interesse', 'crm'],
   ['analisando', 'descartado'],
   ['completar', 'descartado'],
   ['crm', 'nao_contatar'],

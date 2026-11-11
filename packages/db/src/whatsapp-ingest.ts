@@ -2,7 +2,7 @@ import { statusAfterInbound, looksLikeStopRequest, type Contact, type Message, t
 import type { Db } from './client';
 import { createContact, findContactByLid, findContactByPhone, setContactStatus, updateContact } from './contacts';
 import { enqueueJob } from './jobs';
-import { getLead, logEvent, updateLead } from './leads';
+import { getLead, logEvent, moveLead, updateLead } from './leads';
 import { applyStatus, findPendingEcho, insertMessage } from './messages';
 
 export const MEDIA_BUCKET = 'whatsapp-media';
@@ -37,12 +37,8 @@ export async function storeMessageMedia(db: Db, message: Pick<Message, 'id' | 'c
 }
 
 async function setConnection(db: Db, state: string, now: Date): Promise<void> {
-  const patch = { state, updated_at: now.toISOString() };
-  const { data, error } = await db.from('whatsapp_connection').update(patch).eq('id', 1).select();
+  const { error } = await db.from('whatsapp_connection').upsert({ id: 1, state, updated_at: now.toISOString() }, { onConflict: 'id' });
   if (error) throw new Error(error.message);
-  if (((data as unknown[] | null) ?? []).length) return;
-  const { error: insertError } = await db.from('whatsapp_connection').insert({ id: 1, ...patch });
-  if (insertError) throw new Error(insertError.message);
 }
 
 /** Acha o contato pelo telefone ou pelo LID, completando o LID quando só o telefone era conhecido. */
@@ -74,7 +70,11 @@ async function applyInboundStatus(db: Db, contact: Contact, now: Date): Promise<
   if (contact.status === 'perdido') {
     // perdido -> em_conversa só existe por mensagem recebida; setContactStatus não permite.
     await updateContact(db, contact.id, { ...patch, status: to, status_at: now.toISOString() });
-    if (contact.lead_id) await logEvent(db, contact.lead_id, `contato_${to}`, { contact_id: contact.id, por: 'mensagem_recebida' });
+    if (contact.lead_id) {
+      await logEvent(db, contact.lead_id, `contato_${to}`, { contact_id: contact.id, por: 'mensagem_recebida' });
+      const lead = await getLead(db, contact.lead_id);
+      if (lead?.stage === 'sem_interesse') await moveLead(db, lead, 'crm', {}, { contact_id: contact.id, por: 'mensagem_recebida' });
+    }
   } else {
     await updateContact(db, contact.id, patch);
     await setContactStatus(db, contact, to, { por: 'mensagem_recebida' });
@@ -92,13 +92,21 @@ async function ingestMessage(db: Db, e: MessageEvent, now: Date): Promise<void> 
       console.error('whatsapp_sem_telefone', { externalId: e.externalId, lid: e.lid });
       return;
     }
-    contact = await createContact(db, {
-      name: e.pushName ?? e.phoneE164,
-      phone_e164: e.phoneE164,
-      whatsapp_lid: e.lid,
-      origin: 'whatsapp_direto',
-      status: 'em_conversa',
-    });
+    // Eco de mensagem enviada pelo celular: o pushName é o do próprio Gabriel, então o nome é o número.
+    try {
+      contact = await createContact(db, {
+        name: e.fromMe ? e.phoneE164 : (e.pushName ?? e.phoneE164),
+        phone_e164: e.phoneE164,
+        whatsapp_lid: e.lid,
+        origin: 'whatsapp_direto',
+        status: e.fromMe ? 'contatado' : 'em_conversa',
+      });
+    } catch (err) {
+      // Outro webhook criou o mesmo número entre a busca e a criação: usa o contato que ganhou.
+      if (!/duplicate key|unique/i.test((err as Error).message)) throw err;
+      contact = await findContact(db, e);
+      if (!contact) throw err;
+    }
   }
 
   if (e.fromMe) {
@@ -127,8 +135,16 @@ async function ingestMessage(db: Db, e: MessageEvent, now: Date): Promise<void> 
   if (!row) return; // já recebida
 
   if (e.media) {
-    if (e.media.base64) await storeMessageMedia(db, row, e.media.base64, e.media.mime);
-    else await enqueueJob(db, { type: 'download_media', payload: { message_id: row.id, url: e.media.url, mime: e.media.mime }, dedupeKey: `download_media:${row.id}` });
+    let stored = false;
+    if (e.media.base64) {
+      try {
+        await storeMessageMedia(db, row, e.media.base64, e.media.mime);
+        stored = true;
+      } catch (err) {
+        console.error('whatsapp_midia_falhou', row.id, (err as Error).message); // a tarefa tenta de novo pela Evolution
+      }
+    }
+    if (!stored) await enqueueJob(db, { type: 'download_media', payload: { message_id: row.id, url: e.media.url, mime: e.media.mime }, dedupeKey: `download_media:${row.id}` });
   }
   if (e.fromMe) return;
 

@@ -32,6 +32,8 @@ const NEXT: Partial<Record<LeadStage, LeadStage[]>> = {
   gerando_material: ['revisar_material'],
   revisar_material: ['gerando_material', 'crm'],
   crm: ['vendido', 'sem_interesse'],
+  // O contato perdido que volta a falar reabre o lead.
+  sem_interesse: ['crm'],
 };
 
 const FINAL: LeadStage[] = ['vendido', 'descartado', 'sem_interesse', 'nao_contatar'];
