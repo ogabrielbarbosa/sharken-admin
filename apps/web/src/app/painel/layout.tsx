@@ -14,9 +14,10 @@ export default async function PainelLayout({ children }: { children: ReactNode }
   const collapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === 'collapsed';
   return (
     <ShellProvider initialCollapsed={collapsed}>
-      <div className="flex min-h-full">
+      {/* A página não rola: o corpo tem a altura da tela e a rolagem acontece dentro dele. */}
+      <div className="flex h-dvh overflow-hidden">
         <Sidebar email={data.user.email ?? 'Conta individual'} />
-        <div className="my-2 mr-2 min-w-0 flex-1 overflow-clip rounded-card bg-background max-lg:m-0 max-lg:rounded-none">{children}</div>
+        <div className="my-2 mr-2 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-card [scrollbar-color:#ffffff26_transparent] [scrollbar-width:thin] bg-background max-lg:m-0 max-lg:rounded-none">{children}</div>
       </div>
     </ShellProvider>
   );

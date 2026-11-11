@@ -30,7 +30,7 @@ export function Sidebar({ email }: { email: string }) {
         className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] transition-opacity duration-300 lg:hidden ${mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-60 shrink-0 flex-col overflow-hidden bg-sidebar p-3 transition-[width,translate] duration-300 ease-(--ease-out-expo) max-lg:border-r max-lg:border-border lg:sticky lg:top-0 lg:z-auto lg:h-screen ${collapsed ? 'lg:w-17' : ''} ${mobileOpen ? '' : 'max-lg:-translate-x-full'}`}
+        className={`fixed inset-y-0 left-0 z-50 flex w-60 shrink-0 flex-col overflow-hidden bg-sidebar p-3 transition-[width,translate] duration-300 ease-(--ease-out-expo) max-lg:border-r max-lg:border-border lg:static lg:z-auto lg:h-full ${collapsed ? 'lg:w-17' : ''} ${mobileOpen ? '' : 'max-lg:-translate-x-full'}`}
       >
         <Link href="/painel" aria-label="Sharken — Overview" className="relative mt-2 mb-8 ml-3.5 block w-fit text-[#f4f3f3]">
           <Logo compact={collapsed} className="h-[22px] w-auto" />
