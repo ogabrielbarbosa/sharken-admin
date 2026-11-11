@@ -28,7 +28,7 @@ function useTooltip() {
     setTip({ text, top: r.top - 6, left: Math.min(Math.max(r.left + r.width / 2 - width / 2, 8), window.innerWidth - width - 8) });
   };
   const node = tip && (
-    <div role="tooltip" style={{ left: tip.left, top: tip.top, width: 240 }} className="pointer-events-none fixed z-50 -translate-y-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs leading-snug text-foreground shadow-lg">
+    <div role="tooltip" style={{ left: tip.left, top: tip.top, width: 240 }} className="pointer-events-none fixed z-50 -translate-y-full animate-fade-in rounded-md border border-border bg-card px-2.5 py-1.5 text-xs leading-snug text-foreground shadow-lg">
       {tip.text}
     </div>
   );
@@ -55,8 +55,8 @@ function Group({ groupKey, value, counts, onChange }: { groupKey: FilterGroupKey
         {options.map((o) => {
           const state = optionState(value, o.value);
           const tone = {
-            off: 'border-border text-muted-foreground hover:border-neutral-500 hover:text-foreground',
-            incluir: 'border-primary bg-primary text-primary-foreground',
+            off: 'border-border text-muted-foreground hover:border-border-strong hover:text-foreground',
+            incluir: 'border-brand-bright bg-brand-bright/20 text-brand-pale shadow-[0_0_12px_-4px_#3b82f6]',
             excluir: 'border-destructive/60 bg-destructive/15 text-destructive',
           }[state];
           const tip = `${o.hint} ${STATE_HINT[state]}`;
@@ -70,10 +70,10 @@ function Group({ groupKey, value, counts, onChange }: { groupKey: FilterGroupKey
               onMouseLeave={tooltip.hide}
               onFocus={tooltip.show(tip)}
               onBlur={tooltip.hide}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${tone}`}
+              className={`press inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${tone}`}
             >
-              {state === 'incluir' && <Check className="size-3" />}
-              {state === 'excluir' && <Minus className="size-3" />}
+              {state === 'incluir' && <Check className="size-3 animate-check-pop" />}
+              {state === 'excluir' && <Minus className="size-3 animate-check-pop" />}
               <span className={state === 'excluir' ? 'line-through' : ''}>{o.label}</span>
               <span className={state === 'off' ? 'text-muted-foreground' : 'opacity-70'}>{counts[o.value] ?? 0}</span>
             </button>
@@ -141,10 +141,10 @@ export function ReviewFilters({ batchId, filter, counts, shown, total }: { batch
     <div ref={ref} className="relative">
       <Button type="button" variant="outline" aria-expanded={open} onClick={() => setOpen(!open)}>
         <SlidersHorizontal />Filtros
-        {count > 0 && <span className="rounded-full bg-primary px-1.5 text-xs text-primary-foreground">{count}</span>}
+        {count > 0 && <span className="animate-check-pop rounded-full bg-brand-bright px-1.5 text-xs text-white">{count}</span>}
       </Button>
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-2 w-[min(26rem,calc(100vw-2rem))] rounded-lg border border-border bg-card shadow-xl">
+        <div className="absolute right-0 top-full z-30 mt-2 w-[min(26rem,calc(100vw-2rem))] origin-top-right animate-pop-in rounded-lg border border-border bg-card/95 shadow-overlay backdrop-blur-xl">
           <div className="space-y-4 p-4">
             {FILTER_GROUP_KEYS.map((key) => (
               <Group key={key} groupKey={key} value={draft.groups[key]} counts={counts[key]} onChange={(g) => setGroup(key, g)} />
@@ -153,7 +153,7 @@ export function ReviewFilters({ batchId, filter, counts, shown, total }: { batch
               <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Mínimo de</h3>
               <div className="grid grid-cols-3 gap-2">
                 {NUMBER_FILTERS.map((n) => (
-                  <label key={n.key} className="flex items-center rounded-md border border-border bg-background pl-2.5 text-xs text-muted-foreground focus-within:border-neutral-500">
+                  <label key={n.key} className="flex items-center rounded-md border border-border bg-input-bg pl-2.5 text-xs text-muted-foreground transition-colors focus-within:border-brand-bright">
                     {n.label}
                     <input
                       type="number"
@@ -180,7 +180,7 @@ export function ReviewFilters({ batchId, filter, counts, shown, total }: { batch
           </div>
           <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm">
             <span className="text-muted-foreground"><span className="font-medium text-foreground">{shown}</span> de {total} leads</span>
-            <button type="button" disabled={count === 0} onClick={() => { setMinText(minsText(EMPTY_FILTER)); update(EMPTY_FILTER); }} className="text-muted-foreground hover:text-foreground disabled:opacity-40">
+            <button type="button" disabled={count === 0} onClick={() => { setMinText(minsText(EMPTY_FILTER)); update(EMPTY_FILTER); }} className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground disabled:cursor-default disabled:opacity-40">
               Limpar tudo
             </button>
           </div>
@@ -221,7 +221,7 @@ export function ActiveFilters({ batchId, filter, shown, total }: { batchId: stri
   }
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm">
+    <div className="mb-4 flex animate-fade-in flex-wrap items-center gap-2 rounded-lg border border-brand-border bg-brand-muted/50 px-4 py-3 text-sm">
       <span className="font-medium">{shown} de {total}</span>
       {chips.map((c) => (
         <Link
@@ -229,7 +229,7 @@ export function ActiveFilters({ batchId, filter, shown, total }: { batchId: stri
           href={hrefFor(batchId, c.without)}
           scroll={false}
           replace
-          className={`group inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs ${c.exclude ? 'border-destructive/50 text-destructive' : 'border-border bg-secondary'}`}
+          className={`group inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs ${c.exclude ? 'border-destructive/50 text-destructive' : 'border-brand-border bg-brand-bright/15 text-brand-pale'} animate-pop-in transition-colors hover:border-brand-border-strong`}
           aria-label={`Remover filtro ${c.label}`}
         >
           {c.label}

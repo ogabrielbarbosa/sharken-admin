@@ -91,7 +91,7 @@ sem_interesse → crm                           (contato perdido que volta a fal
 
 ## 7. Dados
 
-Migração nova `0006_pipeline.sql`, aplicada com `pnpm db:migrate`. Ela não apaga dados.
+Migração nova `0008_pipeline.sql`, aplicada com `pnpm db:migrate`. Ela não apaga dados.
 
 | Mudança | Detalhe |
 |---|---|

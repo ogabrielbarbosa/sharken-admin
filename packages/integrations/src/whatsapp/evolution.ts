@@ -1,7 +1,7 @@
 import { toMobileE164 } from '@lps/domain';
 import type { InboundMedia, WhatsAppEvent, WhatsAppProvider } from '@lps/domain';
 
-// Escrito para a Evolution API v2 (webhook com `event`, `instance` e `data`). A versão do servidor não foi conferida.
+// Escrito para a Evolution API v2 (webhook com `event`, `instance` e `data`). Conferido na 2.3.7; referência em docs/evolution-api/.
 
 export class WhatsAppSendError extends Error {
   constructor(message: string, public invalidNumber = false) {
@@ -97,10 +97,27 @@ function normalizeUpdate(data: Json): WhatsAppEvent[] {
 
 function normalizeConnection(data: Json): WhatsAppEvent[] {
   const state = typeof data.state === 'string' ? data.state.toLowerCase() : '';
-  if (state === 'open') return [{ kind: 'connection', state: 'conectado' }];
-  if (state === 'close') return [{ kind: 'connection', state: 'desconectado' }];
-  if (state === 'connecting') return [{ kind: 'connection', state: 'conectando' }];
-  return [];
+  const mapped = state === 'open' ? 'conectado' : state === 'close' ? 'desconectado' : state === 'connecting' ? 'conectando' : null;
+  if (!mapped) return [];
+  const wuid = str(data.wuid);
+  return [{
+    kind: 'connection',
+    state: mapped,
+    phone: wuid ? `+${wuid.split('@')[0]!.replace(/\D/g, '')}` : null,
+    profileName: str(data.profileName),
+    statusReason: typeof data.statusReason === 'number' ? data.statusReason : null,
+  }];
+}
+
+/** contacts.upsert / contacts.update: nome do perfil e foto. */
+function normalizeProfile(data: Json): WhatsAppEvent[] {
+  const jid = str(data.remoteJid) ?? str(data.id);
+  if (!jid || jid.endsWith('@g.us') || jid.endsWith('@broadcast')) return [];
+  const isLid = jid.endsWith('@lid');
+  const phoneE164 = isLid ? phoneFromJid(str(data.remoteJidAlt) ?? str(data.senderPn)) : phoneFromJid(jid);
+  const avatarUrl = str(data.profilePicUrl) ?? str(data.profilePictureUrl);
+  if (!phoneE164 && !isLid) return [];
+  return [{ kind: 'profile', phoneE164, lid: isLid ? jid.split('@')[0]! : null, pushName: str(data.pushName), avatarUrl }];
 }
 
 export function createEvolutionProvider(config: EvolutionConfig): WhatsAppProvider {
@@ -108,22 +125,37 @@ export function createEvolutionProvider(config: EvolutionConfig): WhatsAppProvid
   const doFetch = config.fetch ?? fetch;
   const headers = { apikey: config.apiKey, 'content-type': 'application/json' };
 
+  async function post(path: string, payload: Json): Promise<{ externalId: string }> {
+    const res = await doFetch(`${base}${path}/${encodeURIComponent(config.instance)}`, { method: 'POST', headers, body: JSON.stringify(payload) });
+    const body: Json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const items: unknown[] = Array.isArray(body.response?.message) ? body.response.message : [];
+      const invalid = items.some((m) => isObj(m) && m.exists === false);
+      throw new WhatsAppSendError(invalid ? 'Esse número não tem WhatsApp.' : `A Evolution recusou o envio (${res.status}).`, invalid);
+    }
+    const externalId = str(body.key?.id);
+    if (!externalId) throw new WhatsAppSendError('A Evolution não devolveu o id da mensagem.');
+    return { externalId };
+  }
+
+  const MEDIATYPE = { imagem: 'image', video: 'video', documento: 'document' } as const;
+
   return {
     async sendText({ phoneE164, text }) {
-      const res = await doFetch(`${base}/message/sendText/${encodeURIComponent(config.instance)}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ number: phoneE164.replace(/\D/g, ''), text }),
+      return post('/message/sendText', { number: phoneE164.replace(/\D/g, ''), text });
+    },
+
+    async sendMedia({ phoneE164, media, caption }) {
+      const number = phoneE164.replace(/\D/g, '');
+      if (media.kind === 'audio') return post('/message/sendWhatsAppAudio', { number, audio: media.base64 });
+      return post('/message/sendMedia', {
+        number,
+        mediatype: MEDIATYPE[media.kind],
+        mimetype: media.mime,
+        fileName: media.fileName,
+        media: media.base64,
+        ...(caption ? { caption } : {}),
       });
-      const body: Json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const items: unknown[] = Array.isArray(body.response?.message) ? body.response.message : [];
-        const invalid = items.some((m) => isObj(m) && m.exists === false);
-        throw new WhatsAppSendError(invalid ? 'Esse número não tem WhatsApp.' : `A Evolution recusou o envio (${res.status}).`, invalid);
-      }
-      const externalId = str(body.key?.id);
-      if (!externalId) throw new WhatsAppSendError('A Evolution não devolveu o id da mensagem.');
-      return { externalId };
     },
 
     normalize(raw) {
@@ -134,6 +166,7 @@ export function createEvolutionProvider(config: EvolutionConfig): WhatsAppProvid
         if (event === 'messages.upsert') return normalizeMessage(data);
         if (event === 'messages.update') return normalizeUpdate(data);
         if (event === 'connection.update') return normalizeConnection(data);
+        if (event === 'contacts.upsert' || event === 'contacts.update') return normalizeProfile(data);
         return [];
       });
     },
@@ -148,6 +181,18 @@ export function createEvolutionProvider(config: EvolutionConfig): WhatsAppProvid
       const body: Json = await res.json().catch(() => ({}));
       const base64 = str(body.base64);
       return base64 ? { base64, mime: str(body.mimetype) } : null;
+    },
+
+    async profilePictureUrl(phoneE164) {
+      const res = await doFetch(`${base}/chat/fetchProfilePictureUrl/${encodeURIComponent(config.instance)}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ number: phoneE164.replace(/\D/g, '') }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return null;
+      const body: Json = await res.json().catch(() => ({}));
+      return str(body.profilePictureUrl);
     },
 
     async connectionQr() {

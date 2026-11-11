@@ -36,9 +36,29 @@ export async function storeMessageMedia(db: Db, message: Pick<Message, 'id' | 'c
   return path;
 }
 
-async function setConnection(db: Db, state: string, now: Date): Promise<void> {
-  const { error } = await db.from('whatsapp_connection').upsert({ id: 1, state, updated_at: now.toISOString() }, { onConflict: 'id' });
+type ConnectionEvent = Extract<WhatsAppEvent, { kind: 'connection' }>;
+type ProfileEvent = Extract<WhatsAppEvent, { kind: 'profile' }>;
+
+export async function setConnection(db: Db, e: Omit<ConnectionEvent, 'kind'> & { instance?: string | null; profilePicUrl?: string | null }, now: Date): Promise<void> {
+  const row: Record<string, unknown> = { id: 1, state: e.state, updated_at: now.toISOString() };
+  if (e.phone !== undefined && (e.phone || e.state !== 'conectado')) row.phone = e.phone;
+  if (e.profileName !== undefined && (e.profileName || e.state !== 'conectado')) row.profile_name = e.profileName;
+  if (e.statusReason !== undefined) row.status_reason = e.statusReason;
+  if (e.instance !== undefined) row.instance = e.instance;
+  if (e.profilePicUrl !== undefined) row.profile_pic_url = e.profilePicUrl;
+  const { error } = await db.from('whatsapp_connection').upsert(row, { onConflict: 'id' });
   if (error) throw new Error(error.message);
+}
+
+/** Foto e nome do perfil. Só troca o nome quando o contato ainda não tem um (nome igual ao número). */
+async function ingestProfile(db: Db, e: ProfileEvent, now: Date): Promise<void> {
+  let contact = e.phoneE164 ? await findContactByPhone(db, e.phoneE164) : null;
+  if (!contact && e.lid) contact = await findContactByLid(db, e.lid);
+  if (!contact) return;
+  const patch: Partial<Contact> = {};
+  if (e.avatarUrl) Object.assign(patch, { avatar_url: e.avatarUrl, avatar_checked_at: now.toISOString() });
+  if (e.pushName && contact.name === contact.phone_e164) patch.name = e.pushName;
+  if (Object.keys(patch).length) await updateContact(db, contact.id, patch);
 }
 
 /** Acha o contato pelo telefone ou pelo LID, completando o LID quando só o telefone era conhecido. */
@@ -100,6 +120,8 @@ async function ingestMessage(db: Db, e: MessageEvent, now: Date): Promise<void> 
         whatsapp_lid: e.lid,
         origin: 'whatsapp_direto',
         status: e.fromMe ? 'contatado' : 'em_conversa',
+        // Quem escreveu primeiro espera atendimento.
+        chat_state: e.fromMe ? 'aberto' : 'pendente',
       });
     } catch (err) {
       // Outro webhook criou o mesmo número entre a busca e a criação: usa o contato que ganhou.
@@ -156,7 +178,8 @@ async function ingestMessage(db: Db, e: MessageEvent, now: Date): Promise<void> 
 
 /** Aplica um evento do WhatsApp ao CRM (spec do CRM, "Recebimento"). */
 export async function ingestEvent(db: Db, event: WhatsAppEvent, now: Date = new Date()): Promise<void> {
-  if (event.kind === 'connection') return setConnection(db, event.state, now);
+  if (event.kind === 'connection') return setConnection(db, event, now);
+  if (event.kind === 'profile') return ingestProfile(db, event, now);
   if (event.kind === 'status') {
     await applyStatus(db, event.externalId, event.status);
     return;

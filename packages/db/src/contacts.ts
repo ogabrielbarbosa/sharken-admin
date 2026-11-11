@@ -1,4 +1,4 @@
-import { canSetStatus, canTransition, phoneMatchCandidates, type Contact, type ContactStatus, type Lead } from '@lps/domain';
+import { canSetStatus, canTransition, phoneMatchCandidates, type ChatState, type Contact, type ContactStatus, type Lead } from '@lps/domain';
 import type { Db } from './client';
 import { getLead, logEvent, moveLead } from './leads';
 
@@ -92,6 +92,41 @@ export async function listContacts(db: Db, opts: { box: CrmBox; search?: string;
   return [...contacts].sort((a, b) => score(b) - score(a));
 }
 
+export type ChatTab = ChatState;
+export type ChatCounts = Record<ChatState, number> & { pendente_nao_lidas: number };
+
+/** Lista do CRM por estado do atendimento (ou todos, com `state` nulo), mais recente primeiro. */
+export async function listChats(db: Db, opts: { state: ChatState | null; search?: string }): Promise<Contact[]> {
+  let query = db.from('contacts').select();
+  if (opts.state) query = query.eq('chat_state', opts.state);
+  const term = opts.search?.replace(/[,()%*"\\]/g, ' ').trim();
+  if (term) {
+    const digits = term.replace(/\D/g, '');
+    query = query.or(digits.length >= 4 ? `name.ilike.%${term}%,phone_e164.ilike.%${digits}%` : `name.ilike.%${term}%`);
+  }
+  const { data, error } = await query
+    .order('last_message_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(LIST_LIMIT);
+  if (error) throw new Error(error.message);
+  return data as Contact[];
+}
+
+export async function countChats(db: Db): Promise<ChatCounts> {
+  const { data, error } = await db.rpc('crm_chat_counts');
+  if (error) throw new Error(error.message);
+  return data as ChatCounts;
+}
+
+/** Muda o estado do atendimento. `from` evita corrida: só muda se ainda estiver no estado esperado. */
+export async function setChatState(db: Db, id: string, to: ChatState, from?: ChatState): Promise<boolean> {
+  let query = db.from('contacts').update({ chat_state: to, chat_state_at: new Date().toISOString() }).eq('id', id);
+  if (from) query = query.eq('chat_state', from);
+  const { data, error } = await query.select('id');
+  if (error) throw new Error(error.message);
+  return ((data as unknown[] | null) ?? []).length > 0;
+}
+
 export async function countBoxes(db: Db): Promise<Record<CrmBox, number>> {
   const { data, error } = await db.rpc('crm_box_counts');
   if (error) throw new Error(error.message);
@@ -116,7 +151,7 @@ export async function findContactByLid(db: Db, lid: string): Promise<Contact | n
   return findOne(db, 'whatsapp_lid', [lid]);
 }
 
-export type NewContact = Pick<Contact, 'name' | 'phone_e164' | 'origin'> & Partial<Pick<Contact, 'whatsapp_lid' | 'lead_id' | 'batch_id' | 'status' | 'comment'>>;
+export type NewContact = Pick<Contact, 'name' | 'phone_e164' | 'origin'> & Partial<Pick<Contact, 'whatsapp_lid' | 'lead_id' | 'batch_id' | 'status' | 'comment' | 'chat_state' | 'avatar_url'>>;
 
 export async function createContact(db: Db, row: NewContact): Promise<Contact> {
   const { data, error } = await db.from('contacts').insert(row).select().single();

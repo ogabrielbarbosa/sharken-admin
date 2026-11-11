@@ -1,6 +1,13 @@
 import { firstContactText, followUpText, looksLikeStopRequest, type Contact, type ContactStatus, type Lead, type Message } from '@lps/domain';
 import type { Tone } from '@/components/ui';
 
+export function crmHref(tab: 'aberto' | 'pendente' | 'fechado', extra: { contato?: string; q?: string } = {}) {
+  const p = new URLSearchParams({ aba: tab });
+  if (extra.q) p.set('q', extra.q);
+  if (extra.contato) p.set('contato', extra.contato);
+  return `/painel/crm?${p}`;
+}
+
 export const STATUS_LABEL: Record<ContactStatus, { label: string; tone: Tone }> = {
   novo: { label: 'Novo', tone: 'neutral' },
   contatado: { label: 'Contatado', tone: 'neutral' },
@@ -108,4 +115,25 @@ export function eventLabel(e: CrmEvent): string | null {
     return status ? `Status: ${status.label}` : null;
   }
   return null;
+}
+
+/** Duração curta: 12 min, 9 h 54, 3 d 4 h. */
+export function duration(ms: number): string {
+  const min = Math.max(0, Math.floor(ms / 60_000));
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} h ${String(min % 60).padStart(2, '0')}`;
+  return `${Math.floor(h / 24)} d ${h % 24} h`;
+}
+
+/** Tempo relativo: há 33 minutos, há 2 horas, há 3 dias. */
+export function ago(iso: string | null, now: Date): string {
+  if (!iso) return '—';
+  const min = Math.floor((now.getTime() - new Date(iso).getTime()) / 60_000);
+  if (min < 1) return 'agora';
+  if (min < 60) return `há ${min} minuto${min === 1 ? '' : 's'}`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `há ${h} hora${h === 1 ? '' : 's'}`;
+  const d = Math.floor(h / 24);
+  return `há ${d} dia${d === 1 ? '' : 's'}`;
 }

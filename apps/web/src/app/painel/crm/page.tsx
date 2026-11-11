@@ -1,37 +1,35 @@
-import { getEnv } from '@lps/config';
+import { getEnv, QUICK_REPLIES } from '@lps/config';
 import {
   clientByContact,
   FOLLOW_UP_LIMIT_MESSAGE,
-  countBoxes,
+  countChats,
   firstContactsToday,
   getBatch,
   getContact,
   getLead,
-  listContacts,
+  listChats,
   listEvents,
   listMessages,
   markStalePending,
   outreachCount,
-  type CrmBox,
 } from '@lps/db';
-import { closeDealDefaults, firstContactText, followUpText, outreachKind, phoneMatchCandidates, sendBlockReason, type Contact, type CloseDealInput } from '@lps/domain';
+import { closeDealDefaults, firstContactText, followUpText, outreachKind, phoneMatchCandidates, sendBlockReason, type ChatState, type Contact, type CloseDealInput } from '@lps/domain';
 import { MessageCircle } from 'lucide-react';
-import { ReconnectDrawer } from '@/components/crm/reconnect-drawer';
-import { ConnectionBadge } from '@/components/crm/connection-badge';
+import { AvatarRefresher } from '@/components/crm/avatar-refresher';
 import { CloseDealDrawer } from '@/components/crm/close-deal-drawer';
-import { ContactList } from '@/components/crm/contact-list';
+import { ContactList, type ConnectionInfo } from '@/components/crm/contact-list';
 import { ContactPanel, type HistoryItem } from '@/components/crm/contact-panel';
 import { Conversation } from '@/components/crm/conversation';
-import type { Template } from '@/components/crm/composer';
+import type { Template, Variable } from '@/components/crm/composer';
 import type { LegacyLine, ThreadMessage } from '@/components/crm/thread';
 import { CrmRealtime } from '@/components/crm/use-crm-realtime';
 import { Topbar } from '@/components/layout/topbar';
 import { authedDb } from '@/lib/auth';
-import { composerDraft, eventLabel, stopRequestPending } from '@/lib/crm';
+import { composerDraft, crmHref, duration, eventLabel, stopRequestPending } from '@/lib/crm';
 import { flowLabel } from '@/lib/lead-labels';
 
-const BOXES: CrmBox[] = ['hoje', 'novos', 'aguardando', 'em_conversa', 'fechados', 'perdidos', 'todos'];
-type Params = { caixa?: string; contato?: string; texto?: string; q?: string; conexao?: string; fechar?: string };
+const TABS: ChatState[] = ['aberto', 'pendente', 'fechado'];
+type Params = { aba?: string; contato?: string; texto?: string; q?: string; fechar?: string };
 
 async function mediaUrls(db: Awaited<ReturnType<typeof authedDb>>, messages: ThreadMessage[]) {
   const paths = messages.map((m) => m.media_path).filter((p): p is string => !!p);
@@ -42,7 +40,7 @@ async function mediaUrls(db: Awaited<ReturnType<typeof authedDb>>, messages: Thr
 
 export default async function CrmPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  const box = BOXES.find((b) => b === params.caixa) ?? 'hoje';
+  const tab = TABS.find((t) => t === params.aba) ?? 'aberto';
   const search = params.q?.trim() ?? '';
   const db = await authedDb();
   const env = getEnv();
@@ -50,25 +48,29 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
 
   await markStalePending(db, new Date(now.getTime() - 2 * 60_000));
   const [contacts, counts, firstToday, connectionRow, selected] = await Promise.all([
-    listContacts(db, { box, search }),
-    countBoxes(db),
+    listChats(db, { state: search ? null : tab, search }),
+    countChats(db),
     firstContactsToday(db, now),
-    db.from('whatsapp_connection').select('state').eq('id', 1).maybeSingle(),
+    db.from('whatsapp_connection').select('state, phone, profile_pic_url').eq('id', 1).maybeSingle(),
     params.contato ? getContact(db, params.contato) : Promise.resolve(null),
   ]);
-  const connection = (connectionRow.data?.state as 'conectado' | 'desconectado' | 'conectando' | undefined) ?? null;
-  const base = `/painel/crm?caixa=${box}${search ? `&q=${encodeURIComponent(search)}` : ''}`;
+  const connectionInfo: ConnectionInfo = {
+    state: (connectionRow.data?.state as ConnectionInfo['state'] | undefined) ?? null,
+    phone: (connectionRow.data?.phone as string | null | undefined) ?? null,
+  };
+  const connection = connectionInfo.state;
+  const base = crmHref(tab, { q: search });
   const dailyLimit = env.DAILY_FIRST_CONTACT_LIMIT;
 
   const list = (
-    <ContactList contacts={contacts} counts={counts} box={box} selectedId={selected?.id ?? null} search={search} now={now} connection={connection} firstToday={firstToday} dailyLimit={dailyLimit} />
+    <ContactList contacts={contacts} counts={counts} tab={tab} selectedId={selected?.id ?? null} search={search} now={now} connection={connectionInfo} />
   );
   const shell = (children: React.ReactNode) => (
     <div className="flex h-[calc(100vh-1rem)] flex-col max-lg:h-screen">
       <Topbar crumbs={[{ label: 'CRM' }]} />
       <CrmRealtime contactId={selected?.id ?? null} />
-      {params.conexao && connection !== 'conectado' && <ReconnectDrawer closeHref={base + (selected ? `&contato=${selected.id}` : '')} />}
-      <div className="grid min-h-0 flex-1 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_320px]">{children}</div>
+      <AvatarRefresher ids={contacts.map((c) => c.id)} enabled={connection === 'conectado'} />
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_320px]">{children}</div>
     </div>
   );
   const listCol = (hide: boolean) => <div className={`flex min-h-0 flex-col [&>*]:min-h-0 [&>*]:flex-1 ${hide ? 'max-lg:hidden' : ''}`}>{list}</div>;
@@ -78,10 +80,9 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
       <>
         {listCol(false)}
         <div className="col-span-full hidden min-h-0 flex-col items-center justify-center gap-2 text-center lg:col-span-1 lg:flex xl:col-span-2">
-          <MessageCircle className="size-8 text-muted-foreground" />
-          <p className="text-sm font-medium">Escolha uma conversa</p>
-          <p className="max-w-xs text-xs text-muted-foreground">Cada envio é um clique seu. Nada sai sozinho.</p>
-          <ConnectionBadge state={connection} href={`${base}&conexao=1`} />
+          <span className="mb-1 rounded-full bg-secondary p-4"><MessageCircle className="size-7 text-muted-foreground" /></span>
+          <p className="text-sm font-medium">{counts.pendente > 0 ? `${counts.pendente} atendimento${counts.pendente === 1 ? '' : 's'} pendente${counts.pendente === 1 ? '' : 's'}` : 'Escolha uma conversa'}</p>
+          <p className="max-w-xs text-xs text-muted-foreground">Abrir um pendente passa o atendimento para Abertos. Cada envio é um clique seu.</p>
         </div>
       </>,
     );
@@ -134,6 +135,24 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     }
   }
 
+  const phoneLabel = connectionInfo.phone ? connectionInfo.phone.replace(/^\+?55(\d{2})(\d{4,5})(\d{4})$/, '+55 $1 $2-$3') : null;
+  const me = { name: process.env.CRM_SIGNATURE_NAME || 'Gabriel', avatar: (connectionRow.data?.profile_pic_url as string | null | undefined) ?? null, phone: phoneLabel };
+  const variables: Variable[] = [
+    { key: 'nome', label: 'Nome do contato', value: selected.name },
+    { key: 'primeiro_nome', label: 'Primeiro nome', value: selected.name.split(/\s+/)[0] ?? null },
+    { key: 'telefone', label: 'Telefone', value: selected.phone_e164 },
+    { key: 'link', label: 'Link da página', value: link },
+    { key: 'cidade', label: 'Cidade', value: lead?.city ?? null },
+    { key: 'empresa', label: 'Nome comercial', value: env.COMMERCIAL_NAME },
+  ];
+  const quickReplies = QUICK_REPLIES.map((r) => ({ shortcut: r.atalho, title: r.titulo, text: r.texto }));
+  // 1ª resposta: da primeira mensagem recebida até a primeira enviada depois dela.
+  const firstIn = messages.find((m) => m.direction === 'entrada');
+  const replyAfter = firstIn ? messages.find((m) => m.direction === 'saida' && m.at > firstIn.at) : undefined;
+  const firstResponse = firstIn && replyAfter ? duration(new Date(replyAfter.at).getTime() - new Date(firstIn.at).getTime()) : null;
+  const mediaMessages = threadMessages.filter((m) => m.kind !== 'texto' && m.direction !== 'nota');
+  const notes = threadMessages.filter((m) => m.direction === 'nota');
+
   return shell(
     <>
       {closeDefaults && <CloseDealDrawer contactName={selected.name} defaults={closeDefaults} existingClient={!!existingClient} closeHref={`${base}&contato=${selected.id}`} />}
@@ -152,6 +171,9 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           stopRequest={stopRequestPending(messages)}
           dailyCount={firstToday}
           dailyLimit={dailyLimit}
+          quickReplies={quickReplies}
+          variables={variables}
+          me={me}
         />
       </div>
       <div className="hidden min-h-0 flex-col xl:flex [&>*]:min-h-0 [&>*]:flex-1">
@@ -162,6 +184,10 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           flowLabel={flow}
           history={history}
           closeHref={`${base}&contato=${selected.id}&fechar=1`}
+          firstResponse={firstResponse}
+          media={mediaMessages}
+          notes={notes}
+          now={now.toISOString()}
         />
       </div>
     </>,

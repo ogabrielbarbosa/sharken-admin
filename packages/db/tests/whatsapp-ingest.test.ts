@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import type { ContactStatus, WhatsAppEvent } from '@lps/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { createContact, findContactByPhone, getContact } from '../src/contacts';
+import { countChats, createContact, findContactByPhone, getContact, setChatState } from '../src/contacts';
 import { insertMessage, listMessages } from '../src/messages';
 import { ingestEvent } from '../src/whatsapp-ingest';
 import { fakeDb } from './fake-db';
@@ -164,5 +164,46 @@ describe('ingestEvent', () => {
     const after = (await getContact(db, c.id))!;
     expect(after.status).toBe('fechado');
     expect(after.responded_at).not.toBeNull();
+  });
+});
+
+describe('estado do atendimento', () => {
+  it('número desconhecido entra como pendente', async () => {
+    const p = phone();
+    await ingestEvent(db, msg({ phoneE164: p, pushName: 'Nova' }), now);
+    expect((await findContactByPhone(db, p))?.chat_state).toBe('pendente');
+  });
+  it('fechado que recebe mensagem vira pendente', async () => {
+    const c = await mk('em_conversa', { chat_state: 'fechado' });
+    await ingestEvent(db, msg({ phoneE164: c.phone_e164 }), now);
+    expect((await getContact(db, c.id))?.chat_state).toBe('pendente');
+  });
+  it('aberto que recebe mensagem continua aberto', async () => {
+    const c = await mk('em_conversa');
+    await ingestEvent(db, msg({ phoneE164: c.phone_e164 }), now);
+    expect((await getContact(db, c.id))?.chat_state).toBe('aberto');
+  });
+  it('mensagem enviada em atendimento fechado reabre', async () => {
+    const c = await mk('em_conversa', { chat_state: 'fechado' });
+    await insertMessage(db, { contact_id: c.id, direction: 'saida', sent_from: 'painel', kind: 'texto', body: 'Oi', status: 'enviada', at: now.toISOString() });
+    expect((await getContact(db, c.id))?.chat_state).toBe('aberto');
+  });
+  it('setChatState só abre o que ainda está pendente', async () => {
+    const c = await mk('em_conversa', { chat_state: 'pendente' });
+    expect(await setChatState(db, c.id, 'aberto', 'pendente')).toBe(true);
+    expect(await setChatState(db, c.id, 'aberto', 'pendente')).toBe(false);
+    await setChatState(db, c.id, 'fechado');
+    expect((await getContact(db, c.id))?.chat_state).toBe('fechado');
+  });
+  it('foto do perfil atualiza o contato e dá nome a quem só tinha o número', async () => {
+    const p = phone();
+    const c = await createContact(db, { name: p, phone_e164: p, origin: 'whatsapp_direto' });
+    await ingestEvent(db, { kind: 'profile', phoneE164: p, lid: null, pushName: 'Joana', avatarUrl: 'https://pps.whatsapp.net/x.jpg' }, now);
+    expect(await getContact(db, c.id)).toMatchObject({ name: 'Joana', avatar_url: 'https://pps.whatsapp.net/x.jpg' });
+  });
+  it('contagem por estado', async () => {
+    const counts = await countChats(db);
+    expect(counts.pendente).toBeGreaterThan(0);
+    expect(Object.keys(counts).sort()).toEqual(['aberto', 'fechado', 'pendente', 'pendente_nao_lidas']);
   });
 });

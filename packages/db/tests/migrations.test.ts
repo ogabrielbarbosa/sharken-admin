@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
 let db: PGlite;
-// A conversão da v1 usa etapas que a 0006 já não aceita; esse teste roda no banco até a 0005.
+// A conversão da v1 usa etapas que a 0008 já não aceita; esse teste roda no banco até a 0005.
 let v1: PGlite;
 
 /** Banco novo com as migrações aplicadas em ordem; `through` limita até o prefixo dado (ex.: '0005'). */
@@ -167,19 +167,25 @@ describe('migrações', () => {
   });
 
   it('converte leads em material para pagina e cancela a geração automática pendente', async () => {
-    const old = await migrated('0005');
+    const old = await migrated('0007');
     await old.query(`insert into leads (place_id, name, stage) values ('m1', 'x', 'gerando_material'), ('m2', 'x', 'revisar_material'), ('m3', 'x', 'crm')`);
+    await old.query(`insert into leads (place_id, name, stage, updated_at) values ('m4', 'x', 'revisar', '2026-01-01T00:00:00Z')`);
     await old.query(`insert into jobs (type, payload, dedupe_key) values
       ('build_page', '{}', 'k1'), ('generate_page', '{}', 'k2'), ('render_video', '{}', 'k3'), ('transcode_video', '{}', 'k4'), ('analyze_lead', '{}', 'k5')`);
     await old.query(`insert into jobs (type, payload, dedupe_key, status) values ('build_page', '{}', 'k6', 'concluido')`);
-    await old.exec(readFileSync(join(dir, '0006_pipeline.sql'), 'utf8'));
+    await old.exec(readFileSync(join(dir, '0008_pipeline.sql'), 'utf8'));
 
     const leads = await old.query<{ place_id: string; stage: string }>(`select place_id, stage from leads order by place_id`);
     expect(leads.rows).toEqual([
       { place_id: 'm1', stage: 'pagina' },
       { place_id: 'm2', stage: 'pagina' },
       { place_id: 'm3', stage: 'crm' },
+      { place_id: 'm4', stage: 'revisar' },
     ]);
+    const kept = await old.query<{ updated_at: string; stage_changed_at: string }>(
+      `select updated_at::text, stage_changed_at::text from leads where place_id = 'm4'`,
+    );
+    expect(kept.rows[0]).toEqual({ updated_at: '2026-01-01 00:00:00+00', stage_changed_at: '2026-01-01 00:00:00+00' });
     const jobs = await old.query<{ dedupe_key: string; status: string; error: string | null }>(`select dedupe_key, status, error from jobs order by dedupe_key`);
     const cancelled = { status: 'erro', error: 'Cancelado: geração automática removida' };
     expect(jobs.rows).toEqual([

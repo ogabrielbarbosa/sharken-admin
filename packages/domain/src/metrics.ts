@@ -89,6 +89,6 @@ export function buildPendencies(input: { leads: PendingLead[]; crm: CrmCounts; o
 
 export function pendencyHref(p: Pendency): string {
   if (p.kind === 'cobranca') return '/painel/clientes?situacao=em_atraso';
-  if (!p.step) return `/painel/crm?caixa=${p.kind}`;
+  if (!p.step) return `/painel/crm?aba=${p.kind === 'hoje' ? 'pendente' : 'aberto'}`;
   return p.batchIds.length === 1 ? `/painel/batches/${p.batchIds[0]}/${p.step}` : `/painel/batches?etapa=${p.step}`;
 }

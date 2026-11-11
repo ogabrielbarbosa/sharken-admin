@@ -9,7 +9,8 @@
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
     "user:create": "tsx src/create-user.ts",
-    "whatsapp:webhook": "tsx src/whatsapp-webhook.ts"
+    "whatsapp:webhook": "tsx src/whatsapp-webhook.ts",
+    "crm:demo": "tsx src/crm-demo.ts"
   },
   "dependencies": {
     "@lps/config": "workspace:*",

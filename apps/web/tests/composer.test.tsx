@@ -10,7 +10,13 @@ const lead = { name: 'Pet Shop Feliz', city: 'Campinas', flow: 'sem_site', site_
 const LINK = 'https://pages.exemplo.com.br/feliz-a81c';
 const now = new Date('2026-11-11T15:00:00Z');
 
-const base = { blockReason: null, templates: [], firstContact: false, dailyCount: 0, dailyLimit: 20, onSend: vi.fn(async () => {}), onSuggest: vi.fn(async () => ({})) };
+const base = {
+  blockReason: null, templates: [], firstContact: false, dailyCount: 0, dailyLimit: 20,
+  quickReplies: [{ shortcut: 'oi', title: 'Cumprimento', text: 'Oi, $primeiro_nome!' }],
+  variables: [{ key: 'primeiro_nome', label: 'Primeiro nome', value: 'Ana' }, { key: 'link', label: 'Link', value: null }],
+  senderPhone: '+55 19 99999-0000', signatureName: 'Gabriel',
+  onSend: vi.fn(async () => {}), onSendMedia: vi.fn(async () => {}), onNote: vi.fn(async () => true), onAfterSendClose: vi.fn(async () => {}),
+};
 
 describe('composerDraft', () => {
   it('sem link da página devolve vazio, sem erro', () => {
@@ -68,6 +74,34 @@ describe('Composer', () => {
     render(<Composer {...base} onSend={onSend} firstContact dailyCount={20} dailyLimit={20} initialText="Olá" />);
     fireEvent.click(screen.getByRole('button', { name: /Enviar/ }));
     expect(window.confirm).toHaveBeenCalled();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('"/" abre as respostas rápidas e insere o texto com as variáveis', async () => {
+    render(<Composer {...base} initialText="" />);
+    const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: '/o', selectionStart: 2 } });
+    expect(screen.getByText('Cumprimento')).toBeTruthy();
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await waitFor(() => expect(box.value).toBe('Oi, Ana!'));
+  });
+
+  it('"$" lista as variáveis; sem valor, mantém o nome', async () => {
+    render(<Composer {...base} initialText="" />);
+    const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: 'Veja $li', selectionStart: 8 } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await waitFor(() => expect(box.value).toBe('Veja $link'));
+  });
+
+  it('nota salva sem enviar pelo WhatsApp, mesmo com o envio bloqueado', async () => {
+    const onNote = vi.fn(async () => true);
+    const onSend = vi.fn(async () => {});
+    render(<Composer {...base} onNote={onNote} onSend={onSend} blockReason="WhatsApp desconectado." initialText="" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Nota' }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ligar amanhã' } });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar nota/ }));
+    await waitFor(() => expect(onNote).toHaveBeenCalledWith('Ligar amanhã'));
     expect(onSend).not.toHaveBeenCalled();
   });
 });

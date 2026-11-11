@@ -48,9 +48,18 @@ describe('normalize', () => {
     expect(upd({ status: 'PENDING' })).toEqual([]);
   });
   it('conexão', () => {
-    expect(provider.normalize(fx('connection-open'))).toEqual([{ kind: 'connection', state: 'conectado' }]);
-    expect(provider.normalize(fx('connection-close'))).toEqual([{ kind: 'connection', state: 'desconectado' }]);
-    expect(provider.normalize(fx('connection-connecting'))).toEqual([{ kind: 'connection', state: 'conectando' }]);
+    expect(provider.normalize(fx('connection-open'))).toEqual([{ kind: 'connection', state: 'conectado', phone: null, profileName: null, statusReason: 200 }]);
+    expect(provider.normalize(fx('connection-close'))[0]).toMatchObject({ kind: 'connection', state: 'desconectado' });
+    expect(provider.normalize(fx('connection-connecting'))[0]).toMatchObject({ kind: 'connection', state: 'conectando' });
+  });
+  it('conexão aberta traz o número e o nome do perfil', () => {
+    const raw = { event: 'connection.update', data: { state: 'open', wuid: '5519999990000@s.whatsapp.net', profileName: 'Sharken', statusReason: 200 } };
+    expect(provider.normalize(raw)).toEqual([{ kind: 'connection', state: 'conectado', phone: '+5519999990000', profileName: 'Sharken', statusReason: 200 }]);
+  });
+  it('contato com foto (contacts.upsert e contacts.update)', () => {
+    const raw = { event: 'contacts.upsert', data: [{ remoteJid: '5519981342207@s.whatsapp.net', pushName: 'Marcos', profilePicUrl: 'https://pps.whatsapp.net/v/x.jpg' }, { remoteJid: '1203@g.us', pushName: 'Grupo' }] };
+    expect(provider.normalize(raw)).toEqual([{ kind: 'profile', phoneE164: '5519981342207', lid: null, pushName: 'Marcos', avatarUrl: 'https://pps.whatsapp.net/v/x.jpg' }]);
+    expect(provider.normalize({ event: 'CONTACTS_UPDATE', data: { remoteJid: '99887766@lid', profilePicUrl: null } })).toEqual([{ kind: 'profile', phoneE164: null, lid: '99887766', pushName: null, avatarUrl: null }]);
   });
   it('aceita o nome do evento em maiúsculas e lixo', () => {
     expect(provider.normalize({ ...fx('connection-open'), event: 'CONNECTION_UPDATE' })).toHaveLength(1);

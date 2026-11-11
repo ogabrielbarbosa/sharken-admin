@@ -31,13 +31,13 @@ export function Dropdown({ name, options, defaultValue, onChange }: { name?: str
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="flex h-9 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-3 text-sm text-foreground hover:bg-accent"
+        className="flex h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-input bg-input-bg px-3 text-sm text-foreground transition-colors hover:border-border-strong"
       >
         <span className="truncate">{current?.label}</span>
-        <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform duration-300 ease-(--ease-out-expo) ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <ul role="listbox" className="absolute left-0 right-0 top-full z-40 mt-1 rounded-md border border-border bg-secondary p-1 shadow-lg">
+        <ul role="listbox" className="absolute left-0 right-0 top-full z-40 mt-1 origin-top animate-pop-in rounded-md border border-border bg-card p-1 shadow-overlay">
           {options.map((o) => (
             <li key={o.value} className="group relative">
               <button
@@ -45,13 +45,13 @@ export function Dropdown({ name, options, defaultValue, onChange }: { name?: str
                 role="option"
                 aria-selected={o.value === value}
                 onClick={() => { setValue(o.value); setOpen(false); onChange?.(o.value); }}
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
+                className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-white/5"
               >
-                <Check className={`size-3.5 shrink-0 ${o.value === value ? 'opacity-100' : 'opacity-0'}`} />
+                <Check className={`size-3.5 shrink-0 text-brand-soft ${o.value === value ? 'opacity-100' : 'opacity-0'}`} />
                 {o.label}
               </button>
               {o.hint && (
-                <span role="tooltip" className="pointer-events-none absolute right-full top-1/2 z-50 mr-2 hidden w-56 -translate-y-1/2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs leading-snug text-foreground shadow-lg group-hover:block">
+                <span role="tooltip" className="pointer-events-none absolute right-full top-1/2 z-50 mr-2 hidden w-56 -translate-y-1/2 animate-fade-in rounded-md border border-border bg-card px-2.5 py-1.5 text-xs leading-snug text-foreground shadow-lg group-hover:block">
                   {o.hint}
                 </span>
               )}

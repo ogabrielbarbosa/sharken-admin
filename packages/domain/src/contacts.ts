@@ -28,13 +28,21 @@ export type Contact = {
   last_outbound_at: string | null;
   unread_count: number;
   comment: string | null;
+  chat_state: ChatState;
+  chat_state_at: string;
+  avatar_url: string | null;
+  avatar_checked_at: string | null;
 };
+
+/** Estado do atendimento, separado do status comercial. */
+export type ChatState = 'aberto' | 'pendente' | 'fechado';
 
 export type Message = {
   id: string;
   created_at: string;
   contact_id: string;
-  direction: 'entrada' | 'saida';
+  /** `nota` é interna: aparece só no painel. */
+  direction: 'entrada' | 'saida' | 'nota';
   sent_from: 'painel' | 'celular' | null;
   kind: 'texto' | 'imagem' | 'audio' | 'video' | 'documento' | 'outro';
   body: string | null;
@@ -68,6 +76,11 @@ export function statusAfterSend(c: Pick<Contact, 'status'>, kind: SendKind): Con
 
 export function statusAfterInbound(c: Pick<Contact, 'status'>): ContactStatus {
   return c.status === 'novo' || c.status === 'contatado' || c.status === 'follow_up' || c.status === 'perdido' ? 'em_conversa' : c.status;
+}
+
+/** Números de exemplo (pnpm crm:demo) usam o DDD 00, que não existe. */
+export function isDemoPhone(phone: string): boolean {
+  return phone.replace(/\D/g, '').startsWith('5500');
 }
 
 export function sendBlockReason(
