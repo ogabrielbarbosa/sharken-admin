@@ -107,3 +107,18 @@ export async function getRun(runId: string): Promise<{ status: string; defaultDa
   const { data } = (await res.json()) as { data: { status: string; defaultDatasetId?: string } };
   return { status: data.status, defaultDatasetId: data.defaultDatasetId ?? null };
 }
+
+/** Roda o ator e espera o resultado na mesma chamada (usado na extração de um link do Instagram). */
+export async function runActorSync<T>(actor: string, input: object, timeoutMs = 120_000): Promise<T[]> {
+  const url = new URL(`${BASE}/acts/${actor.replace('/', '~')}/run-sync-get-dataset-items`);
+  url.searchParams.set('clean', 'true');
+  url.searchParams.set('timeout', String(Math.ceil(timeoutMs / 1000)));
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token()}` },
+    body: JSON.stringify(input),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!res.ok) throw new Error(`O Apify recusou a leitura (${res.status}).`);
+  return (await res.json()) as T[];
+}

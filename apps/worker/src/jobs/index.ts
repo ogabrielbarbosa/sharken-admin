@@ -1,4 +1,5 @@
 import { analyzeLeadJob } from './analyze-lead';
+import { extractAssetJob } from './extract-asset';
 import { generatePageJob } from './generate-page';
 import { renderVideoJob } from './render-video';
 import type { Handler } from './types';
@@ -7,6 +8,7 @@ export { JobFailure, Reschedule } from './types';
 
 export const handlers: Record<string, Handler> = {
   analyze_lead: analyzeLeadJob,
+  extract_asset: extractAssetJob,
   generate_page: generatePageJob,
   render_video: renderVideoJob,
 };

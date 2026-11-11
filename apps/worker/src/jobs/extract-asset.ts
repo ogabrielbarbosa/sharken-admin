@@ -1,0 +1,109 @@
+import { getAsset, updateAsset, type Db } from '@lps/db';
+import { buildInstagramInput, extractHtmlText, extractPdfText, INSTAGRAM_ACTOR, instagramToExtract, runActorSync, truncateText, type InstagramExtractProfile } from '@lps/integrations';
+import type { LeadAsset } from '@lps/domain';
+import { newContext } from '../browser';
+import { JobFailure, type Handler } from './types';
+
+const BUCKET = 'lead-assets';
+const MAX_IMAGES = 8;
+const NAV_TIMEOUT_MS = 30_000;
+
+async function copyImages(db: Db, leadId: string, urls: string[]): Promise<string[]> {
+  const stamp = Date.now();
+  const copied = await Promise.all(
+    urls.slice(0, MAX_IMAGES).map(async (url, i) => {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+        const type = (res.headers.get('content-type') ?? '').split(';')[0];
+        if (!res.ok || !type.startsWith('image/')) return null;
+        const ext = type.split('/')[1]?.replace(/[^a-z0-9]/gi, '') || 'jpg';
+        const path = `${leadId}/extraidas/${stamp}-${i}.${ext}`;
+        const { error } = await db.storage.from(BUCKET).upload(path, Buffer.from(await res.arrayBuffer()), { contentType: type, upsert: true });
+        return error ? null : path;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return copied.filter((p): p is string => !!p);
+}
+
+function isInstagram(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === 'instagram.com' || host.endsWith('.instagram.com');
+  } catch {
+    return false;
+  }
+}
+
+async function extractInstagram(url: string) {
+  const [profile] = await runActorSync<InstagramExtractProfile>(INSTAGRAM_ACTOR, buildInstagramInput([url]));
+  if (!profile) throw new JobFailure('Não encontrei esse perfil do Instagram.');
+  return instagramToExtract(profile);
+}
+
+async function extractWebPage(url: string) {
+  const context = await newContext();
+  try {
+    const page = await context.newPage();
+    await page.goto(url, { timeout: NAV_TIMEOUT_MS, waitUntil: 'load' });
+    return extractHtmlText(await page.content(), page.url());
+  } finally {
+    await context.close();
+  }
+}
+
+async function download(db: Db, path: string): Promise<Uint8Array> {
+  const { data, error } = await db.storage.from(BUCKET).download(path);
+  if (error || !data) throw new Error(`Falha ao baixar o arquivo: ${error?.message ?? 'vazio'}`);
+  return new Uint8Array(await data.arrayBuffer());
+}
+
+async function extractFile(db: Db, asset: LeadAsset) {
+  if (!asset.storage_path) throw new JobFailure('Arquivo sem caminho no armazenamento.');
+  const mime = asset.mime_type ?? '';
+  if (mime.startsWith('image/')) return { text: null, images: [asset.storage_path] };
+  if (mime === 'application/pdf') return { text: await extractPdfText(await download(db, asset.storage_path)), images: [] };
+  if (mime === 'text/plain') return { text: new TextDecoder().decode(await download(db, asset.storage_path)), images: [] };
+  // .doc e .docx: ainda sem leitura de texto; o item fica anexado como "pronto".
+  return { text: null, images: [] };
+}
+
+export const extractAssetJob: Handler = async (db, job) => {
+  const asset = await getAsset(db, job.payload.asset_id);
+  if (!asset || asset.status === 'pronto') return;
+
+  let text: string | null = null;
+  let images: string[] = [];
+  if (asset.kind === 'link') {
+    if (!asset.url) throw new JobFailure('Link sem endereço.');
+    const found = isInstagram(asset.url) ? await extractInstagram(asset.url) : await extractWebPage(asset.url);
+    text = found.text;
+    images = await copyImages(db, asset.lead_id, found.images);
+  } else if (asset.kind === 'arquivo') {
+    const found = await extractFile(db, asset);
+    text = found.text;
+    images = found.images;
+  } else {
+    text = asset.body;
+  }
+  await updateAsset(db, asset.id, {
+    extracted_text: text ? truncateText(text) : null,
+    extracted_images: images,
+    status: 'pronto',
+    error: null,
+  });
+};
+
+function friendlyError(message: string): string {
+  if (/timeout/i.test(message)) return 'Não consegui abrir o link (timeout).';
+  if (/Apify/i.test(message)) return 'Não consegui ler o perfil do Instagram.';
+  if (/ERR_NAME_NOT_RESOLVED|ERR_CONNECTION|ERR_CERT|net::/i.test(message)) return 'Não consegui abrir o link.';
+  if (/baixar o arquivo/i.test(message)) return 'Não consegui ler o arquivo.';
+  return message.length <= 120 && /[ãõçé]| o | não /i.test(message) ? message : 'Não consegui extrair este item.';
+}
+
+extractAssetJob.onFailure = async (db, job, message) => {
+  await updateAsset(db, job.payload.asset_id, { status: 'erro', error: friendlyError(message) });
+};
