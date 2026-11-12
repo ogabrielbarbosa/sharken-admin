@@ -1,187 +1,89 @@
-# Ambientes: local e dev
+# Ambiente
 
-## Os dois comandos
+Existe **um ambiente só**. O painel no seu Mac (`pnpm dev`), o painel publicado (https://admin.sharkenapps.com) e o worker da VPS usam o **mesmo banco**, o Supabase da VPS. Tudo o que você faz no local é real: grava na produção, manda WhatsApp de verdade e gasta Apify e Claude de verdade.
+
+## Comandos
 
 | Comando | O que faz |
 |---|---|
-| `pnpm local` | Sobe tudo na sua máquina: instala o que falta, abre o Docker, liga o banco local, aplica migrações, prepara o `.env.local`, cria o seu usuário na primeira vez e inicia o painel e o worker |
-| `pnpm producao` | Publica na nuvem: confere o `.env.dev`, aplica as migrações no Supabase da VPS (por túnel SSH), cria o usuário se faltar, envia as variáveis e faz o deploy na Vercel. O worker roda na VPS (veja Produção) |
+| `pnpm dev` | Painel em http://localhost:3010, usando o banco da produção |
+| `pnpm db:new nome` | Cria uma migração em `supabase/migrations/` |
+| `pnpm db:migrate` | Aplica as migrações novas no banco da VPS (por túnel SSH; nunca apaga dados) |
+| `pnpm env:sync` | Envia o `.env` para a Vercel e para o worker no Coolify, e reinicia o worker |
+| `pnpm worker` | Worker no seu Mac. Só quando estiver mexendo no código dele (veja abaixo) |
+| `pnpm user:create email senha` | Cria um usuário do painel |
+| `pnpm test` / `pnpm typecheck` | Testes e tipos |
 
-Os dois podem ser rodados quantas vezes quiser: só fazem o que falta e nunca apagam dados. `pnpm local:check` faz a preparação sem iniciar o painel.
+Publicar é dar `git push` na `main`: a Vercel publica o painel e o Coolify reconstrói o worker (quando o push mexe em `apps/worker`, `packages`, `pnpm-lock.yaml` ou `package.json`).
 
-## Onde ficam as chaves
+## Onde roda cada parte
 
-Na raiz do projeto, em dois arquivos que começam com ponto:
-
-- `.env.local`: chaves do ambiente local. O `pnpm local` preenche o banco e os segredos; você preenche `ANTHROPIC_API_KEY` e `APIFY_TOKEN`.
-- `.env.dev`: chaves da nuvem. Os segredos já estão gerados; você preenche Supabase, `APP_URL`, `ANTHROPIC_API_KEY` e `APIFY_TOKEN`.
-
-Arquivos com ponto no começo ficam ocultos no Finder. Para vê-los, aperte `Cmd + Shift + .` na pasta do projeto, ou abra a pasta no VS Code. Eles não vão para o git.
-
-São só dois ambientes:
-
-| Ambiente | Banco | Arquivo de chaves | Para quê |
-|---|---|---|---|
-| **local** | Supabase no Docker, na sua máquina | `.env.local` | Desenvolver e testar |
-| **dev** | Supabase na nuvem | `.env.dev` (e o painel da Vercel) | Teste online e staging |
-
-Os dois arquivos ficam na raiz do projeto e não vão para o git. O app e o worker leem o mesmo arquivo, escolhido pela variável `APP_ENV` (`local` por padrão).
-
-## Passo a passo manual (o que o pnpm local faz)
-
-Precisa de Docker aberto e Node 22.
-
-```bash
-pnpm install
-pnpm exec playwright install chromium   # navegador usado pelo worker
-pnpm db:start                            # sobe o Supabase local e aplica as migrações
-pnpm setup:local                         # cria o .env.local com as chaves do banco e os segredos
-pnpm user:create voce@email.com sua-senha
-```
-
-Depois, abra o `.env.local` e preencha pelo menos `ANTHROPIC_API_KEY` e `APIFY_TOKEN`. As outras chaves só são necessárias quando você usar o serviço correspondente.
-
-## Dia a dia no local
-
-```bash
-pnpm db:start   # se o Docker foi reiniciado
-pnpm dev        # painel em http://localhost:3010 e worker juntos
-```
-
-| Endereço | O que é |
+| Parte | Onde |
 |---|---|
-| http://localhost:3010 | Painel |
-| http://127.0.0.1:57323 | Supabase Studio, para ver as tabelas |
-| http://127.0.0.1:57324 | Caixa de e-mails do Supabase local |
+| Painel, API, webhooks e cron (`apps/web`) | Vercel, projeto `sharken-admin`, em https://admin.sharkenapps.com |
+| Worker (`apps/worker`) | VPS, app `sharken-worker` no Coolify (imagem `apps/worker/Dockerfile`) |
+| Banco, auth e storage | VPS, serviço `supa-sharken` no Coolify, em https://supa-sharken.sharkenapps.com |
+| WhatsApp | Evolution API na VPS, em https://evo.sharkenapps.com |
 
-O banco local usa as portas 57321 a 57324 para não conflitar com outros projetos Supabase da sua máquina.
+O worker não roda na Vercel porque fica ligado o tempo todo e usa o Chromium.
 
-## Produção
+O Studio do Supabase fica em https://supa-sharken.sharkenapps.com. O usuário e a senha ficam no Coolify, no serviço supa-sharken: `SERVICE_USER_ADMIN` e `SERVICE_PASSWORD_ADMIN`.
 
-| Parte | Onde | Deploy |
-|---|---|---|
-| Painel, API, webhooks e cron (`apps/web`) | Vercel, projeto `sharken-admin`, em https://admin.sharkenapps.com | Automático a cada push na `main` |
-| Worker (`apps/worker`) | VPS, pelo Coolify, app `sharken-worker` (projeto "My first project") | Automático a cada push na `main` que mexa em `apps/worker`, `packages`, `pnpm-lock.yaml` ou `package.json` (webhook do GitHub para o Coolify) |
-| Banco, auth e storage | Supabase auto-hospedado na VPS, serviço `supa-sharken` no Coolify, em https://supa-sharken.sharkenapps.com | `pnpm producao` aplica as migrações por túnel SSH (`SUPABASE_DB_*` no `.env.dev`) |
+## O arquivo .env
 
-Backup: `pg_dumpall` diário às 3h em `/root/backups/supa-sharken/` na VPS (14 dias, `/root/backups/supa-sharken.sh`). Cobre só o banco; os arquivos do Storage ficam no volume do MinIO do serviço. O Studio fica no mesmo endereço do Supabase, com o usuário e a senha de `DASHBOARD_USERNAME`/`DASHBOARD_PASSWORD` no Coolify.
+Fica na raiz do projeto e não vai para o git (arquivos com ponto no começo ficam ocultos no Finder: `Cmd + Shift + .`). O modelo é o `.env.example`.
 
-O worker não roda na Vercel porque fica ligado o tempo todo e usa o Chromium. A imagem é `apps/worker/Dockerfile`, construída a partir da raiz do repositório. As variáveis dele ficam no painel do Coolify (as mesmas do `.env.dev`). Quando mudar uma chave no `.env.dev`, atualize também na Vercel (o `pnpm producao` faz isso) e no Coolify.
+- `APP_URL` é `http://localhost:3010` no Mac. O `env:sync` troca por `PUBLIC_URL` na Vercel e no worker.
+- `WEBHOOK_BASE_URL` aponta para a produção. Apify e Evolution não alcançam o seu Mac, então os retornos deles sempre chegam pelo painel publicado, que grava no mesmo banco. Por isso a busca e as mensagens recebidas aparecem no `pnpm dev` sem túnel.
+- As chaves do fim do arquivo (`SUPABASE_DB_*`, `COOLIFY_*`) são só do Mac: o `env:sync` não as envia.
 
-## Variáveis da v2
+Mudou uma chave? Rode `pnpm env:sync`. O worker reinicia na hora; o painel publicado só pega a mudança no próximo deploy (`git push`).
 
-Todas ficam no `.env.local` e no `.env.dev`. As da Evolution são opcionais: só são cobradas quando você usa a função.
+## Worker no Mac
 
-| Variável | Para quê | Padrão |
-|---|---|---|
-| `EVOLUTION_URL` | Endereço da Evolution API (sem barra no fim): `https://evo.sharkenapps.com` | |
-| `EVOLUTION_API_KEY` | Chave da Evolution | |
-| `WHATSAPP_WEBHOOK_BASE_URL` | Só no local: URL pública (túnel) que a Evolution chama no lugar do `APP_URL` | |
-| `WHATSAPP_WEBHOOK_SECRET` | Segredo do webhook do WhatsApp (`openssl rand -hex 32`) | |
-| `DAILY_FIRST_CONTACT_LIMIT` | Aviso de primeiros contatos por dia | 20 |
-
-## WhatsApp (Evolution API)
-
-A Evolution roda na VPS (Coolify), em `https://evo.sharkenapps.com`, e já guarda as mensagens para o worker baixar as mídias.
-
-1. Preencha `EVOLUTION_URL`, `EVOLUTION_API_KEY` e `WHATSAPP_WEBHOOK_SECRET`.
-2. Em **Atendimento › Conexões**, clique em **Nova instância** e dê um nome (ou escolha uma que já existe no servidor). O painel cria a instância, registra o webhook `/api/webhooks/whatsapp` e passa a usá-la no CRM; a instância em uso fica salva no banco (`whatsapp_connection.instance`).
-3. Leia o QR (ou use o código pelo número).
-
-**Importar últimos 2 dias** (em Atendimento › Conexões, com o celular conectado) pede ao worker para trazer as conversas individuais dos últimos 2 dias guardadas na Evolution (`DATABASE_SAVE_DATA_HISTORIC=true`). Tudo entra fechado e sem não lidas; o que já está no CRM é pulado, então dá para rodar de novo. Conversas que o WhatsApp manda só com o LID (sem o número) ficam de fora até a pessoa mandar uma mensagem nova, que traz o número; depois disso, importar de novo completa o histórico dela.
-
-Toda vez que a tela abre, o painel confere o webhook e corrige se a URL do app mudou. Eventos de uma instância que não é a em uso são ignorados. `EVOLUTION_INSTANCE` continua aceito como padrão enquanto nenhuma instância foi escolhida na tela.
-
-Para baixar fotos, áudios, vídeos e documentos recebidos, o worker baixa a mídia da Evolution, e isso exige que ela guarde as mensagens (`DATABASE_SAVE_DATA_NEW_MESSAGE=true` no servidor dela). O `pnpm whatsapp:webhook` registra o webhook sem base64, porque a Vercel limita o corpo a 4,5 MB; se a mídia não baixar, confira essa opção e se o worker está rodando.
-
-No local, o webhook precisa do túnel descrito abaixo, porque a Evolution não alcança `localhost`.
-
-## Limite de tamanho de arquivo no Supabase
-
-Os vídeos enviados por lead e as mídias do WhatsApp passam pelo Storage. No local o limite é 500 MiB (`file_size_limit` em `supabase/config.toml`); depois de mudar esse valor, aplique com `pnpm db:stop && pnpm db:start` (os dados são mantidos). Na nuvem, o limite é o do plano do Supabase (50 MB no gratuito) e pode ser aumentado em Storage > Settings.
-
-## WhatsApp no local (Evolution API)
-
-A Evolution v2.3.7 roda no Docker, com Postgres e Redis próprios, na porta 8085:
-
-```bash
-pnpm evolution:up     # sobe a Evolution (usa EVOLUTION_API_KEY do .env.local)
-pnpm evolution:down   # para, mantendo a sessão do celular
-```
-
-Para usar a Evolution do Docker em vez da VPS: `EVOLUTION_URL=http://localhost:8085`, `EVOLUTION_API_KEY`, `WHATSAPP_WEBHOOK_SECRET` e `WHATSAPP_WEBHOOK_BASE_URL=http://host.docker.internal:<porta do painel>` (o container chama o painel por esse endereço). Com a Evolution da VPS, o `pnpm local` abre sozinho um túnel do Cloudflare (`scripts/whatsapp-tunnel.mjs`) e aponta o webhook da instância em uso para ele. Um vigia confere a cada 30 s se o túnel responde e se o webhook aponta para ele: se o túnel cair, abre outro e reaponta; se você trocar de instância, aponta a nova. Nesse modo o painel não mexe no webhook (ele nunca registra `localhost` numa Evolution remota), e a tela Conexões avisa em vermelho quando as mensagens recebidas não estão chegando. Um túnel novo leva até 1 minuto para ser achado pelo DNS da VPS; a Evolution tenta de novo nesse meio tempo. Para usar uma URL fixa, defina `WHATSAPP_WEBHOOK_BASE_URL`. Com `pnpm dev` puro não há túnel: as mensagens recebidas só chegam pelo `pnpm local`. Depois, em **Atendimento › Conexões**, use Nova instância e leia o QR.
-
-Conversas de exemplo: `pnpm crm:demo` cria 8 contatos com DDD 00 (o envio para eles é bloqueado) e `pnpm crm:demo --remover` apaga.
-
-## Como não perder os dados do banco local
-
-Os dados ficam em um volume do Docker e **continuam lá** quando você para o banco, fecha o Docker ou reinicia a máquina.
-
-| Comando | O que faz com os dados |
-|---|---|
-| `pnpm db:stop` | Para o banco e **mantém** os dados |
-| `pnpm db:start` | Sobe de novo com os mesmos dados |
-| `pnpm db:migrate` | Aplica migrações novas **sem apagar** nada |
-| `pnpm db:backup` | Salva uma cópia dos dados em `backups/` |
-
-**Nunca use estes comandos se quiser manter os dados:**
-
-- `supabase db reset`: recria o banco do zero.
-- `supabase stop --no-backup`: apaga o volume.
-- `supabase stop --all`: para também os outros projetos Supabase da sua máquina.
-- `docker volume prune` ou "Clean / Purge data" no Docker Desktop: apaga volumes.
-
-Para restaurar um backup:
-
-```bash
-psql "postgresql://postgres:postgres@127.0.0.1:57322/postgres" -f backups/<arquivo>.sql
-```
+A fila `jobs` é única. O worker da VPS atende tudo, inclusive o que você dispara pelo `pnpm dev`. Só rode `pnpm worker` quando estiver mexendo no código dele: enquanto ele estiver ligado, ele e o da VPS dividem as tarefas (cada uma vai para um só), então uma parte roda com o seu código novo e outra com o publicado.
 
 ## Mudanças no banco
 
 1. `pnpm db:new nome-da-mudanca` cria um arquivo em `supabase/migrations/`.
-2. Escreva o SQL e rode `pnpm db:migrate` para aplicar no local.
-3. Quando estiver bom, aplique no dev (abaixo).
+2. Escreva o SQL e rode `pnpm db:migrate`. Ele aplica direto na produção.
+3. Publique o código que usa a mudança (`git push`).
 
-Nunca edite uma migração que já foi aplicada no dev: crie uma nova.
+Como não há banco de teste, prefira mudanças que não quebram o código publicado: acrescentar coluna ou tabela antes de usar, e só remover depois que nada usa mais. Nunca edite uma migração já aplicada: crie uma nova.
 
-## Webhooks no local
+## Backup
 
-Apify, ZapSign, Asaas e a Evolution não conseguem chamar `localhost`. Para receber os retornos deles no local, abra um túnel e coloque a URL dele em `WEBHOOK_BASE_URL`:
+Um `pg_dumpall` roda todo dia às 3h na VPS e guarda 14 dias em `/root/backups/supa-sharken/` (script `/root/backups/supa-sharken.sh`). Cobre só o banco; os arquivos do Storage ficam no volume do MinIO do serviço.
 
-```bash
-cloudflared tunnel --url http://localhost:3010
-```
+Para restaurar, fale com o Claude ou rode na VPS: `gunzip -c <arquivo>.sql.gz | docker exec -i supabase-db-a5y2vbjkc8algctzx4erffyg psql -U supabase_admin -d postgres`.
 
-Sem túnel, o worker busca o resultado do Apify sozinho a cada 20 segundos, então a busca funciona no local mesmo assim. O túnel só é necessário para receber os retornos do ZapSign e do Asaas.
+## WhatsApp (Evolution API)
 
-## Levar para o dev
+1. `EVOLUTION_URL`, `EVOLUTION_API_KEY` e `WHATSAPP_WEBHOOK_SECRET` ficam no `.env`.
+2. Em **Atendimento › Conexões**, clique em **Nova instância** e dê um nome (ou escolha uma que já existe no servidor). O painel cria a instância, registra o webhook `/api/webhooks/whatsapp` da produção e passa a usá-la no CRM; a instância em uso fica salva no banco (`whatsapp_connection.instance`).
+3. Leia o QR (ou use o código pelo número).
 
-Uma vez:
+Toda vez que a tela abre, o painel confere o webhook e corrige se ele mudou. Eventos de uma instância que não é a em uso são ignorados.
 
-1. Crie o projeto no Supabase e rode `pnpm db:link` (pede o ref do projeto e a senha do banco).
-2. Copie `.env.dev.example` para `.env.dev` e preencha com as chaves do projeto na nuvem.
-3. Na Vercel, importe o repositório com **Root Directory** `apps/web` e cadastre as mesmas variáveis do `.env.dev`.
+**Importar últimos 2 dias** (em Conexões, com o celular conectado) pede ao worker para trazer as conversas individuais dos últimos 2 dias guardadas na Evolution (`DATABASE_SAVE_DATA_HISTORIC=true`). Tudo entra fechado e sem não lidas; o que já está no CRM é pulado. Conversas que o WhatsApp manda só com o LID (sem o número) ficam de fora até a pessoa mandar uma mensagem nova.
 
-A cada mudança no banco:
+Para baixar fotos, áudios, vídeos e documentos recebidos, o worker baixa a mídia da Evolution, e isso exige `DATABASE_SAVE_DATA_NEW_MESSAGE=true` no servidor dela. O webhook é registrado sem base64, porque a Vercel limita o corpo a 4,5 MB.
 
-```bash
-pnpm db:push:remoto    # aplica no dev só as migrações que faltam
-```
+Conversas de exemplo: `pnpm crm:demo` cria 8 contatos com DDD 00 (o envio para eles é bloqueado) e `pnpm crm:demo --remover` apaga. Lembre que elas entram no banco da produção.
 
-Para criar o seu usuário no dev: `pnpm user:create:remoto voce@email.com sua-senha`.
+## Limite de arquivo no Storage
 
-O worker roda no seu Mac. Para ele trabalhar com o banco do dev, use `pnpm worker:remoto`. Para rodar o painel local apontando para o dev, use `pnpm dev:remoto`.
+500 MB por arquivo (`UPLOAD_FILE_SIZE_LIMIT` do serviço supa-sharken no Coolify).
 
-## Webhooks no dev
+## Webhooks dos serviços
 
-Cadastre estas URLs nos painéis dos serviços, trocando `<dominio>` pelo endereço do dev e `<segredo>` pelo `WEBHOOK_SECRET`:
+Cadastre estas URLs nos painéis dos serviços, trocando `<segredo>` pelo `WEBHOOK_SECRET`:
 
 | Serviço | URL | Autenticação |
 |---|---|---|
 | Apify | registrado automaticamente a cada busca | segredo na URL |
-| ZapSign | `https://<dominio>/api/webhooks/zapsign?secret=<segredo>` | segredo na URL |
-| Asaas | `https://<dominio>/api/webhooks/asaas` | campo "Token de autenticação" igual ao `<segredo>` |
-| Evolution | `https://<dominio>/api/webhooks/whatsapp?token=<WHATSAPP_WEBHOOK_SECRET>`, registrado pelo painel ao criar a instância | segredo na URL |
+| ZapSign | `https://admin.sharkenapps.com/api/webhooks/zapsign?secret=<segredo>` | segredo na URL |
+| Asaas | `https://admin.sharkenapps.com/api/webhooks/asaas` | campo "Token de autenticação" igual ao `<segredo>` |
+| Evolution | `https://admin.sharkenapps.com/api/webhooks/whatsapp?token=<WHATSAPP_WEBHOOK_SECRET>`, registrado pelo painel | segredo na URL |
 
 O cron de retenção roda sozinho na Vercel, pelo `vercel.json`.

@@ -6,7 +6,7 @@ Sistema de um único usuário para encontrar negócios locais, montar uma págin
 
 **Status:** v2 implementada, com o batch reformulado como pipeline (spec `docs/superpowers/specs/2026-11-11-v2-pipeline-design.md`, plano `docs/superpowers/plans/2026-11-11-pipeline.md`; ela substitui o Leads/Completar/Material das specs abaixo). Specs em `docs/superpowers/specs/2026-11-11-v2-*.md` (visão geral, leads, material, crm, contrato, pagamento), plano da v2 em `docs/superpowers/plans/2026-11-11-v2.md`, telas em `untitled.pen` (frames "v2 · 01".."v2 · 12"). A primeira versão fica em `docs/superpowers/specs/2026-11-06-sistema-de-prospeccao-design.md`, substituída onde a v2 diz o contrário. Ambientes e comandos em `docs/ambientes.md`, operação em `docs/operacao.md`.
 
-**Banco local:** nunca rodar `supabase db reset`, `supabase stop --no-backup` ou `supabase stop --all` sem o Gabriel pedir. Os dados locais devem ser preservados, e há outros projetos Supabase na máquina.
+**Ambiente único:** um banco só, o Supabase da VPS (`supa-sharken` no Coolify), usado pelo `pnpm dev`, pela Vercel e pelo worker da VPS. O que se faz no local grava na produção. Um `.env` na raiz; `pnpm env:sync` leva para a Vercel e o Coolify; `pnpm db:migrate` aplica migrações por túnel SSH; publicar é `git push` na `main`. Migrações devem ser compatíveis com o código publicado (acrescentar antes de usar, remover depois). Nunca rodar comandos que apagam dados do banco sem o Gabriel pedir. O Supabase local antigo (Docker) não é mais usado; não rodar `supabase db reset`, `supabase stop --no-backup` ou `supabase stop --all` (há outros projetos Supabase na máquina).
 
 ## Decisões
 
@@ -29,7 +29,7 @@ Sistema de um único usuário para encontrar negócios locais, montar uma págin
 - Os termos do WhatsApp proíbem mensagens em massa e automáticas não autorizadas.
 - Não construir envio em massa nem automático, nem rotação de números para evitar bloqueio. Uma mensagem por clique, um contato por vez, no máximo um follow-up para quem nunca respondeu, e parar assim que a pessoa pedir.
 - O provedor fica atrás de uma interface (`packages/integrations/src/whatsapp/`), para trocar depois pela API oficial.
-- Evolution API v2.3.7 (última estável em 2026-11-11). No local roda no Docker (`pnpm evolution:up`, `infra/evolution/`); referência em `docs/evolution-api/`. A conexão do celular fica em Atendimento › Conexões.
+- Evolution API v2.3.7 (última estável em 2026-11-11). Roda na VPS (https://evo.sharkenapps.com); referência em `docs/evolution-api/`. A conexão do celular fica em Atendimento › Conexões.
 - CRM: o atendimento tem três estados, separados do status comercial: aberto, pendente (mensagem recebida num atendimento fechado, ou número novo) e fechado. Abrir um pendente o passa para aberto.
 
 ## Em aberto

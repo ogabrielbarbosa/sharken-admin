@@ -2,7 +2,7 @@
 #   docker build -f apps/worker/Dockerfile .
 FROM node:22-bookworm-slim
 
-ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true APP_ENV=production
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true
 RUN corepack enable
 
 WORKDIR /app

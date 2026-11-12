@@ -1,8 +1,7 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "globalDependencies": [
-    ".env.local",
-    ".env.dev"
+    ".env"
   ],
   "tasks": {
     "build": {
@@ -27,8 +26,5 @@
     "typecheck": {
       "outputs": []
     }
-  },
-  "globalPassThroughEnv": [
-    "APP_ENV"
-  ]
+  }
 }
