@@ -1,5 +1,6 @@
 import type { LeadReview } from './apify-mapper';
 import type { Criteria } from './criteria';
+import type { Enrichment } from './enrichment';
 import type { LeadStage } from './stages';
 
 export type Flow = 'sem_site' | 'melhorar_site';
@@ -30,6 +31,9 @@ export type SiteData = {
   images: string[];
   themeColor: string | null;
   logo: string | null;
+  /** E-mails e links de WhatsApp da página (mailto, texto, wa.me). Leads antigos não têm. */
+  emails?: string[];
+  whatsappLinks?: string[];
 };
 
 export type ScoreReason = { label: string; points: number; met: boolean };
@@ -44,6 +48,9 @@ export type Lead = {
   business_type: string | null;
   phone_raw: string | null;
   phone_e164: string | null;
+  email: string | null;
+  enrichment: Enrichment | null;
+  franchise: boolean | null;
   address: string | null;
   city: string | null;
   is_open: boolean;

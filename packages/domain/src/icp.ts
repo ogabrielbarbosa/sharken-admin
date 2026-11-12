@@ -23,14 +23,18 @@ export function scoreLead(lead: ScoreInput, c: Criteria, now: Date): { score: nu
   return { score: reasons.reduce((sum, r) => sum + (r.met ? r.points : 0), 0), reasons };
 }
 
+/**
+ * O que tira o lead da pipeline logo na busca. Só sai quem não tem como ser contatado (sem celular e
+ * sem e-mail), franquia ou rede, quem pediu para não ser contatado e quem foi contatado há pouco.
+ */
 export function checkEliminatory(
-  lead: Pick<Lead, 'phone_e164' | 'is_open'>,
+  lead: Pick<Lead, 'phone_e164' | 'email' | 'franchise'>,
   ctx: { blocked: boolean; lastContactAt: Date | null; now: Date },
   c: Criteria,
 ): { passed: boolean; reasons: string[] } {
   const reasons: string[] = [];
-  if (!lead.phone_e164) reasons.push('Sem telefone celular no cadastro');
-  if (!lead.is_open) reasons.push('Negócio fechado');
+  if (!lead.phone_e164 && !lead.email) reasons.push('Sem celular e sem e-mail');
+  if (lead.franchise) reasons.push('Franquia ou rede');
   if (ctx.blocked) reasons.push('Está em não contatar');
   if (ctx.lastContactAt && daysSince(ctx.lastContactAt, ctx.now) < c.recontactDays) reasons.push(`Contatado há menos de ${c.recontactDays} dias`);
   return { passed: reasons.length === 0, reasons };

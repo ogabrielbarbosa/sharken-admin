@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import { Topbar } from '@/components/layout/topbar';
 import { ExitButtons } from '@/components/leads/exit-buttons';
 import { NoteField } from '@/components/leads/note-field';
+import { EnrichmentInfo } from '@/components/leads/enrichment-info';
 import { Badge, Card, LinkButton, Status } from '@/components/ui';
 import { authedDb } from '@/lib/auth';
 import { batchLabel } from '@/lib/batch-context';
@@ -66,6 +67,8 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                 <h2 className="mb-2 font-medium">Dados do negócio</h2>
                 <dl className="divide-y divide-border">
                   <Datum label="Telefone">{lead.phone_raw ?? '—'}</Datum>
+                  {lead.phone_e164 && lead.phone_e164 !== lead.phone_raw?.replace(/\D/g, '') && <Datum label="Celular">{lead.phone_e164.replace(/^55(\d{2})(\d{4,5})(\d{4})$/, '($1) $2-$3')}</Datum>}
+                  <Datum label="E-mail">{lead.email ? <a href={`mailto:${lead.email}`} className="underline">{lead.email}</a> : '—'}</Datum>
                   <Datum label="Endereço">{lead.address ?? '—'}</Datum>
                   <Datum label="Nota">{lead.rating !== null ? `${String(lead.rating).replace('.', ',')} de 5` : '—'}</Datum>
                   <Datum label="Avaliações">{lead.reviews_count} no Google</Datum>
@@ -93,6 +96,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                 {lead.summary && <p className="mt-3 text-sm text-muted-foreground">{lead.summary}</p>}
               </Card>
             </div>
+            {lead.enrichment && <Card className="p-5"><EnrichmentInfo lead={lead} /></Card>}
             <Card className="space-y-3 p-5">
               {lead.flow === 'melhorar_site' && STAGES_WITH_REASON.includes(lead.stage) && (
                 <NoteField leadId={id} field="reason" initial={lead.reason} label="Motivo · vai na mensagem" placeholder="ex.: não funciona bem no celular" />

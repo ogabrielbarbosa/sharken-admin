@@ -7,7 +7,7 @@ const now = new Date('2026-11-06T12:00:00Z');
 const daysAgo = (n: number) => new Date(now.getTime() - n * 86_400_000).toISOString();
 const lead = (over = {}) => ({
   reviews_count: 20, rating: 4, images_count: 3, instagram_last_post_at: daysAgo(90),
-  description: 'Banho e tosa', site_data: null, phone_e164: '5519987654321', is_open: true, ...over,
+  description: 'Banho e tosa', site_data: null, phone_e164: '5519987654321', email: null, franchise: false, ...over,
 }) as never;
 
 describe('scoreLead', () => {
@@ -37,9 +37,15 @@ describe('checkEliminatory', () => {
     expect(checkEliminatory(lead(), ctx, c)).toEqual({ passed: true, reasons: [] });
   });
   it('barra com o motivo escrito', () => {
-    expect(checkEliminatory(lead({ phone_e164: null }), ctx, c).reasons[0]).toMatch(/celular/i);
-    expect(checkEliminatory(lead({ is_open: false }), ctx, c).reasons[0]).toMatch(/fechado/i);
+    expect(checkEliminatory(lead({ phone_e164: null }), ctx, c).reasons[0]).toMatch(/sem celular e sem e-mail/i);
+    expect(checkEliminatory(lead({ franchise: true }), ctx, c).reasons[0]).toMatch(/franquia/i);
     expect(checkEliminatory(lead(), { ...ctx, blocked: true }, c).reasons[0]).toMatch(/não contatar/i);
+  });
+  it('aceita só e-mail como forma de contato', () => {
+    expect(checkEliminatory(lead({ phone_e164: null, email: 'a@b.com.br' }), ctx, c).passed).toBe(true);
+  });
+  it('não descarta negócio marcado como fechado nem sem franquia definida', () => {
+    expect(checkEliminatory(lead({ is_open: false, franchise: null }), ctx, c).passed).toBe(true);
   });
   it('respeita o prazo de recontato', () => {
     const recent = checkEliminatory(lead(), { ...ctx, lastContactAt: new Date(daysAgo(179)) }, c);

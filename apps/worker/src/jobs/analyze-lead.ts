@@ -1,6 +1,6 @@
 import { countOpenJobs, getBatch, getContactContext, getLead, logEvent, moveLead, updateBatch, updateLead, type Db, type Job } from '@lps/db';
-import { checkEliminatory, classifyLink, flowFromSiteStatus, nextCheckStep, scoreLead, DEFAULT_CRITERIA, type Lead, type SiteStatus } from '@lps/domain';
-import { analyzeLead } from '@lps/integrations';
+import { bestContacts, checkEliminatory, looksLikeFranchise, classifyLink, flowFromSiteStatus, nextCheckStep, scoreLead, DEFAULT_CRITERIA, type Lead, type SiteStatus } from '@lps/domain';
+import { analyzeLead, defaultEnrichDeps, enrichLead, RateLimited } from '@lps/integrations';
 import { probeSite } from '../site-probe';
 import { Reschedule, type Handler } from './types';
 
@@ -33,6 +33,35 @@ async function resolveSite(db: Db, lead: Lead): Promise<Lead> {
   return { ...lead, ...full };
 }
 
+const MAX_RATE_LIMIT_WAITS = 5;
+const rateLimitWaits = new Map<string, number>();
+
+/**
+ * Contatos fora do Google: e-mail e celular no site, WHOIS do domínio .br e cadastro do CNPJ.
+ * Roda uma vez por lead. O celular achado só entra quando o Google não trouxe um.
+ */
+export async function resolveEnrichment(db: Db, lead: Lead): Promise<Lead> {
+  if (lead.enrichment) return lead;
+  let enrichment;
+  try {
+    enrichment = await enrichLead(lead);
+  } catch (err) {
+    if (!(err instanceof RateLimited)) throw err;
+    // O CNPJ.ws libera de novo em um minuto. Depois de algumas esperas, segue sem ele.
+    const waits = (rateLimitWaits.get(lead.id) ?? 0) + 1;
+    rateLimitWaits.set(lead.id, waits);
+    if (waits <= MAX_RATE_LIMIT_WAITS) throw new Reschedule(1);
+    enrichment = await enrichLead(lead, { ...defaultEnrichDeps(), cnpjWs: async () => null });
+    enrichment.notes.push('CNPJ.ws limitou as consultas: e-mail do CNPJ não consultado.');
+  }
+  rateLimitWaits.delete(lead.id);
+  const best = bestContacts(enrichment);
+  const patch: Partial<Lead> = { enrichment, email: lead.email ?? best.email };
+  if (!lead.phone_e164 && best.mobile) patch.phone_e164 = best.mobile;
+  await updateLead(db, lead.id, patch);
+  return { ...lead, ...patch };
+}
+
 export async function finishBatchIfDone(db: Db, batchId: string | null | undefined, currentJobs = 1) {
   if (!batchId) return;
   const open = await countOpenJobs(db, 'analyze_lead', batchId);
@@ -48,12 +77,13 @@ export const analyzeLeadJob: Handler = async (db, job: Job) => {
     return;
   }
 
-  const lead = await resolveSite(db, current);
+  const lead = await resolveEnrichment(db, await resolveSite(db, current));
 
   // Uma falha da IA é repetida pelo worker. Depois das tentativas, onFailure segue sem o resumo.
   const analysis = await analyzeLead(lead);
-  await updateLead(db, lead.id, { summary: analysis.summary, reason: lead.flow === 'melhorar_site' ? analysis.reason : null, error: null });
-  await qualify(db, lead);
+  const patch = { summary: analysis.summary, reason: lead.flow === 'melhorar_site' ? analysis.reason : null, franchise: analysis.franchise || looksLikeFranchise(lead.enrichment), error: null };
+  await updateLead(db, lead.id, patch);
+  await qualify(db, { ...lead, ...patch });
   await finishBatchIfDone(db, job.payload.batch_id);
 };
 

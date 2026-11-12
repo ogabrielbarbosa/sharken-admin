@@ -24,6 +24,12 @@ export async function extractSiteData(page: Page): Promise<SiteData> {
       images: [...new Set(images)].slice(0, 12),
       themeColor: meta('theme-color'),
       logo: logo?.src ?? null,
+      // O texto guardado é cortado; o e-mail costuma estar no rodapé, então procura na página inteira.
+      emails: [...new Set([
+        ...[...document.querySelectorAll('a[href^="mailto:"]')].map((a) => (a.getAttribute('href') ?? '').slice(7).split('?')[0]),
+        ...(document.body?.innerText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi) ?? []),
+      ].map((e) => e.trim().toLowerCase()).filter(Boolean))].slice(0, 10),
+      whatsappLinks: [...new Set([...document.querySelectorAll('a[href*="wa.me"], a[href*="whatsapp.com"]')].map((a) => (a as HTMLAnchorElement).href))].slice(0, 10),
     };
   });
 }

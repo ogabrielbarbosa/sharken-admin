@@ -10,6 +10,8 @@ export function availableActions(lead: { stage: LeadStage }): LeadAction[] {
 }
 
 const LABELS: Record<string, string> = {
+  reanalise: 'Voltou para a análise (regras novas de descarte)',
+  enriquecido: 'Contatos procurados no site, WHOIS e CNPJ',
   encontrado: 'Encontrado no batch',
   etapa_revisar: 'Análise concluída',
   etapa_gerando_material: 'Avançado na revisão',

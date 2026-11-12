@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import type { LeadStage } from '@lps/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { NO_PHONE_MESSAGE } from '../src/contacts';
 import { listLeads } from '../src/leads';
 import { completeInfo, qualifyLeads, savePageUrl, saveLoomUrl, stepBack, STALE } from '../src/pipeline';
 import { fakeDb } from './fake-db';
@@ -142,10 +141,10 @@ describe('saveLoomUrl', () => {
     expect((await row(id)).stage).toBe('crm');
   });
 
-  it('sem telefone fica em video com o link gravado', async () => {
+  it('sem celular (só e-mail) vai para Pronto para abordar sem criar contato', async () => {
     const id = await lead('video', { phone: null });
-    expect(await saveLoomUrl(db(), id, LOOM)).toEqual({ ok: false, error: NO_PHONE_MESSAGE });
-    expect(await row(id)).toMatchObject({ stage: 'video', loom_url: LOOM });
+    expect(await saveLoomUrl(db(), id, LOOM)).toEqual({ ok: true });
+    expect(await row(id)).toMatchObject({ stage: 'crm', loom_url: LOOM });
   });
 
   it('em crm só grava, sem criar outro contato', async () => {

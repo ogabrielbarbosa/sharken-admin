@@ -16,7 +16,8 @@
     "env:sync": "node scripts/sync-env.mjs",
     "user:create": "pnpm --filter @lps/worker user:create",
     "whatsapp:webhook": "pnpm --filter @lps/worker whatsapp:webhook",
-    "crm:demo": "pnpm --filter @lps/worker crm:demo --"
+    "crm:demo": "pnpm --filter @lps/worker crm:demo --",
+    "leads:reprocess": "pnpm --filter @lps/worker leads:reprocess --"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

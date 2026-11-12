@@ -28,3 +28,4 @@ export * from './close-deal';
 export * from './payments';
 export * from './pipeline-links';
 export * from './briefing';
+export * from './enrichment';

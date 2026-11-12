@@ -8,6 +8,7 @@ import type { Lead } from '@lps/domain';
 import { Badge, Button } from '@/components/ui';
 import { blockLeadAction } from '@/lib/common-lead-actions';
 import { NoteField } from './note-field';
+import { EnrichmentInfo } from './enrichment-info';
 import { discardAction, qualifyAction } from '@/app/painel/batches/[id]/actions';
 import { Notice, useStageAction } from '@/components/pipeline/board';
 import { siteLabel, leadMeta, instagramLabel } from '@/lib/lead-labels';
@@ -41,7 +42,7 @@ export function LeadDrawer({ lead, position, prevHref, nextHref, closeHref }: { 
   const url = lead.website_url?.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
   const nav = (href: string | null, label: string, icon: React.ReactNode) =>
     href ? <Link href={href} replace scroll={false} aria-label={label} className="text-muted-foreground hover:text-foreground">{icon}</Link> : <span className="text-muted-foreground/30">{icon}</span>;
-  const meta = [leadMeta(lead), lead.phone_raw].filter(Boolean).join(' · ');
+  const meta = [leadMeta(lead), lead.phone_raw, lead.email].filter(Boolean).join(' · ');
   const Stat = ({ title, value, sub }: { title: string; value: string; sub?: string }) => (
     <div className="min-w-0 rounded-md border border-border p-2.5">
       <p className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">{title}</p>
@@ -88,6 +89,7 @@ export function LeadDrawer({ lead, position, prevHref, nextHref, closeHref }: { 
               <div className="flex flex-wrap gap-1.5">{lead.site_signals.map((s) => <Badge key={s.key} tone={s.ok ? 'neutral' : 'warning'}>{s.label}</Badge>)}</div>
             </section>
           )}
+          <EnrichmentInfo lead={lead} />
           {lead.summary && (
             <section className="space-y-2">
               {title('Resumo da análise')}

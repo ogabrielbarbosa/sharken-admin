@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "user:create": "tsx src/create-user.ts",
     "whatsapp:webhook": "tsx src/whatsapp-webhook.ts",
-    "crm:demo": "tsx src/crm-demo.ts"
+    "crm:demo": "tsx src/crm-demo.ts",
+    "leads:reprocess": "tsx src/reprocess-leads.ts"
   },
   "dependencies": {
     "@lps/config": "workspace:*",

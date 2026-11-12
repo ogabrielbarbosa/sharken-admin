@@ -2,7 +2,7 @@ import type { Lead } from '../../src/types';
 
 const base: Lead = {
   id: 'l1', created_at: '2026-11-01', updated_at: '2026-11-01', batch_id: 'b1', place_id: 'p1',
-  name: 'Pet Shop Patinhas', business_type: 'Pet shop', phone_raw: '(19) 98765-4321', phone_e164: '5519987654321',
+  name: 'Pet Shop Patinhas', business_type: 'Pet shop', phone_raw: '(19) 98765-4321', phone_e164: '5519987654321', email: null, enrichment: null, franchise: null,
   address: 'Rua Barão de Jaguara, 1020, Campinas', city: 'Campinas', is_open: true, rating: 4.8, reviews_count: 132,
   images_count: 24, description: 'Banho e tosa com carinho', categories: ['Pet shop'], photos: ['https://img/1.jpg', 'https://img/2.jpg', 'https://img/3.jpg'],
   reviews: [{ text: 'Atendimento ótimo', stars: 5 }], website_url: null, instagram_url: null, instagram_last_post_at: null,

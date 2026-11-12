@@ -1,6 +1,6 @@
 import { canCompleteInfo, normalizeLinkUrl, parseLoomUrl, parsePageUrl, type Lead } from '@lps/domain';
 import type { Db } from './client';
-import { createContactFromLead, NO_PHONE_MESSAGE } from './contacts';
+import { createContactFromLead } from './contacts';
 import { getLead, moveLead, updateLead } from './leads';
 import { listAssets } from './lead-assets';
 
@@ -51,7 +51,11 @@ export async function saveLoomUrl(db: Db, leadId: string, raw: string): Promise<
   await updateLead(db, leadId, { loom_url: url });
   if (lead.stage === 'crm') return { ok: true };
 
-  if (!lead.phone_e164) return { ok: false, error: NO_PHONE_MESSAGE };
+  // Sem celular (só e-mail), entra em Pronto para abordar sem conversa; o número pode ser adicionado depois.
+  if (!lead.phone_e164) {
+    await moveLead(db, lead, 'crm');
+    return { ok: true };
+  }
   const contact = await createContactFromLead(db, { ...lead, loom_url: url });
   await moveLead(db, lead, 'crm', {}, { contact_id: contact.id });
   return contact.lead_id && contact.lead_id !== lead.id ? { ok: true, warning: OTHER_LEAD_CONTACT } : { ok: true };

@@ -8,3 +8,4 @@ export * from './asaas';
 export * from './capture';
 export * from './whatsapp';
 export * from './extract';
+export * from './enrichment';
