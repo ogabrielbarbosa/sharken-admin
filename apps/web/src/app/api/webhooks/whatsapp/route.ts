@@ -1,5 +1,5 @@
 import { secretMatches } from '@lps/config';
-import { createAdminClient, ingestEvent } from '@lps/db';
+import { createAdminClient, getActiveInstance, ingestEvent } from '@lps/db';
 import { getWhatsAppProvider } from '@lps/integrations';
 
 export async function POST(request: Request) {
@@ -19,6 +19,10 @@ export async function POST(request: Request) {
   let failed = false;
   try {
     const db = createAdminClient();
+    // Instância antiga ainda apontando para cá: ignora, o CRM só ouve a instância em uso.
+    const from = typeof (raw as { instance?: unknown })?.instance === 'string' ? (raw as { instance: string }).instance : null;
+    const active = from ? await getActiveInstance(db) : null;
+    if (from && active && from !== active) return Response.json({ ok: true, ignored: true });
     for (const event of getWhatsAppProvider().normalize(raw)) {
       try {
         await ingestEvent(db, event, new Date());

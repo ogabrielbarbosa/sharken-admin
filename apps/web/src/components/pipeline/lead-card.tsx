@@ -1,12 +1,12 @@
-import type { ContactStatus, Lead, LeadAsset } from '@lps/domain';
-import { Check, Loader2, Star, Trash2 } from 'lucide-react';
+import type { ChatState, ContactStatus, Lead, LeadAsset } from '@lps/domain';
+import { Loader2, MessagesSquare } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Status } from '@/components/ui';
-import { STATUS_LABEL } from '@/lib/crm';
+import { crmHref, STATUS_LABEL } from '@/lib/crm';
 import { leadMeta, siteLabel } from '@/lib/lead-labels';
 
-export type CardContact = { id: string; status: ContactStatus };
+export type CardContact = { id: string; status: ContactStatus; chat_state?: ChatState };
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 export const domainOf = (url: string) => url.replace(/^https?:\/\/(www\.)?/i, '').split(/[/?#]/)[0];
@@ -32,81 +32,85 @@ export function assetSummary(assets: Pick<LeadAsset, 'kind' | 'status' | 'mime_t
 
 const STAGE_LABEL: Partial<Record<Lead['stage'], string>> = { crm: 'No CRM', vendido: 'Vendido', sem_interesse: 'Sem interesse', nao_contatar: 'Não contatar', descartado: 'Descartado' };
 
-function Shell({ lead, active, children }: { lead: Lead; active?: boolean; children: ReactNode }) {
+export type CardDrag = { onStart: () => void; onEnd: () => void };
+
+/** `drag`: o cartão pode ser arrastado (até Descartados). */
+function Shell({ lead, active, drag, children }: { lead: Lead; active?: boolean; drag?: CardDrag; children: ReactNode }) {
   return (
-    <li data-testid={`card-${lead.id}`} className={`rounded-md border bg-card p-3 text-sm ${active ? 'border-neutral-400' : 'border-border'}`}>
+    <li
+      data-testid={`card-${lead.id}`}
+      draggable={!!drag}
+      onDragStart={drag && ((e) => { e.dataTransfer.setData('text/plain', lead.id); e.dataTransfer.effectAllowed = 'move'; drag.onStart(); })}
+      onDragEnd={drag?.onEnd}
+      className={`rounded-md border bg-card p-3 text-sm ${drag ? 'cursor-grab active:cursor-grabbing' : ''} ${active ? 'border-neutral-400' : 'border-border'}`}
+    >
       {children}
     </li>
   );
 }
 
-const Title = ({ lead }: { lead: Lead }) => (
-  <>
-    <span className="block truncate font-medium">{lead.name}</span>
-    <span className="block truncate text-xs text-muted-foreground">{leadMeta(lead)}</span>
-  </>
-);
+function ScoreBadge({ score }: { score: number }) {
+  const tone = score >= 70 ? 'border-success text-success' : score >= 50 ? 'border-warning text-warning' : 'border-destructive text-destructive';
+  return <span aria-label={`Pontuação ${score}`} title="Pontuação" className={`flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold tabular-nums ${tone}`}>{score}</span>;
+}
 
-/** Cartão inteiro clicável, para as colunas em que clicar abre o modal ou a conversa. */
-function LinkCard({ lead, href, active, children }: { lead: Lead; href: string; active?: boolean; children: ReactNode }) {
+/** Mesmo formato em todas as colunas: nome, bolinha com a pontuação, status do site e o que falta na etapa. */
+function CardBody({ lead, children }: { lead: Lead; children?: ReactNode }) {
+  const site = siteLabel(lead);
   return (
-    <Shell lead={lead} active={active}>
-      <Link href={href} scroll={false} className="-m-3 block rounded-md p-3 hover:bg-accent/40">
-        <Title lead={lead} />
-        <span className="mt-2 block text-xs">{children}</span>
+    <>
+      <span className="flex items-start gap-2">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{lead.name}</span>
+          <span className="block truncate text-xs text-muted-foreground">{leadMeta(lead)}</span>
+        </span>
+        {lead.score != null && <ScoreBadge score={lead.score} />}
+      </span>
+      <span className="mt-2 block text-xs"><Status tone={site.tone}>{site.label}</Status></span>
+      {children && <span className="mt-1.5 block text-xs">{children}</span>}
+    </>
+  );
+}
+
+/** Cartão inteiro clicável: clicar abre o lead (ou a conversa). */
+function LinkCard({ lead, href, active, drag, children }: { lead: Lead; href: string; active?: boolean; drag?: CardDrag; children?: ReactNode }) {
+  return (
+    <Shell lead={lead} active={active} drag={drag}>
+      <Link href={href} scroll={false} draggable={false} className="-m-3 block rounded-md p-3 hover:bg-accent/40">
+        <CardBody lead={lead}>{children}</CardBody>
       </Link>
     </Shell>
   );
 }
 
-export function LeadCard({ lead, href, active, assets, contact, selected, onSelect, onQualify, onDiscard, pending }: {
-  lead: Lead; href: string; active?: boolean; assets?: LeadAsset[]; contact?: CardContact;
-  selected?: boolean; onSelect?: () => void; onQualify?: () => void; onDiscard?: () => void; pending?: boolean;
+export function LeadCard({ lead, href, active, assets, contacts, drag }: {
+  lead: Lead; href: string; active?: boolean; assets?: LeadAsset[]; contacts?: CardContact[]; drag?: CardDrag;
 }) {
   switch (lead.stage) {
     case 'analisando':
       return (
-        <Shell lead={lead}>
-          <Title lead={lead} />
-          <span className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin" />Analisando…</span>
+        <Shell lead={lead} drag={drag}>
+          <CardBody lead={lead}>
+            <span className="inline-flex items-center gap-1.5 text-muted-foreground"><Loader2 className="size-3 animate-spin" />Analisando…</span>
+          </CardBody>
         </Shell>
       );
-    case 'revisar': {
-      const site = siteLabel(lead);
-      const score = lead.score ?? 0;
-      return (
-        <Shell lead={lead} active={active}>
-          <div className="flex items-start gap-2">
-            <input type="checkbox" aria-label={`Selecionar ${lead.name}`} checked={!!selected} onChange={onSelect} className="mt-0.5 size-4 shrink-0 accent-neutral-200" />
-            <Link href={href} scroll={false} className="min-w-0 flex-1 hover:underline"><Title lead={lead} /></Link>
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <Status tone={site.tone}>{site.label}</Status>
-            {lead.rating != null && <span className="inline-flex items-center gap-1"><Star className="size-3" />{lead.rating} ({lead.reviews_count})</span>}
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <span className="w-6 text-xs font-medium">{score}</span>
-            <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${score >= 70 ? 'bg-success' : score >= 50 ? 'bg-warning' : 'bg-destructive'}`} style={{ width: `${score}%` }} /></span>
-            <button type="button" disabled={pending} onClick={onDiscard} aria-label={`Descartar ${lead.name}`} title="Descartar" className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"><Trash2 className="size-4" /></button>
-            <button type="button" disabled={pending} onClick={onQualify} aria-label={`Qualificar ${lead.name}`} title="Qualificar" className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"><Check className="size-4" /></button>
-          </div>
-        </Shell>
-      );
-    }
+    case 'revisar':
+      return <LinkCard lead={lead} href={href} active={active} drag={drag} />;
     case 'completar': {
       const { text, extracting } = assetSummary(assets ?? []);
       return (
-        <LinkCard lead={lead} href={href} active={active}>
+        <LinkCard lead={lead} href={href} active={active} drag={drag}>
           <span className="block text-muted-foreground">{text}</span>
           {extracting > 0 && <span className="mt-1 inline-flex items-center gap-1 text-warning"><Loader2 className="size-3 animate-spin" />{extracting} em extração</span>}
         </LinkCard>
       );
     }
     case 'pagina':
-      return <LinkCard lead={lead} href={href} active={active}><span className="text-warning">Falta a página</span></LinkCard>;
+      return <LinkCard lead={lead} href={href} active={active} drag={drag}><span className="text-warning">Falta a página</span></LinkCard>;
     case 'video':
       return (
-        <LinkCard lead={lead} href={href} active={active}>
+        <LinkCard lead={lead} href={href} active={active} drag={drag}>
           {lead.page_url && <span className="block text-muted-foreground">{domainOf(lead.page_url)}</span>}
           <span className="block text-warning">{lead.loom_url ? 'Loom salvo, falta levar ao CRM' : 'Falta o Loom'}</span>
         </LinkCard>
@@ -114,11 +118,20 @@ export function LeadCard({ lead, href, active, assets, contact, selected, onSele
     case 'crm':
     case 'vendido':
     case 'sem_interesse': {
-      const status = contact ? STATUS_LABEL[contact.status] : null;
-      const body = status ? <Status tone={status.tone}>{status.label}</Status> : <span className="text-muted-foreground">{STAGE_LABEL[lead.stage]}</span>;
-      return <LinkCard lead={lead} href={contact ? `/painel/crm?contato=${contact.id}` : '/painel/crm'}>{body}</LinkCard>;
+      // Um contato só: abre a conversa direto. Vários (ou nenhum): abre a lista de conversas do lead.
+      const list = contacts ?? [];
+      const status = list[0] ? STATUS_LABEL[list[0].status] : null;
+      const target = list.length === 1 ? crmHref(list[0].chat_state ?? 'aberto', { contato: list[0].id }) : href;
+      return (
+        <LinkCard lead={lead} href={target} active={active} drag={drag}>
+          <span className="flex flex-wrap items-center gap-2">
+            {status ? <Status tone={status.tone}>{status.label}</Status> : <span className="text-muted-foreground">{STAGE_LABEL[lead.stage]}</span>}
+            {list.length > 1 && <span className="inline-flex items-center gap-1 text-muted-foreground"><MessagesSquare className="size-3" />{plural(list.length, 'conversa', 'conversas')}</span>}
+          </span>
+        </LinkCard>
+      );
     }
     default:
-      return <LinkCard lead={lead} href={href} active={active}><span className="text-muted-foreground">{lead.exit_reason ?? STAGE_LABEL[lead.stage]}</span></LinkCard>;
+      return <LinkCard lead={lead} href={href} active={active} drag={drag}><span className="text-muted-foreground">{lead.exit_reason ?? STAGE_LABEL[lead.stage]}</span></LinkCard>;
   }
 }

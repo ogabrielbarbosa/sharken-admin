@@ -2,19 +2,19 @@
 
 import { canSetStatus, type ChatState, type Contact, type ContactStatus, type Lead } from '@lps/domain';
 import {
-  Ban, CalendarDays, Check, CircleDot, Clock3, Copy, Gauge, Handshake, History, Hourglass, Image as ImageIcon, Layers, MessageCircle, MessageSquareText,
-  Phone, Radio, Route, StickyNote, Tag, ThumbsDown, Timer, User,
+  Ban, CalendarDays, Check, CircleDot, Clock3, Copy, Gauge, Handshake, History, Image as ImageIcon, Layers, MessageCircle, MessageSquareText,
+  Phone, Plug, Route, StickyNote, Tag, ThumbsDown, Timer, User,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition, type ReactNode } from 'react';
-import { closeChatAction, reopenChatAction, saveLeadCommentAction, setStatusAction } from '@/app/painel/crm/actions';
-import { ErrorNote } from '@/components/ui';
-import { ago, crmHref, duration, STATUS_LABEL } from '@/lib/crm';
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
+import { closeChatAction, renameContactAction, reopenChatAction, saveLeadCommentAction, setStatusAction } from '@/app/painel/crm/actions';
+import { ErrorNote, type Tone } from '@/components/ui';
+import { ago, crmHref, formatPhone, STATUS_LABEL } from '@/lib/crm';
 import { Avatar } from './avatar';
 import { FollowUpBlock } from './follow-up-block';
 import { LinksBlock } from './links-block';
-import { InlineSelect, Row, Section } from './panel-parts';
+import { InlineSelect, Row, Section, Value } from './panel-parts';
 import type { ThreadMessage } from './thread';
 
 export type HistoryItem = { at: string; label: string };
@@ -36,15 +36,10 @@ const TZ = 'America/Sao_Paulo';
 const MANUAL_STATUSES: ContactStatus[] = ['novo', 'contatado', 'follow_up', 'em_conversa', 'perdido', 'nao_contatar'];
 const CHAT_LABEL: Record<ChatState, string> = { aberto: 'Aberto', pendente: 'Pendente', fechado: 'Fechado' };
 const CHAT_DOT: Record<ChatState, string> = { aberto: 'bg-success', pendente: 'bg-warning', fechado: 'bg-neutral-500' };
+const TONE_DOT: Record<Tone, string> = { neutral: 'bg-neutral-500', brand: 'bg-brand-soft', warning: 'bg-warning', success: 'bg-success', danger: 'bg-destructive' };
 
 const when = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: TZ });
 const day = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: TZ }).replace(/\./g, '');
-
-function formatPhone(e164: string): string {
-  const d = e164.replace(/\D/g, '');
-  const m = /^55(\d{2})(\d{4,5})(\d{4})$/.exec(d);
-  return m ? `+55 ${m[1]} ${m[2]}-${m[3]}` : `+${d}`;
-}
 
 function TabButton({ active, label, onClick, children, count }: { active: boolean; label: string; onClick: () => void; children: ReactNode; count?: number }) {
   return (
@@ -60,7 +55,7 @@ function LeadComment({ contactId, initial }: { contactId: string; initial: strin
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   return (
-    <div className="space-y-1 pt-1">
+    <div className="space-y-1 px-1 pt-1">
       <textarea
         aria-label="Comentário interno"
         rows={2}
@@ -72,6 +67,56 @@ function LeadComment({ contactId, initial }: { contactId: string; initial: strin
         className="w-full resize-none rounded-md border border-transparent bg-transparent px-1.5 py-1 text-[13px] outline-none placeholder:text-muted-foreground hover:border-border focus:border-input focus:bg-input-bg"
       />
       {error && <ErrorNote>{error}</ErrorNote>}
+    </div>
+  );
+}
+
+const RENAME_DEBOUNCE_MS = 500;
+
+/** Nome do contato como texto editável: salva enquanto digita, sem botão. Esc desfaz, Enter sai do campo. */
+function EditableName({ contactId, name }: { contactId: string; name: string }) {
+  const [value, setValue] = useState(name);
+  const [error, setError] = useState<string | null>(null);
+  const focused = useRef(false);
+  const saved = useRef(name);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Atualização vinda de fora (realtime) só entra quando não está digitando.
+  useEffect(() => { if (!focused.current) { setValue(name); saved.current = name; } }, [name]);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  const save = async (next: string) => {
+    const trimmed = next.trim();
+    if (!trimmed || trimmed === saved.current) return;
+    const out = await renameContactAction(contactId, trimmed);
+    if (out.ok) { saved.current = trimmed; setError(null); } else setError(out.error);
+  };
+  const schedule = (next: string) => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => void save(next), RENAME_DEBOUNCE_MS);
+  };
+
+  return (
+    <div className="min-w-0 flex-1">
+      <input
+        aria-label="Nome do contato"
+        value={value}
+        spellCheck={false}
+        onFocus={() => { focused.current = true; }}
+        onChange={(e) => { setValue(e.target.value); schedule(e.target.value); }}
+        onBlur={() => {
+          focused.current = false;
+          if (timer.current) clearTimeout(timer.current);
+          if (!value.trim()) { setValue(saved.current); return; }
+          void save(value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') { if (timer.current) clearTimeout(timer.current); setValue(saved.current); void save(saved.current); e.currentTarget.blur(); }
+        }}
+        className="w-full truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 -ml-1.5 text-sm font-semibold outline-none hover:border-border focus:border-input focus:bg-input-bg"
+      />
+      {error && <p className="px-0 text-xs text-destructive">{error}</p>}
     </div>
   );
 }
@@ -103,9 +148,9 @@ export function ContactPanel({ contact, lead, origin, flowLabel, history, closeH
     try { await navigator.clipboard.writeText(formatPhone(contact.phone_e164)); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* sem permissão */ }
   };
 
-  const statusOptions = MANUAL_STATUSES.filter((s) => s === contact.status || canSetStatus(contact.status, s)).map((s) => ({ value: s, label: STATUS_LABEL[s].label }));
-  if (contact.status === 'fechado') statusOptions.unshift({ value: 'fechado', label: STATUS_LABEL.fechado.label });
-  const chatOptions = (contact.chat_state === 'pendente' ? (['pendente', 'aberto', 'fechado'] as ChatState[]) : (['aberto', 'fechado'] as ChatState[])).map((s) => ({ value: s, label: CHAT_LABEL[s] }));
+  const statusOptions = MANUAL_STATUSES.filter((s) => s === contact.status || canSetStatus(contact.status, s)).map((s) => ({ value: s, label: STATUS_LABEL[s].label, dot: TONE_DOT[STATUS_LABEL[s].tone] }));
+  if (contact.status === 'fechado') statusOptions.unshift({ value: 'fechado', label: STATUS_LABEL.fechado.label, dot: TONE_DOT.success });
+  const chatOptions = (contact.chat_state === 'pendente' ? (['pendente', 'aberto', 'fechado'] as ChatState[]) : (['aberto', 'fechado'] as ChatState[])).map((s) => ({ value: s, label: CHAT_LABEL[s], dot: CHAT_DOT[s] }));
 
   return (
     <aside aria-label="Contato" className="flex min-h-0 flex-col border-l border-border">
@@ -121,7 +166,7 @@ export function ContactPanel({ contact, lead, origin, flowLabel, history, closeH
           <Avatar name={contact.name} src={contact.avatar_url} seed={contact.id} size={36} />
           <span className="absolute -bottom-0.5 -right-0.5 inline-flex size-4 items-center justify-center rounded-full bg-success ring-2 ring-background"><MessageCircle className="size-2.5 text-background" /></span>
         </span>
-        <p className="min-w-0 flex-1 truncate text-sm font-semibold">{contact.name}</p>
+        <EditableName key={contact.id} contactId={contact.id} name={contact.name} />
         <button type="button" onClick={() => void copy()} title="Copiar telefone" aria-label="Copiar telefone" className="cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">
           {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
         </button>
@@ -134,30 +179,33 @@ export function ContactPanel({ contact, lead, origin, flowLabel, history, closeH
           <>
             <Section title="Atendimento">
               <Row icon={<CircleDot />} label="Estado">
-                <span className="flex items-center gap-1.5"><span className={`size-1.5 shrink-0 rounded-full ${CHAT_DOT[contact.chat_state]}`} /><InlineSelect label="Estado do atendimento" value={contact.chat_state} options={chatOptions} disabled={pending} onChange={(v) => v !== contact.chat_state && changeChat(v)} /></span>
+                <InlineSelect label="Estado do atendimento" value={contact.chat_state} options={chatOptions} disabled={pending} onChange={changeChat} />
               </Row>
-              <Row icon={<Hourglass />} label={contact.chat_state === 'fechado' ? 'Fechado há' : contact.chat_state === 'pendente' ? 'Pendente há' : 'Em aberto'}>{duration(now.getTime() - new Date(contact.chat_state_at).getTime())}</Row>
               <Row icon={<Tag />} label="Status">
-                <InlineSelect label="Status comercial" value={contact.status} options={statusOptions} disabled={pending || ended || contact.status === 'fechado'} onChange={(v) => v !== contact.status && changeStatus(v)} />
+                <InlineSelect label="Status comercial" value={contact.status} options={statusOptions} disabled={pending || ended || contact.status === 'fechado'} onChange={changeStatus} />
               </Row>
-              <Row icon={<Radio />} label="Canal">WhatsApp · Evolution</Row>
-              <Row icon={<Timer />} label="1ª resposta">{firstResponse ?? '—'}</Row>
+              <Row icon={<Plug />} label="Conexão"><Value>WhatsApp · Evolution</Value></Row>
+              <Row icon={<Timer />} label="1ª resposta"><Value>{firstResponse ?? '—'}</Value></Row>
             </Section>
 
             <Section title="Contato">
-              <Row icon={<Phone />} label="Telefone"><span className="font-mono text-[12px]">{formatPhone(contact.phone_e164)}</span></Row>
+              <Row icon={<Phone />} label="Telefone"><Value mono copy={formatPhone(contact.phone_e164)}>{formatPhone(contact.phone_e164)}</Value></Row>
               <Row icon={<Layers />} label="Origem">
-                {origin.href ? <Link href={origin.href} className="flex items-center gap-1.5 hover:underline"><span className="size-1.5 shrink-0 rounded-full bg-sky-400" /><span className="truncate">{origin.label}</span></Link> : <span className="flex items-center gap-1.5"><span className="size-1.5 shrink-0 rounded-full bg-neutral-500" />{origin.label}</span>}
+                {origin.href ? (
+                  <Link href={origin.href} className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch truncate text-brand-soft hover:underline"><span className="truncate">{origin.label}</span></Link>
+                ) : (
+                  <Value>{origin.label}</Value>
+                )}
               </Row>
-              <Row icon={<CalendarDays />} label="Contato desde">{day(contact.created_at)}</Row>
-              <Row icon={<Clock3 />} label="Última interação">{ago(contact.last_message_at, now)}</Row>
+              <Row icon={<CalendarDays />} label="Contato desde"><Value>{day(contact.created_at)}</Value></Row>
+              <Row icon={<Clock3 />} label="Última interação"><Value>{ago(contact.last_message_at, now)}</Value></Row>
             </Section>
 
             {lead && (
               <Section title="Lead">
-                {flowLabel && <Row icon={<Route />} label="Fluxo">{flowLabel}</Row>}
-                {lead.score !== null && <Row icon={<Gauge />} label="Pontuação">{lead.score} / 100</Row>}
-                {lead.reason && <Row icon={<MessageSquareText />} label="Motivo"><span title={lead.reason}>{lead.reason}</span></Row>}
+                {flowLabel && <Row icon={<Route />} label="Fluxo"><Value>{flowLabel}</Value></Row>}
+                {lead.score !== null && <Row icon={<Gauge />} label="Pontuação"><Value>{lead.score} / 100</Value></Row>}
+                {lead.reason && <Row icon={<MessageSquareText />} label="Motivo"><span className="min-w-0 truncate" title={lead.reason}>{lead.reason}</span></Row>}
                 <LeadComment contactId={contact.id} initial={lead.comment ?? ''} />
               </Section>
             )}
@@ -187,7 +235,7 @@ export function ContactPanel({ contact, lead, origin, flowLabel, history, closeH
           <div className="p-4">
             {media.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma mídia nesta conversa.</p>}
             <div className="grid grid-cols-3 gap-1.5">
-              {media.filter((m) => m.kind === 'imagem' && m.mediaUrl).map((m) => (
+              {media.filter((m) => (m.kind === 'imagem' || (m.kind === 'sticker' && !m.meta?.lottie)) && m.mediaUrl).map((m) => (
                 <a key={m.id} href={m.mediaUrl!} target="_blank" rel="noreferrer" className="aspect-square overflow-hidden rounded-md bg-secondary">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={m.mediaUrl!} alt="" className="size-full object-cover" />
@@ -195,10 +243,10 @@ export function ContactPanel({ contact, lead, origin, flowLabel, history, closeH
               ))}
             </div>
             <ul className="mt-3 space-y-1">
-              {media.filter((m) => m.kind !== 'imagem').map((m) => (
+              {media.filter((m) => m.kind === 'audio' || m.kind === 'video' || m.kind === 'documento').map((m) => (
                 <li key={m.id}>
                   <a href={m.mediaUrl ?? undefined} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-accent">
-                    <span className="truncate">{{ audio: 'Áudio', video: 'Vídeo', documento: 'Documento', outro: 'Arquivo', texto: 'Arquivo', imagem: 'Imagem' }[m.kind]} · {m.direction === 'saida' ? 'enviado' : 'recebido'}</span>
+                    <span className="truncate">{m.kind === 'documento' ? (m.meta?.fileName ?? 'Documento') : m.kind === 'audio' ? 'Áudio' : 'Vídeo'} · {m.direction === 'saida' ? 'enviado' : 'recebido'}</span>
                     <span className="shrink-0 text-xs text-muted-foreground">{when(m.at)}</span>
                   </a>
                 </li>

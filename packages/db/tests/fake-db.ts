@@ -55,6 +55,7 @@ export function fakeDb(pg: PGlite): Db {
       update: (v: Record<string, unknown>) => ((s.op = 'update'), (s.values = v), b),
       eq: filter('='),
       lt: filter('<'),
+      lte: filter('<='),
       gte: filter('>='),
       in: filter('in'),
       is: filter('is'),

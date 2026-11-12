@@ -8,13 +8,14 @@ import {
   type Contact,
   type Message,
   type OutboundMedia,
+  type QuotedMessage,
   type SendKind,
   type WhatsAppProvider,
 } from '@lps/domain';
 import type { Db } from './client';
 import { getContact } from './contacts';
 import { logEvent } from './leads';
-import { insertMessage } from './messages';
+import { findByExternalId, insertMessage, messagePreview } from './messages';
 
 export const INVALID_NUMBER_MESSAGE = 'Número sem WhatsApp';
 
@@ -68,7 +69,7 @@ const isUniqueViolation = (e: { message: string; code?: string }) => e.code === 
 export async function sendMessage(
   db: Db,
   provider: Pick<WhatsAppProvider, 'sendText'> & Partial<Pick<WhatsAppProvider, 'sendMedia'>>,
-  input: { contactId: string; text: string; clientMessageId: string; media?: OutboundMedia & { path: string } },
+  input: { contactId: string; text: string; clientMessageId: string; media?: OutboundMedia & { path: string }; quotedExternalId?: string | null },
   now: Date,
 ): Promise<Message> {
   const text = input.text.trim();
@@ -93,6 +94,14 @@ export async function sendMessage(
   if (blocked) throw new Error(blocked);
   if (kind === 'bloqueado') throw new Error(FOLLOW_UP_LIMIT_MESSAGE);
 
+  // Reply: só cita mensagem desta conversa que já tem id no WhatsApp.
+  let quoted: QuotedMessage | null = null;
+  if (input.quotedExternalId) {
+    const original = await findByExternalId(db, contact.id, input.quotedExternalId);
+    if (!original || original.direction === 'nota') throw new Error('Mensagem citada não encontrada.');
+    quoted = { externalId: input.quotedExternalId, fromMe: original.direction === 'saida', text: messagePreview(original) };
+  }
+
   const pending = await insertMessage(db, {
     contact_id: contact.id,
     direction: 'saida',
@@ -106,6 +115,8 @@ export async function sendMessage(
     is_first_contact: kind === 'primeiro',
     is_follow_up: kind === 'follow_up',
     at: now.toISOString(),
+    quoted_external_id: quoted?.externalId ?? null,
+    quoted_preview: quoted?.text ?? null,
   });
   if (!pending) return (await findByClientId(db, input.clientMessageId)) ?? Promise.reject(new Error('Não foi possível registrar a mensagem.'));
 
@@ -113,9 +124,9 @@ export async function sendMessage(
   try {
     if (media) {
       if (!provider.sendMedia) throw new Error('Este provedor não envia arquivos.');
-      ({ externalId } = await provider.sendMedia({ phoneE164: contact.phone_e164, media, caption: media.kind === 'audio' ? null : text || null }));
+      ({ externalId } = await provider.sendMedia({ phoneE164: contact.phone_e164, media, caption: media.kind === 'audio' ? null : text || null, quoted }));
     } else {
-      ({ externalId } = await provider.sendText({ phoneE164: contact.phone_e164, text, clientMessageId: input.clientMessageId }));
+      ({ externalId } = await provider.sendText({ phoneE164: contact.phone_e164, text, clientMessageId: input.clientMessageId, quoted }));
     }
   } catch (err) {
     const invalid = (err as { invalidNumber?: boolean }).invalidNumber === true;
@@ -198,5 +209,5 @@ export async function retryMessage(
 ): Promise<Message> {
   const old = await getMessage(db, messageId);
   if (old.status !== 'erro' || old.direction !== 'saida' || !old.body) throw new Error('Só dá para tentar de novo uma mensagem com erro.');
-  return sendMessage(db, provider, { contactId: old.contact_id, text: old.body, clientMessageId: newClientMessageId }, now);
+  return sendMessage(db, provider, { contactId: old.contact_id, text: old.body, clientMessageId: newClientMessageId, quotedExternalId: old.quoted_external_id }, now);
 }

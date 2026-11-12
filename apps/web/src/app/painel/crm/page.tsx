@@ -22,6 +22,7 @@ import { ContactPanel, type HistoryItem } from '@/components/crm/contact-panel';
 import { Conversation } from '@/components/crm/conversation';
 import type { Template, Variable } from '@/components/crm/composer';
 import type { LegacyLine, ThreadMessage } from '@/components/crm/thread';
+import { NewContactDialog } from '@/components/crm/new-contact-dialog';
 import { CrmRealtime } from '@/components/crm/use-crm-realtime';
 import { Topbar } from '@/components/layout/topbar';
 import { authedDb } from '@/lib/auth';
@@ -67,7 +68,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
   );
   const shell = (children: React.ReactNode) => (
     <div className="flex h-[calc(100vh-1rem)] flex-col max-lg:h-screen">
-      <Topbar crumbs={[{ label: 'CRM' }]} />
+      <Topbar crumbs={[{ label: 'Atendimento' }, { label: 'Conversas' }]} actions={<NewContactDialog />} />
       <CrmRealtime contactId={selected?.id ?? null} />
       <AvatarRefresher ids={contacts.map((c) => c.id)} enabled={connection === 'conectado'} />
       <div className="grid min-h-0 flex-1 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_320px]">{children}</div>
@@ -174,6 +175,8 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           quickReplies={quickReplies}
           variables={variables}
           me={me}
+          tab={tab}
+          searching={!!search}
         />
       </div>
       <div className="hidden min-h-0 flex-col xl:flex [&>*]:min-h-0 [&>*]:flex-1">

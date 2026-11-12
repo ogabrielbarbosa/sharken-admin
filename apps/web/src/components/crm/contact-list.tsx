@@ -1,10 +1,9 @@
 import { looksLikeStopRequest, type ChatState, type Contact } from '@lps/domain';
 import type { ChatCounts } from '@lps/db';
-import { CheckCheck, Search, X } from 'lucide-react';
+import { Check, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { crmHref, isFollowUpDue, listTime } from '@/lib/crm';
 import { Avatar } from './avatar';
-import { NewContactDialog } from './new-contact-dialog';
 
 export const TABS: { key: ChatState; label: string }[] = [
   { key: 'aberto', label: 'Abertos' },
@@ -15,22 +14,11 @@ export const TABS: { key: ChatState; label: string }[] = [
 
 export type ConnectionInfo = { state: 'conectado' | 'desconectado' | 'conectando' | null; phone: string | null };
 
-function ConnectionLine({ connection }: { connection: ConnectionInfo }) {
-  if (connection.state === 'conectado') {
-    return (
-      <Link href="/painel/conexoes/whatsapp" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" title="WhatsApp conectado">
-        <span className="size-1.5 rounded-full bg-success" />{connection.phone ?? 'Conectado'}
-      </Link>
-    );
-  }
-  return null;
-}
-
 function Disconnected({ connection }: { connection: ConnectionInfo }) {
   if (connection.state === 'conectado') return null;
   const connecting = connection.state === 'conectando';
   return (
-    <Link href="/painel/conexoes/whatsapp" className={`mx-3 mb-2 flex items-center justify-between gap-2 rounded-md px-3 py-2 text-xs ${connecting ? 'bg-warning-subtle text-warning' : 'bg-destructive-subtle text-destructive'}`}>
+    <Link href="/painel/crm/conexoes" className={`mx-3 mt-3 flex items-center justify-between gap-2 rounded-md px-3 py-2 text-xs ${connecting ? 'bg-warning-subtle text-warning' : 'bg-destructive-subtle text-destructive'}`}>
       <span className="flex items-center gap-2"><span className={`size-1.5 rounded-full ${connecting ? 'bg-warning' : 'bg-destructive'}`} />{connecting ? 'WhatsApp conectando…' : 'WhatsApp desconectado'}</span>
       <span className="font-medium underline-offset-2 hover:underline">{connecting ? 'Ver' : 'Conectar'}</span>
     </Link>
@@ -43,7 +31,8 @@ function Preview({ contact, now }: { contact: Contact; now: Date }) {
   const followUp = isFollowUpDue(contact, now);
   return (
     <span className="flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground">
-      {outbound && <CheckCheck className="size-3.5 shrink-0 text-sky-400" aria-label="Você" />}
+      {/* Só indica que a última foi sua: a lista não sabe o status dela, e não há leitura. */}
+      {outbound && <Check className="size-3.5 shrink-0 text-muted-foreground" aria-label="Você enviou" />}
       {stop && <span className="shrink-0 rounded-sm bg-destructive-subtle px-1 text-[10px] font-medium text-destructive">Pediu para parar</span>}
       {followUp && !stop && <span className="shrink-0 rounded-sm bg-warning-subtle px-1 text-[10px] font-medium text-warning">Follow-up</span>}
       <span className={`truncate ${contact.unread_count ? 'text-foreground' : ''}`}>{contact.last_message_preview ?? (contact.status === 'novo' ? 'Pronto para o primeiro contato' : 'Sem mensagens')}</span>
@@ -62,16 +51,9 @@ export function ContactList({ contacts, counts, tab, selectedId, search, now, co
 }) {
   return (
     <section aria-label="Conversas" className="flex min-h-0 flex-col border-r border-border">
-      <div className="flex items-center justify-between gap-2 px-4 pb-3 pt-4">
-        <div className="min-w-0">
-          <h1 className="text-base font-semibold leading-tight">Conversas</h1>
-          <ConnectionLine connection={connection} />
-        </div>
-        <NewContactDialog />
-      </div>
       <Disconnected connection={connection} />
 
-      <form action="/painel/crm" className="relative mx-3 mb-3">
+      <form action="/painel/crm" className="relative mx-3 mb-3 mt-3">
         <input type="hidden" name="aba" value={tab} />
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <input name="q" defaultValue={search} placeholder="Buscar nome ou telefone" aria-label="Buscar nome ou telefone" className="h-9 w-full rounded-lg border border-transparent bg-secondary pl-9 pr-8 text-sm outline-none placeholder:text-muted-foreground focus:border-neutral-500" />

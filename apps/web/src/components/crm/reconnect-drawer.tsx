@@ -46,7 +46,7 @@ export function ReconnectDrawer({ closeHref, fetchQr = connectionQrAction, pollM
   return (
     <Drawer title="Conectar o WhatsApp" closeHref={closeHref}>
       <div className="flex flex-1 flex-col gap-4">
-        <p className="text-sm text-muted-foreground">Abra o WhatsApp no celular do número de prospecção › Aparelhos conectados › Conectar aparelho e leia o código.</p>
+        <p className="text-sm text-muted-foreground">Abra o WhatsApp no celular › Aparelhos conectados › Conectar aparelho e leia o código.</p>
         <div className="flex min-h-64 items-center justify-center rounded-md border border-border bg-white p-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {src ? <img src={src} alt="Código QR para conectar o WhatsApp" className="size-64" /> : <span className="text-sm text-neutral-500">{loading ? 'Buscando o código…' : ''}</span>}

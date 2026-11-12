@@ -4,7 +4,7 @@ import { ArrowRight, BadgeDollarSign, Eye, Hourglass, MessageSquareReply, Send, 
 import Link from 'next/link';
 import { Topbar } from '@/components/layout/topbar';
 import { DailyBars, Donut, Funnel } from '@/components/overview/charts';
-import { Card, EmptyState, Table, Toolbar } from '@/components/ui';
+import { Card, EmptyState, Table } from '@/components/ui';
 import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
 import { authedDb } from '@/lib/auth';
 import { startOfTodayBrazil } from '@/lib/dates';
@@ -79,19 +79,21 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <Topbar crumbs={[{ label: 'Overview' }]} />
+      <Topbar
+        crumbs={[{ label: 'Overview' }]}
+        actions={
+          <form className="flex gap-2">
+            <AutoSubmitSelect name="local" defaultValue={local ?? ''} aria-label="Localização" className="w-32 sm:w-48">
+              <option value="">Localização: Todas</option>
+              {locations.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </AutoSubmitSelect>
+            <AutoSubmitSelect name="dias" defaultValue={String(period)} aria-label="Período" className="w-32 sm:w-44">
+              {PERIODS.map((p) => <option key={p} value={p}>Últimos {p} dias</option>)}
+            </AutoSubmitSelect>
+          </form>
+        }
+      />
       <main className="space-y-4 p-4 lg:p-6">
-        <Toolbar>
-            <form className="flex flex-wrap gap-2">
-              <AutoSubmitSelect name="local" defaultValue={local ?? ''} aria-label="Localização" className="w-48">
-                <option value="">Localização: Todas</option>
-                {locations.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-              </AutoSubmitSelect>
-              <AutoSubmitSelect name="dias" defaultValue={String(period)} aria-label="Período" className="w-44">
-                {PERIODS.map((p) => <option key={p} value={p}>Últimos {p} dias</option>)}
-              </AutoSubmitSelect>
-            </form>
-        </Toolbar>
         <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
           <Kpi icon={Send} label="Contatos" value={t.contacts} note={delta(t.contacts, before.contacts)} up={t.contacts > before.contacts} />
           <Kpi icon={Eye} label="Taxa de abertura" value={`${pct(t.opens, t.contacts)}%`} note={delta(pct(t.opens, t.contacts), pct(before.opens, before.contacts), ' pp')} up={pct(t.opens, t.contacts) > pct(before.opens, before.contacts)} />

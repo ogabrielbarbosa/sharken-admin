@@ -44,7 +44,7 @@ export type Message = {
   /** `nota` é interna: aparece só no painel. */
   direction: 'entrada' | 'saida' | 'nota';
   sent_from: 'painel' | 'celular' | null;
-  kind: 'texto' | 'imagem' | 'audio' | 'video' | 'documento' | 'outro';
+  kind: MessageKind;
   body: string | null;
   media_path: string | null;
   media_mime: string | null;
@@ -55,7 +55,64 @@ export type Message = {
   is_first_contact: boolean;
   is_follow_up: boolean;
   at: string;
+  /** Reply: id no WhatsApp da mensagem citada e um trecho dela. */
+  quoted_external_id: string | null;
+  quoted_preview: string | null;
+  /** Detalhes de cada tipo (duração do áudio, nome do arquivo, coordenadas...). */
+  meta: MessageMeta;
+  reactions: MessageReaction[];
+  edited_at: string | null;
+  /** Apagada para todos no WhatsApp. O conteúdo continua guardado, só para o painel. */
+  deleted_at: string | null;
 };
+
+export type MessageKind = 'texto' | 'imagem' | 'audio' | 'video' | 'documento' | 'sticker' | 'localizacao' | 'contato' | 'enquete' | 'outro';
+
+export type MessageButton = { label: string; url?: string | null };
+export type SharedContact = { name: string; phones: string[] };
+
+/** Tudo opcional: cada tipo usa o que precisa. Mensagens antigas têm meta vazio. */
+export type MessageMeta = {
+  /** Áudio e vídeo, em segundos. */
+  seconds?: number;
+  /** Áudio gravado na hora (mensagem de voz) e não um arquivo de áudio encaminhado. */
+  ptt?: boolean;
+  /** Forma de onda do áudio, 0 a 100 (vem do WhatsApp em 64 amostras). */
+  waveform?: number[];
+  /** Vídeo redondo (recado de vídeo). */
+  round?: boolean;
+  /** Vídeo curto que toca em loop, sem som. */
+  gif?: boolean;
+  width?: number;
+  height?: number;
+  fileName?: string;
+  /** Em bytes. */
+  size?: number;
+  pages?: number;
+  animated?: boolean;
+  /** Figurinha Lottie: o navegador não desenha, aparece como figurinha animada. */
+  lottie?: boolean;
+  viewOnce?: boolean;
+  forwarded?: boolean;
+  location?: { lat: number; lng: number; name?: string | null; address?: string | null; url?: string | null; live?: boolean };
+  contacts?: SharedContact[];
+  /** votes: as opções escolhidas por cada lado (eu e o contato). */
+  poll?: { name: string; options: string[]; multiple: boolean; votes?: Partial<Record<'eu' | 'contato', string[]>> };
+  /** Botões de mensagens de empresa (modelo, interativa, lista). Só aparecem, não são clicáveis no WhatsApp de quem recebe pelo painel. */
+  buttons?: MessageButton[];
+  title?: string | null;
+  footer?: string | null;
+  /** Convite de grupo e evento: o que aparece no cartão. */
+  invite?: { group: string };
+  event?: { name: string; description?: string | null; startsAt?: string | null };
+  /** Tipo que o painel ainda não sabe mostrar (nome do WhatsApp, ex.: "callLogMesssage"). */
+  unsupported?: string;
+  /** Texto antes da edição. */
+  original_body?: string | null;
+};
+
+/** `from`: quem reagiu. Reação vazia remove. */
+export type MessageReaction = { from: 'eu' | 'contato'; emoji: string; at: string };
 
 const FOLLOW_UP_MS = 3 * 24 * 3600_000;
 

@@ -1,4 +1,4 @@
-import { storeMessageMedia } from '@lps/db';
+import { getActiveInstance, storeMessageMedia } from '@lps/db';
 import { getWhatsAppProvider } from '@lps/integrations';
 import { JobFailure, type Handler } from './types';
 
@@ -10,7 +10,7 @@ export const downloadMediaJob: Handler = async (db, job) => {
   if (!message || message.media_path) return;
   if (!message.external_id) throw new JobFailure('Mensagem sem id do WhatsApp.');
 
-  const file = await getWhatsAppProvider().downloadMedia(message.external_id);
+  const file = await getWhatsAppProvider(process.env, await getActiveInstance(db)).downloadMedia(message.external_id);
   if (!file) throw new JobFailure('A Evolution não devolveu o arquivo.');
   await storeMessageMedia(db, message, file.base64, file.mime ?? job.payload.mime ?? message.media_mime);
 };

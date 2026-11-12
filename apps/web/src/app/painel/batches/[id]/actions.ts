@@ -1,10 +1,10 @@
 'use server';
 
 import {
-  addAsset, completeInfo, deleteAsset, enqueueJob, getAsset, getLead, listAssets, moveLead, qualifyLeads,
+  addAsset, addContactToLead, completeInfo, deleteAsset, enqueueJob, getAsset, getLead, listAssets, moveLead, qualifyLeads,
   savePageUrl, saveLoomUrl, STALE, stepBack, updateAsset, updateLead, type Db, type PipelineResult,
 } from '@lps/db';
-import { canTransition, isAcceptedMime, MAX_ASSET_BYTES, normalizeLinkUrl, sanitizeFileName, type Lead } from '@lps/domain';
+import { canTransition, isAcceptedMime, toMobileE164, MAX_ASSET_BYTES, normalizeLinkUrl, sanitizeFileName, type Lead } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
 import { authedDb } from '@/lib/auth';
 
@@ -151,4 +151,22 @@ export async function saveLeadFieldAction(leadId: string, field: 'reason' | 'com
   await updateLead(db, leadId, { [field]: value });
   refresh();
   return {};
+}
+
+// ── Contatos do lead ────────────────────────────────────────────────────
+
+/** Mais um número do mesmo negócio: vira outra conversa no CRM, ligada a este lead. */
+export async function addLeadContactAction(leadId: string, name: string, phone: string): Promise<{ ok: true; contactId: string } | { ok: false; error: string }> {
+  const db = await authedDb();
+  const cleanName = name.trim();
+  if (!cleanName) return { ok: false, error: 'Informe o nome.' };
+  const mobile = toMobileE164(phone);
+  if (!mobile) return { ok: false, error: 'Informe um celular válido, com DDD.' };
+  try {
+    const contact = await addContactToLead(db, leadId, { name: cleanName, phone_e164: mobile });
+    refresh();
+    return { ok: true, contactId: contact.id };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Não foi possível adicionar o número.' };
+  }
 }

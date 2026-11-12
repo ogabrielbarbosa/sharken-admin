@@ -1,8 +1,9 @@
 'use client';
 
-import { Loader2, MessageSquarePlus, X } from 'lucide-react';
+import { Loader2, Plus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import { createContactAction } from '@/app/painel/crm/actions';
 import { Button, ErrorNote } from '@/components/ui';
 
@@ -52,16 +53,9 @@ export function NewContactDialog() {
   const digits = phone.replace(/\D/g, '');
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        title="Nova conversa"
-        aria-label="Nova conversa"
-        className="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-      >
-        <MessageSquarePlus className="size-5" />
-      </button>
-      {open && (
+      <Button onClick={() => setOpen(true)}><Plus /><span className="max-sm:sr-only">Novo contato</span></Button>
+      {/* No body: o header tem backdrop-blur, que prenderia o fixed dentro dele. */}
+      {open && createPortal(
         <div role="dialog" aria-modal="true" aria-labelledby="novo-contato-titulo" className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button type="button" aria-label="Fechar" onClick={close} className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-[2px]" />
           <form onSubmit={submit} className="relative w-full max-w-sm overflow-hidden rounded-card border border-border bg-card shadow-2xl">
@@ -91,7 +85,8 @@ export function NewContactDialog() {
               <Button type="submit" disabled={pending || !name.trim() || digits.length < 10}>{pending ? <Loader2 className="animate-spin" /> : null}{pending ? 'Criando…' : 'Criar e abrir'}</Button>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

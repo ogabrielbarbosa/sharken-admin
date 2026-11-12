@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, FileText, Image as ImageIcon, Lock, Mic, Paperclip, PenLine, Send, Smile, Square, StickyNote, Trash2, X } from 'lucide-react';
+import { ChevronDown, FileText, Image as ImageIcon, Loader2, Lock, LockOpen, Mic, Paperclip, PenLine, Reply, Send, Smile, Square, StickyNote, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ErrorNote } from '@/components/ui';
 
@@ -25,6 +25,14 @@ type Props = {
   onSendMedia: (file: File, caption: string, asAudio: boolean, clientMessageId: string) => Promise<void>;
   onNote: (text: string) => Promise<boolean>;
   onAfterSendClose: () => Promise<void>;
+  /** Mensagem sendo respondida (aparece numa faixa em cima do campo). */
+  replyTo: { author: string; text: string } | null;
+  onCancelReply: () => void;
+  /** Atendimento fechado: o campo fica coberto até abrir o atendimento. */
+  closed: boolean;
+  onReopen: () => Promise<void>;
+  /** Arquivo solto em cima da conversa; `n` muda a cada soltura. */
+  droppedFile: { file: File; n: number } | null;
 };
 
 const EMOJIS = ['😀', '😁', '😂', '😊', '😉', '😍', '🤩', '😎', '🤔', '😅', '🙏', '👍', '👏', '🙌', '💪', '🤝', '👋', '👀', '✅', '❌', '⚠️', '🔥', '🚀', '💡', '🎉', '❤️', '💬', '📞', '📍', '📅', '⏰', '💰', '📈', '⭐', '✨', '😉'];
@@ -44,7 +52,7 @@ function ToolButton({ label, onClick, active, disabled, children }: { label: str
       aria-pressed={active}
       disabled={disabled}
       onClick={onClick}
-      className={`inline-flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-40 [&_svg]:size-[18px] ${active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}
+      className={`press inline-flex size-9 cursor-pointer items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-40 [&_svg]:size-5 ${active ? 'bg-accent text-foreground' : 'text-neutral-300 hover:bg-accent hover:text-foreground'}`}
     >
       {children}
     </button>
@@ -77,6 +85,8 @@ export function Composer(props: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const busy = useRef(false);
   const root = useRef<HTMLDivElement>(null);
+  const [reopening, setReopening] = useState(false);
+  const { replyTo, onCancelReply, closed, droppedFile } = props;
 
   useEffect(() => {
     if (!menu) return;
@@ -89,6 +99,22 @@ export function Composer(props: Props) {
 
   const note = mode === 'nota';
   const blocked = !note && !!blockReason;
+  const canAttach = !note && !blocked && !closed;
+
+  // Arquivo solto em cima da conversa vira anexo.
+  useEffect(() => {
+    if (!droppedFile) return;
+    if (canAttach) setFile(droppedFile.file);
+    else setError(note ? 'Notas não levam arquivo. Troque para Mensagem.' : 'Não dá para enviar arquivo agora.');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage a uma soltura nova
+  }, [droppedFile]);
+  // Escolheu responder: o cursor vai para o campo.
+  useEffect(() => {
+    if (!replyTo) return;
+    if (note) setMode('mensagem');
+    area.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao escolher a mensagem
+  }, [replyTo]);
 
   useEffect(() => {
     try { setSignature(localStorage.getItem(SIGNATURE_KEY) === '1'); } catch { /* sem storage */ }
@@ -146,7 +172,7 @@ export function Composer(props: Props) {
   async function submit(andClose = false) {
     setMenu(null);
     const body = text.trim();
-    if (busy.current) return;
+    if (busy.current || closed) return;
     if (note) {
       if (!body) return;
       busy.current = true;
@@ -205,7 +231,7 @@ export function Composer(props: Props) {
     recorder.current = null;
   };
 
-  const canSend = note ? !!text.trim() : !blocked && (!!text.trim() || !!file);
+  const canSend = !closed && (note ? !!text.trim() : !blocked && (!!text.trim() || !!file));
 
   return (
     <div className="px-4 pb-4 pt-1">
@@ -224,14 +250,26 @@ export function Composer(props: Props) {
           ) : (
             <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
               Enviando de <span className="font-medium text-foreground">{senderPhone ?? 'WhatsApp'}</span>
-              <Lock className="size-3" aria-label="Número de prospecção" />
+              <Lock className="size-3" aria-label="Número conectado" />
             </span>
           )}
         </div>
 
+        {/* Respondendo a uma mensagem */}
+        {replyTo && !note && (
+          <div className="mx-3 mt-3 flex animate-slide-up items-center gap-3 rounded-lg border-l-[3px] border-brand-soft bg-background/60 py-2 pl-3 pr-2">
+            <Reply className="size-4 shrink-0 text-brand-soft" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-brand-soft">Respondendo a {replyTo.author}</p>
+              <p className="truncate text-xs text-muted-foreground">{replyTo.text}</p>
+            </div>
+            <button type="button" aria-label="Cancelar resposta" onClick={onCancelReply} className="cursor-pointer rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><X className="size-4" /></button>
+          </div>
+        )}
+
         {/* Anexo escolhido */}
         {file && !note && (
-          <div className="mx-3 mt-3 flex items-center gap-3 rounded-lg border border-border bg-background/60 p-2">
+          <div className="mx-3 mt-3 flex animate-slide-up items-center gap-3 rounded-lg border border-border bg-background/60 p-2">
             {preview ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={preview} alt="" className="size-12 rounded-md object-cover" />
@@ -274,11 +312,20 @@ export function Composer(props: Props) {
               ref={area}
               aria-label={note ? 'Nota interna' : 'Mensagem'}
               rows={2}
-              disabled={blocked}
+              disabled={blocked || closed}
               value={text}
               placeholder={note ? 'Escreva uma nota interna. Só você vê.' : blocked ? '' : "'/' resposta rápida · '$' variável"}
               onChange={(e) => { setText(e.target.value); setCaret(e.target.selectionStart); }}
               onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
+              onPaste={(e) => {
+                // Print ou imagem copiada: vira anexo, e o texto escrito vai como legenda.
+                const pasted = Array.from(e.clipboardData.files)[0];
+                if (!pasted) return;
+                e.preventDefault();
+                if (!canAttach) { setError(note ? 'Notas não levam imagem. Troque para Mensagem.' : 'Não dá para enviar arquivo agora.'); return; }
+                const ext = pasted.type.split('/')[1]?.replace(/[^a-z0-9]/g, '') || 'bin';
+                setFile(pasted.name && pasted.name !== 'image.png' ? pasted : new File([pasted], `colado-${Date.now()}.${ext}`, { type: pasted.type }));
+              }}
               onKeyDown={(e) => {
                 if (suggestions.length) {
                   if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight((h) => (h + 1) % suggestions.length); return; }
@@ -286,6 +333,7 @@ export function Composer(props: Props) {
                   if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); suggestions[highlight]?.apply(); return; }
                   if (e.key === 'Escape') { e.preventDefault(); setText(text.replace(/^\//, '')); return; }
                 }
+                if (e.key === 'Escape' && replyTo) { e.preventDefault(); onCancelReply(); return; }
                 if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   void submit();
@@ -307,9 +355,9 @@ export function Composer(props: Props) {
             ) : (
               <>
                 <ToolButton label="Emoji" active={menu === 'emoji'} onClick={() => setMenu(menu === 'emoji' ? null : 'emoji')}><Smile /></ToolButton>
-                <ToolButton label="Imagem ou vídeo" disabled={note || blocked} onClick={() => imageInput.current?.click()}><ImageIcon /></ToolButton>
-                <ToolButton label="Anexar arquivo" disabled={note || blocked} onClick={() => fileInput.current?.click()}><Paperclip /></ToolButton>
-                <ToolButton label="Gravar áudio" disabled={note || blocked || !!file} onClick={() => void startRecording()}><Mic /></ToolButton>
+                <ToolButton label="Imagem ou vídeo" disabled={!canAttach} onClick={() => imageInput.current?.click()}><ImageIcon /></ToolButton>
+                <ToolButton label="Anexar arquivo (ou cole / arraste)" disabled={!canAttach} onClick={() => fileInput.current?.click()}><Paperclip /></ToolButton>
+                <ToolButton label="Gravar áudio" disabled={!canAttach || !!file} onClick={() => void startRecording()}><Mic /></ToolButton>
                 <ToolButton label="Mensagens prontas" disabled={note || blocked} active={menu === 'prontas'} onClick={() => setMenu(menu === 'prontas' ? null : 'prontas')}><FileText /></ToolButton>
                 <span className="mx-1 h-5 w-px bg-border" />
                 <ToolButton
@@ -358,12 +406,12 @@ export function Composer(props: Props) {
                   <StickyNote className="size-4" />Salvar nota
                 </button>
               ) : (
-                <div className={`inline-flex h-9 items-stretch overflow-hidden rounded-lg bg-secondary ${canSend ? '' : 'opacity-50'}`}>
-                  <button type="button" disabled={!canSend} onClick={() => void submit()} className="inline-flex cursor-pointer items-center gap-2 px-4 text-sm font-medium hover:bg-neutral-700 disabled:cursor-not-allowed">
+                <div className={`inline-flex h-9 items-stretch overflow-hidden rounded-lg transition-[background-color,opacity] duration-200 ${canSend ? 'bg-brand text-white' : 'bg-secondary opacity-50'}`}>
+                  <button type="button" disabled={!canSend} onClick={() => void submit()} className="press inline-flex cursor-pointer items-center gap-2 px-4 text-sm font-medium hover:bg-white/10 disabled:cursor-not-allowed [&:active:not(:disabled)_svg]:translate-x-0.5 [&:active:not(:disabled)_svg]:-translate-y-0.5 [&_svg]:transition-transform">
                     <Send className="size-4" />Enviar
                   </button>
                   <span className="my-2 w-px bg-border" />
-                  <button type="button" aria-label="Mais opções de envio" disabled={!canSend} onClick={() => setMenu(menu === 'enviar' ? null : 'enviar')} className="inline-flex cursor-pointer items-center px-2 hover:bg-neutral-700 disabled:cursor-not-allowed">
+                  <button type="button" aria-label="Mais opções de envio" disabled={!canSend} onClick={() => setMenu(menu === 'enviar' ? null : 'enviar')} className="inline-flex cursor-pointer items-center px-2 hover:bg-white/10 disabled:cursor-not-allowed">
                     <ChevronDown className="size-4" />
                   </button>
                 </div>
@@ -377,6 +425,21 @@ export function Composer(props: Props) {
             </div>
           )}
         </div>
+
+        {/* Atendimento fechado: nada sai até abrir de novo (como no LíderHub). */}
+        {closed && (
+          <div className="absolute inset-0 z-40 flex animate-overlay-in items-center justify-between gap-3 rounded-xl bg-background/80 px-4 backdrop-blur-sm">
+            <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"><Lock className="size-4 shrink-0" />Atendimento fechado. Abra para enviar mensagens.</span>
+            <button
+              type="button"
+              disabled={reopening}
+              onClick={async () => { setReopening(true); try { await props.onReopen(); } finally { setReopening(false); } }}
+              className="press inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-brand px-4 text-sm font-medium text-white hover:bg-brand-bright disabled:cursor-wait disabled:opacity-70"
+            >
+              {reopening ? <Loader2 className="size-4 animate-spin" /> : <LockOpen className="size-4" />}Abrir atendimento
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

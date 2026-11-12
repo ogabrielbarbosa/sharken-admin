@@ -9,7 +9,7 @@ const provider = createEvolutionProvider({ baseUrl: 'https://evo.test/', apiKey:
 describe('normalize', () => {
   it('texto recebido', () => {
     expect(provider.normalize(fx('text-inbound'))).toEqual([
-      { kind: 'message', externalId: '3EB0A1B2C3D4E5F60001', phoneE164: '5519981342207', lid: null, pushName: 'Marcos', fromMe: false, text: 'Oi, tenho interesse', media: null, at: new Date(1762876800 * 1000) },
+      { kind: 'message', externalId: '3EB0A1B2C3D4E5F60001', phoneE164: '5519981342207', lid: null, pushName: 'Marcos', fromMe: false, text: 'Oi, tenho interesse', media: null, type: 'texto', meta: {}, at: new Date(1762876800 * 1000) },
     ]);
   });
   it('texto estendido', () => {
@@ -120,5 +120,76 @@ describe('getWhatsAppProvider', () => {
   it('falha só no uso quando falta configuração', () => {
     expect(() => getWhatsAppProvider({})).toThrow(/EVOLUTION_URL/);
     expect(getWhatsAppProvider({ EVOLUTION_URL: 'https://e', EVOLUTION_API_KEY: 'k', EVOLUTION_INSTANCE: 'i' })).toBeDefined();
+  });
+});
+
+describe('recentMessages', () => {
+  const rec = (id: string, ts: number, jid = '5519981342207@s.whatsapp.net') => ({ key: { id, remoteJid: jid, fromMe: false }, pushName: 'Marcos', message: { conversation: id }, messageTimestamp: ts });
+  const page = (records: object[]) => new Response(JSON.stringify({ messages: { records } }), { status: 200 });
+
+  it('pagina da mais nova para a mais antiga, para no corte, ignora grupo e devolve em ordem cronológica', async () => {
+    const full = Array.from({ length: 200 }, (_, i) => rec(`n${i}`, 2000 - i));
+    const fetchFn = vi.fn()
+      .mockResolvedValueOnce(page(full))
+      .mockResolvedValueOnce(page([rec('a', 1500), rec('g', 1400, '123@g.us'), rec('velha', 900)]));
+    const p = createEvolutionProvider({ baseUrl: 'https://evo.test', apiKey: 'k', instance: 'demo', fetch: fetchFn });
+    const out = await p.recentMessages(new Date(1000 * 1000));
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(out).toHaveLength(201);
+    expect(out[0]).toMatchObject({ kind: 'message', externalId: 'a' });
+    expect(out.at(-1)).toMatchObject({ kind: 'message', externalId: 'n0' });
+    expect(JSON.parse(fetchFn.mock.calls[1]![1].body)).toMatchObject({ offset: 200, page: 2 });
+  });
+});
+
+describe('reply', () => {
+  const ok = () => vi.fn().mockImplementation(async () => new Response(JSON.stringify(fx('send-ok')), { status: 201 }));
+  const quoted = { externalId: '3EB0QUOTED', fromMe: false, text: 'Quanto custa?' };
+
+  it('sendText cita a mensagem com key e texto', async () => {
+    const f = ok();
+    const p = createEvolutionProvider({ baseUrl: 'https://evo.test', apiKey: 'k', instance: 'demo', fetch: f });
+    await p.sendText({ phoneE164: '5519981342207', text: 'R$ 500', clientMessageId: 'c1', quoted });
+    expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({
+      number: '5519981342207',
+      text: 'R$ 500',
+      quoted: { key: { id: '3EB0QUOTED', remoteJid: '5519981342207@s.whatsapp.net', fromMe: false }, message: { conversation: 'Quanto custa?' } },
+    });
+  });
+
+  it('sendMedia e áudio também levam a citação', async () => {
+    const f = ok();
+    const p = createEvolutionProvider({ baseUrl: 'https://evo.test', apiKey: 'k', instance: 'demo', fetch: f });
+    await p.sendMedia({ phoneE164: '5519981342207', media: { kind: 'imagem', mime: 'image/png', base64: 'AAA', fileName: 'a.png' }, caption: 'olha', quoted: { ...quoted, fromMe: true } });
+    await p.sendMedia({ phoneE164: '5519981342207', media: { kind: 'audio', mime: 'audio/ogg', base64: 'BBB', fileName: 'a.ogg' }, caption: null, quoted });
+    expect(JSON.parse(f.mock.calls[0][1].body).quoted).toEqual({ key: { id: '3EB0QUOTED', remoteJid: '5519981342207@s.whatsapp.net', fromMe: true }, message: { conversation: 'Quanto custa?' } });
+    expect(JSON.parse(f.mock.calls[1][1].body).quoted.key.id).toBe('3EB0QUOTED');
+  });
+
+  it('sem citação o corpo não muda', async () => {
+    const f = ok();
+    const p = createEvolutionProvider({ baseUrl: 'https://evo.test', apiKey: 'k', instance: 'demo', fetch: f });
+    await p.sendText({ phoneE164: '5519981342207', text: 'Oi', clientMessageId: 'c1', quoted: null });
+    expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({ number: '5519981342207', text: 'Oi' });
+  });
+
+  const provider = createEvolutionProvider({ baseUrl: 'https://evo.test', apiKey: 'k', instance: 'demo' });
+  const upsert = (data: object) => ({ event: 'messages.upsert', data: { key: { remoteJid: '5519981342207@s.whatsapp.net', fromMe: false, id: 'NEW1' }, messageTimestamp: 1762771000, ...data } });
+
+  it('lê a citação do contextInfo no nível da mensagem (formato normalizado da Evolution)', () => {
+    const [e] = provider.normalize(upsert({ message: { conversation: 'Pode mandar de novo?' }, contextInfo: { stanzaId: '3EB0ORIG', quotedMessage: { conversation: 'Segue a página' } } }));
+    expect(e).toMatchObject({ kind: 'message', text: 'Pode mandar de novo?', quoted: { externalId: '3EB0ORIG', text: 'Segue a página' } });
+  });
+
+  it('lê a citação de dentro do extendedTextMessage e de mídia citada', () => {
+    const [a] = provider.normalize(upsert({ message: { extendedTextMessage: { text: 'Essa?', contextInfo: { stanzaId: 'Q2', quotedMessage: { imageMessage: { caption: 'cardápio' } } } } } }));
+    expect(a).toMatchObject({ text: 'Essa?', quoted: { externalId: 'Q2', text: 'cardápio' } });
+    const [b] = provider.normalize(upsert({ message: { imageMessage: { mimetype: 'image/jpeg', contextInfo: { stanzaId: 'Q3', quotedMessage: { audioMessage: {} } } } } }));
+    expect(b).toMatchObject({ quoted: { externalId: 'Q3', text: '🎤 Áudio' } });
+  });
+
+  it('mensagem sem citação não ganha o campo', () => {
+    const [e] = provider.normalize(upsert({ message: { conversation: 'Oi' } }));
+    expect(e).not.toHaveProperty('quoted');
   });
 });

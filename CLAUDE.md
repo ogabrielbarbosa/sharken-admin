@@ -19,6 +19,7 @@ Sistema de um único usuário para encontrar negócios locais, montar uma págin
 - **Configuração:** mensagens e prompts de análise e de sugestão de resposta ficam em arquivos do projeto (`packages/config`), sem tela.
 - **Primeiro contato:** WhatsApp pela Evolution API (não oficial), com uma instância própria para o número de prospecção. O Gabriel conversa no CRM do app; cada mensagem sai de um clique dele, um contato por vez. Identificação clara, no máximo um follow-up para quem nunca respondeu (o agendado só avisa) e parar assim que a pessoa pedir.
 - **Modo de operação:** human in the loop. A IA propõe e o Gabriel aprova ou reprova.
+- **Contatos do lead:** um lead pode ter vários contatos (números), cada um com sua conversa no CRM; um contato tem no máximo um lead. No quadro, o card de Pronto para abordar abre direto a conversa quando o lead tem um contato só; com vários (ou nenhum), abre a lista de conversas, onde dá para adicionar número. Um número perdido só tira o lead quando nenhum outro segue ativo; Não contatar vale para o negócio todo.
 - **Clientes:** um cliente tem vários serviços, com contrato pelo ZapSign e cobrança pelo Asaas. O CRM tem o botão "Fechar negócio" que leva ao contrato.
 - **Stack:** TypeScript, Next.js na Vercel, Supabase, Apify, API do Claude (só análise de leads e sugestão de resposta), Evolution API, ZapSign, Asaas.
 
@@ -28,7 +29,7 @@ Sistema de um único usuário para encontrar negócios locais, montar uma págin
 - Os termos do WhatsApp proíbem mensagens em massa e automáticas não autorizadas.
 - Não construir envio em massa nem automático, nem rotação de números para evitar bloqueio. Uma mensagem por clique, um contato por vez, no máximo um follow-up para quem nunca respondeu, e parar assim que a pessoa pedir.
 - O provedor fica atrás de uma interface (`packages/integrations/src/whatsapp/`), para trocar depois pela API oficial.
-- Evolution API v2.3.7 (última estável em 2026-11-11). No local roda no Docker (`pnpm evolution:up`, `infra/evolution/`); referência em `docs/evolution-api/`. A conexão do celular fica em Conexões › WhatsApp.
+- Evolution API v2.3.7 (última estável em 2026-11-11). No local roda no Docker (`pnpm evolution:up`, `infra/evolution/`); referência em `docs/evolution-api/`. A conexão do celular fica em Atendimento › Conexões.
 - CRM: o atendimento tem três estados, separados do status comercial: aberto, pendente (mensagem recebida num atendimento fechado, ou número novo) e fechado. Abrir um pendente o passa para aberto.
 
 ## Em aberto

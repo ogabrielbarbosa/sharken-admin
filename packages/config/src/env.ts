@@ -37,11 +37,25 @@ export function webhookBaseUrl(env: Pick<Env, 'APP_URL' | 'WEBHOOK_BASE_URL'>): 
   return env.WEBHOOK_BASE_URL ?? env.APP_URL;
 }
 
-/** Endereço que a Evolution usa para chamar o painel. No local, a Evolution roda no Docker e chama host.docker.internal. */
+/** localhost, 127.0.0.1, 0.0.0.0 ou host.docker.internal: só alcançável de dentro desta máquina. */
+export function isLocalUrl(url: string): boolean {
+  try {
+    return ['localhost', '127.0.0.1', '0.0.0.0', 'host.docker.internal', '[::1]'].includes(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Endereço que a Evolution usa para chamar o painel. No local, a Evolution do Docker chama host.docker.internal.
+ * Devolve null quando a Evolution é remota e o endereço seria local: ela não alcança o Mac, e registrar
+ * esse endereço derrubaria o túnel que o `pnpm local` apontou (é ele quem cuida do webhook nesse caso).
+ */
 export function whatsappWebhookUrl(env: Pick<Env, 'APP_URL' | 'WEBHOOK_BASE_URL'>, source: Source = process.env): string | null {
   const secret = source.WHATSAPP_WEBHOOK_SECRET;
   if (!secret) return null;
   const base = (source.WHATSAPP_WEBHOOK_BASE_URL || webhookBaseUrl(env)).replace(/\/+$/, '');
+  if (isLocalUrl(base) && source.EVOLUTION_URL && !isLocalUrl(source.EVOLUTION_URL)) return null;
   return `${base}/api/webhooks/whatsapp?token=${secret}`;
 }
 

@@ -109,6 +109,7 @@ export function eventLabel(e: CrmEvent): string | null {
     case 'pagamento_recebido': return 'Pagamento recebido';
     case 'contato_criado': return 'Contato criado';
     case 'contato_ligado': return e.data.vinculado === false ? null : 'Contato ligado ao lead';
+    case 'contato_desligado': return 'Contato desligado do lead';
   }
   if (e.type.startsWith('contato_')) {
     const status = STATUS_LABEL[e.type.slice(8) as ContactStatus];
@@ -136,4 +137,11 @@ export function ago(iso: string | null, now: Date): string {
   if (h < 24) return `há ${h} hora${h === 1 ? '' : 's'}`;
   const d = Math.floor(h / 24);
   return `há ${d} dia${d === 1 ? '' : 's'}`;
+}
+
+/** +55 11 98765-4321 */
+export function formatPhone(e164: string): string {
+  const d = e164.replace(/\D/g, '');
+  const m = /^55(\d{2})(\d{4,5})(\d{4})$/.exec(d);
+  return m ? `+55 ${m[1]} ${m[2]}-${m[3]}` : `+${d}`;
 }

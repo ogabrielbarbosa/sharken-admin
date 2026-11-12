@@ -1,11 +1,11 @@
 'use client';
 
 import type { PipelineResult } from '@lps/db';
-import { columnOf, PIPELINE_COLUMNS, type Lead, type LeadAsset, type PipelineColumn } from '@lps/domain';
+import { canTransition, columnOf, PIPELINE_COLUMNS, type Lead, type LeadAsset, type PipelineColumn } from '@lps/domain';
 import { useRouter } from 'next/navigation';
+import { discardAction } from '@/app/painel/batches/[id]/actions';
 import { useState, useTransition } from 'react';
-import { BulkBar } from '@/components/leads/bulk-bar';
-import { discardAction, qualifyAction } from '@/app/painel/batches/[id]/actions';
+import { boardHref } from '@/lib/board-href';
 import { Column } from './column';
 import { LeadCard, type CardContact } from './lead-card';
 
@@ -16,14 +16,6 @@ const EMPTY: Partial<Record<PipelineColumn, string>> = {
   video: 'Nenhum lead esperando o Loom.',
   pronto: 'Nenhum lead pronto ainda.',
 };
-
-/** Link do lead dentro do quadro: mantém os filtros e abre o modal em `?lead=`. */
-export function boardHref(batchId: string, query: string, leadId: string | null): string {
-  const qs = new URLSearchParams(query);
-  if (leadId) qs.set('lead', leadId);
-  const text = qs.toString();
-  return `/painel/batches/${batchId}${text ? `?${text}` : ''}`;
-}
 
 /** Mesmo texto de `STALE` em `@lps/db` (o teste confere); o pacote do banco não entra no cliente. */
 export const STALE_NOTICE = 'Este lead já mudou de etapa.';
@@ -70,23 +62,16 @@ export function Notice({ notice }: { notice: { tone: 'error' | 'warning'; text: 
  * (Novo lead filtrado e por pontuação, as outras por tempo na etapa).
  */
 export function Board({ batchId, leads, assets, contacts, query = '', openId }: {
-  batchId: string; leads: Lead[]; assets: Record<string, LeadAsset[]>; contacts: Record<string, CardContact>; query?: string; openId?: string;
+  batchId: string; leads: Lead[]; assets: Record<string, LeadAsset[]>; contacts: Record<string, CardContact[]>; query?: string; openId?: string;
 }) {
   const [tab, setTab] = useState<PipelineColumn>('novo');
   const [showDiscarded, setShowDiscarded] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const { pending, notice, run } = useStageAction();
+  const { notice, run } = useStageAction();
+  // Cartão sendo arrastado: Descartados vira lixeira.
+  const [dragging, setDragging] = useState<string | null>(null);
 
   const byColumn = Object.fromEntries(PIPELINE_COLUMNS.map((c) => [c.key, [] as Lead[]])) as Record<PipelineColumn, Lead[]>;
   for (const lead of leads) byColumn[columnOf(lead.stage)].push(lead);
-
-  // Só os visíveis e ainda em Revisar, na ordem do quadro.
-  const selectable = byColumn.novo.filter((l) => l.stage === 'revisar');
-  const ids = selectable.filter((l) => selected.has(l.id)).map((l) => l.id);
-  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const allSelected = selectable.length > 0 && selectable.every((l) => selected.has(l.id));
-  const act = (fn: (ids: string[]) => Promise<PipelineResult>, targets: string[]) =>
-    run(() => fn(targets), () => setSelected((s) => { const n = new Set(s); targets.forEach((t) => n.delete(t)); return n; }));
 
   return (
     <>
@@ -106,13 +91,7 @@ export function Board({ batchId, leads, assets, contacts, query = '', openId }: 
         ))}
       </div>
       {notice && <div className="mb-3"><Notice notice={notice} /></div>}
-      {selectable.length > 0 && (
-        <label className={`mb-2 items-center gap-2 px-1 text-xs text-muted-foreground ${tab === 'novo' ? 'flex' : 'hidden md:flex'}`}>
-          <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(selectable.map((l) => l.id)))} className="size-4 accent-neutral-200" />
-          Selecionar todos em Novo lead
-        </label>
-      )}
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-3 md:overflow-x-auto md:pb-2">
+      <div className="flex flex-col gap-4 md:min-h-96 md:flex-1 md:flex-row md:gap-3 md:overflow-x-auto md:pb-2">
         {PIPELINE_COLUMNS.map((c) => {
           const list = byColumn[c.key];
           const discarded = c.key === 'descartados';
@@ -127,6 +106,7 @@ export function Board({ batchId, leads, assets, contacts, query = '', openId }: 
               onExpand={() => setShowDiscarded(true)}
               onCollapse={discarded ? () => setShowDiscarded(false) : undefined}
               empty={EMPTY[c.key]}
+              trash={discarded ? { armed: !!dragging, onDrop: () => { const id = dragging; setDragging(null); if (id) run(() => discardAction([id])); } } : undefined}
             >
               {list.map((lead) => (
                 <LeadCard
@@ -135,19 +115,14 @@ export function Board({ batchId, leads, assets, contacts, query = '', openId }: 
                   href={boardHref(batchId, query, lead.id)}
                   active={lead.id === openId}
                   assets={assets[lead.id]}
-                  contact={contacts[lead.id]}
-                  selected={selected.has(lead.id)}
-                  onSelect={() => toggle(lead.id)}
-                  onQualify={() => act(qualifyAction, [lead.id])}
-                  onDiscard={() => act(discardAction, [lead.id])}
-                  pending={pending}
+                  contacts={contacts[lead.id]}
+                  drag={canTransition(lead.stage, 'descartado') ? { onStart: () => setDragging(lead.id), onEnd: () => setDragging(null) } : undefined}
                 />
               ))}
             </Column>
           );
         })}
       </div>
-      <BulkBar ids={ids} pending={pending} onQualify={() => act(qualifyAction, ids)} onDiscard={() => act(discardAction, ids)} onClear={() => setSelected(new Set())} />
     </>
   );
 }

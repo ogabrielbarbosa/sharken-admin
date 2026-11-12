@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ingestEvent = vi.fn();
-vi.mock('@lps/db', () => ({ createAdminClient: () => ({}), ingestEvent: (...a: unknown[]) => ingestEvent(...a) }));
+vi.mock('@lps/db', () => ({ createAdminClient: () => ({}), getActiveInstance: async () => 'atual', ingestEvent: (...a: unknown[]) => ingestEvent(...a) }));
 vi.mock('@lps/integrations', () => ({
   getWhatsAppProvider: () => ({ normalize: (raw: { events?: unknown[] }) => raw.events ?? [] }),
 }));
@@ -27,6 +27,16 @@ describe('webhook do WhatsApp', () => {
   it('eventos ingeridos respondem 200', async () => {
     ingestEvent.mockResolvedValue(undefined);
     expect((await call(JSON.stringify({ events: [{ kind: 'message' }, { kind: 'message' }] }))).status).toBe(200);
+  });
+  it('ignora eventos de outra instância', async () => {
+    ingestEvent.mockResolvedValue(undefined);
+    expect((await call(JSON.stringify({ instance: 'antiga', events: [{ kind: 'message' }] }))).status).toBe(200);
+    expect(ingestEvent).not.toHaveBeenCalled();
+  });
+  it('aceita eventos da instância em uso', async () => {
+    ingestEvent.mockResolvedValue(undefined);
+    await call(JSON.stringify({ instance: 'atual', events: [{ kind: 'message' }] }));
+    expect(ingestEvent).toHaveBeenCalledTimes(1);
   });
   it('falha em algum evento responde 500, depois de tentar todos', async () => {
     ingestEvent.mockRejectedValueOnce(new Error('banco caiu')).mockResolvedValue(undefined);

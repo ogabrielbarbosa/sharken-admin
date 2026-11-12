@@ -333,3 +333,20 @@ Consequências práticas:
 - O envio é `await` em sequência dentro do handler: um endpoint lento atrasa os próximos eventos daquela instância.
 
 Webhook global (opcional, para todas as instâncias): `WEBHOOK_GLOBAL_ENABLED`, `WEBHOOK_GLOBAL_URL`, `WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS` e um `WEBHOOK_EVENTS_<EVENTO>=true` por evento. Erros da API podem ir para `WEBHOOK_EVENTS_ERRORS=true` + `WEBHOOK_EVENTS_ERRORS_WEBHOOK=<url>`.
+
+## Tipos de mensagem, edição, exclusão, reação e voto (conferido no código da 2.3.7)
+
+- **Edição e "apagar para todos"** não chegam como `messages.upsert`. A Evolution manda o `protocolMessage` no evento `messages.edited` (`MESSAGES_EDITED`): `{ key: { id }, type, editedMessage }`, com `type` 14 (`MESSAGE_EDIT`) ou 0 (`REVOKE`), em número ou texto.
+- **Mensagem apagada** também pode vir em `messages.delete` (`MESSAGES_DELETE`), com `{ id, remoteJid, fromMe, status: "DELETED" }`.
+- Os dois eventos precisam estar na lista do webhook (o painel, o `pnpm local` e o `pnpm whatsapp:webhook` já registram).
+- **Reação** chega em `messages.upsert` com `message.reactionMessage = { key: { id: <mensagem reagida> }, text }`; `text` vazio remove.
+- **Voto de enquete** chega em `messages.upsert` com `pollUpdateMessage`; a Evolution decifra e troca `vote.selectedOptions` pelos nomes das opções.
+- `extendedTextMessage` vira `conversation` e `documentWithCaptionMessage` vira `documentMessage` antes do webhook (`prepareMessage`).
+- **Álbum**: chega um `albumMessage` (só a contagem) e depois cada foto em `associatedChildMessage.message.imageMessage`.
+- No histórico (`findMessages`), mensagem editada já vem com o texto novo e `status: "EDITED"`.
+
+Tipos vistos nesta instância (ordem de frequência): conversation, imageMessage, audioMessage, stickerMessage,
+associatedChildMessage, protocolMessage, videoMessage, albumMessage, documentMessage, templateMessage, contactMessage,
+ptvMessage, reactionMessage, interactiveMessage, templateButtonReplyMessage, locationMessage, groupInviteMessage,
+placeholderMessage, secretEncryptedMessage. O tratamento de cada um fica em
+`packages/integrations/src/whatsapp/evolution-content.ts`; tipo desconhecido aparece no CRM como aviso, não some.

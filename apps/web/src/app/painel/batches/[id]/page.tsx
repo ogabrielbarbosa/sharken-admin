@@ -1,4 +1,4 @@
-import { listLeads, OTHER_LEAD_CONTACT, STALE, type Db } from '@lps/db';
+import { listContactsOfLeads, listLeads, OTHER_LEAD_CONTACT, STALE, type Db } from '@lps/db';
 import {
   applyReviewFilter, columnOf, countByOption, parseReviewFilter, phoneMatchCandidates, serializeReviewFilter,
   type Contact, type Lead, type LeadAsset, type PipelineColumn,
@@ -6,13 +6,15 @@ import {
 import { ExternalLink, Loader2, Phone, Star } from 'lucide-react';
 import { ActiveFilters, ReviewFilters } from '@/components/batches/review-filters';
 import { LeadDrawer } from '@/components/leads/lead-drawer';
-import { Board, boardHref } from '@/components/pipeline/board';
+import { Board } from '@/components/pipeline/board';
 import { CompleteModal } from '@/components/pipeline/complete-modal';
 import { LinkModal } from '@/components/pipeline/link-modal';
-import type { CardContact } from '@/components/pipeline/lead-card';
-import { Card, Toolbar } from '@/components/ui';
+import { LeadChatsModal } from '@/components/pipeline/lead-chats-modal';
+import { Topbar } from '@/components/layout/topbar';
+import { Card } from '@/components/ui';
 import { AutoRefresh } from '@/components/ui/auto-refresh';
-import { loadBatchContext } from '@/lib/batch-context';
+import { batchLabel, loadBatchContext } from '@/lib/batch-context';
+import { boardHref } from '@/lib/board-href';
 import { leadMeta } from '@/lib/lead-labels';
 
 const shortUrl = (url: string) => url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
@@ -67,24 +69,22 @@ async function assetsByLead(db: Db, leadIds: string[]): Promise<Record<string, L
 }
 
 /**
- * Contato de cada lead em Pronto para abordar: primeiro por `contacts.lead_id`; quem não tem
- * (o telefone já era contato de outro lead) é achado pelo telefone.
+ * Conversas de cada lead em Pronto para abordar: todos os contatos ligados por `contacts.lead_id`
+ * (um lead pode ter vários números). Quem não tem nenhum (o telefone já era contato de outro lead)
+ * é achado pelo telefone.
  */
-async function contactsByLead(db: Db, leads: Lead[]): Promise<Record<string, CardContact>> {
+async function contactsByLead(db: Db, leads: Lead[]): Promise<Record<string, Contact[]>> {
   if (!leads.length) return {};
-  const out: Record<string, CardContact> = {};
-  const { data, error } = await db.from('contacts').select('id, status, lead_id, phone_e164').in('lead_id', leads.map((l) => l.id));
-  if (error) throw new Error(error.message);
-  for (const c of data as Pick<Contact, 'id' | 'status' | 'lead_id'>[]) if (c.lead_id) out[c.lead_id] = { id: c.id, status: c.status };
+  const out = await listContactsOfLeads(db, leads.map((l) => l.id));
 
   const missing = leads.filter((l) => !out[l.id] && l.phone_e164);
   if (missing.length) {
     const candidates = missing.map((l) => ({ lead: l, phones: phoneMatchCandidates(l.phone_e164!) }));
-    const { data: byPhone, error: phoneError } = await db.from('contacts').select('id, status, phone_e164').in('phone_e164', candidates.flatMap((c) => c.phones));
+    const { data: byPhone, error: phoneError } = await db.from('contacts').select().in('phone_e164', candidates.flatMap((c) => c.phones));
     if (phoneError) throw new Error(phoneError.message);
     for (const { lead, phones } of candidates) {
-      const c = (byPhone as Pick<Contact, 'id' | 'status' | 'phone_e164'>[]).find((row) => phones.includes(row.phone_e164));
-      if (c) out[lead.id] = { id: c.id, status: c.status };
+      const c = (byPhone as Contact[]).find((row) => phones.includes(row.phone_e164));
+      if (c) out[lead.id] = [c];
     }
   }
   return out;
@@ -139,20 +139,26 @@ export default async function PipelinePage({ params, searchParams }: { params: P
     modal = <CompleteModal key={open.id} lead={open} assets={assets[open.id] ?? []} closeHref={closeHref} workerStale={stale} {...siblings(qualified)} />;
   } else if (open && (open.stage === 'pagina' || open.stage === 'video')) {
     modal = <LinkModal key={`${open.id}-${open.stage}`} kind={open.stage} lead={open} closeHref={closeHref} />;
+   } else if (open && openColumn === 'pronto') {
+    modal = <LeadChatsModal key={open.id} lead={open} contacts={contacts[open.id] ?? []} closeHref={closeHref} now={now.toISOString()} />;
   }
 
   return (
     <>
-      {running && <AutoRefresh />}
-      {running && <Arriving leads={analyzing} searching={batch.status === 'buscando'} quantity={batch.quantity} />}
-      <Toolbar start={<span className="text-sm text-muted-foreground"><b className="font-medium text-foreground tabular-nums">{all.length}</b> {all.length === 1 ? 'lead' : 'leads'}</span>}>
-        {toReview.length > 0 && <ReviewFilters batchId={id} filter={filter} counts={countByOption(toReview, now)} shown={reviewed.length} total={toReview.length} />}
-      </Toolbar>
-      <ActiveFilters batchId={id} filter={filter} shown={reviewed.length} total={toReview.length} />
-      {notice && <p role="status" className="mb-4 rounded-md bg-warning-subtle px-3 py-2 text-sm text-warning">{notice}</p>}
-      <Board batchId={id} leads={leads} assets={assets} contacts={contacts} query={filterQs} openId={open?.id} />
-      {modal}
-      <div className="h-20" />
+      <Topbar
+        crumbs={[{ label: 'Batches', href: '/painel/batches' }, { label: batchLabel(batch) }]}
+        actions={toReview.length > 0 && <ReviewFilters batchId={id} filter={filter} counts={countByOption(toReview, now)} shown={reviewed.length} total={toReview.length} />}
+      />
+      {/* No desktop o quadro ocupa o resto da tela e cada coluna rola por dentro. */}
+      <main className="p-4 md:flex md:h-[calc(100dvh-4.5rem)] md:flex-col lg:p-6">
+        {running && <AutoRefresh />}
+        {running && <Arriving leads={analyzing} searching={batch.status === 'buscando'} quantity={batch.quantity} />}
+        <ActiveFilters batchId={id} filter={filter} shown={reviewed.length} total={toReview.length} />
+        {notice && <p role="status" className="mb-4 rounded-md bg-warning-subtle px-3 py-2 text-sm text-warning">{notice}</p>}
+        <Board batchId={id} leads={leads} assets={assets} contacts={contacts} query={filterQs} openId={open?.id} />
+        {modal}
+        <div className="h-20 md:hidden" />
+      </main>
     </>
   );
 }

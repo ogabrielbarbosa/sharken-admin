@@ -168,6 +168,12 @@ export async function updateContact(db: Db, id: string, patch: Partial<Contact>)
  * Mudança de status feita pelo Gabriel. Com lead ligado, registra o evento e mantém a etapa do lead
  * coerente: perdido vira sem_interesse e não contatar entra na lista de bloqueio (a retenção respeita).
  */
+async function hasOtherActiveContact(db: Db, leadId: string, exceptId: string): Promise<boolean> {
+  const { data, error } = await db.from('contacts').select('id, status').eq('lead_id', leadId);
+  if (error) throw new Error(error.message);
+  return ((data as Pick<Contact, 'id' | 'status'>[] | null) ?? []).some((c) => c.id !== exceptId && c.status !== 'perdido' && c.status !== 'nao_contatar');
+}
+
 export async function setContactStatus(db: Db, contact: Pick<Contact, 'id' | 'status' | 'lead_id' | 'phone_e164'>, to: ContactStatus, eventData: object = {}): Promise<void> {
   if (!canSetStatus(contact.status, to)) throw new Error(`Não dá para mudar de ${contact.status} para ${to}.`);
   if (to === 'nao_contatar') {
@@ -184,6 +190,84 @@ export async function setContactStatus(db: Db, contact: Pick<Contact, 'id' | 'st
   await logEvent(db, contact.lead_id, `contato_${to}`, { contact_id: contact.id, ...eventData });
   const stage = to === 'perdido' ? 'sem_interesse' : to === 'nao_contatar' ? 'nao_contatar' : null;
   if (!stage) return;
+  // Um lead pode ter vários números: um perdido (ex.: sem WhatsApp) só tira o lead quando nenhum outro segue ativo.
+  // Não contatar vale para o negócio todo: parar assim que pedirem.
+  if (to === 'perdido' && (await hasOtherActiveContact(db, contact.lead_id, contact.id))) return;
   const lead = await getLead(db, contact.lead_id);
   if (lead && canTransition(lead.stage, stage)) await moveLead(db, lead, stage, {}, { contact_id: contact.id });
+}
+
+/** Todos os contatos (conversas) de cada lead, o mais recente primeiro. Um lead pode ter vários números. */
+export async function listContactsOfLeads(db: Db, leadIds: string[]): Promise<Record<string, Contact[]>> {
+  if (!leadIds.length) return {};
+  const { data, error } = await db
+    .from('contacts')
+    .select()
+    .in('lead_id', leadIds)
+    .order('last_message_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(error.message);
+  const out: Record<string, Contact[]> = {};
+  for (const c of data as Contact[]) if (c.lead_id) (out[c.lead_id] ??= []).push(c);
+  return out;
+}
+
+export const CONTACT_OF_OTHER_LEAD = 'Este número já é contato de outro lead. Desligue-o de lá antes.';
+
+/**
+ * Liga um contato a um lead (ou desliga, com `leadId` nulo). Um contato tem no máximo um lead;
+ * um lead pode ter vários contatos. Trocar de lead exige desligar antes.
+ */
+export async function linkContactToLead(db: Db, contactId: string, leadId: string | null): Promise<void> {
+  const contact = await getContact(db, contactId);
+  if (!contact) throw new Error('Contato não encontrado.');
+  if (contact.lead_id === leadId) return;
+
+  if (!leadId) {
+    await updateContact(db, contact.id, { lead_id: null });
+    await logEvent(db, contact.lead_id!, 'contato_desligado', { contact_id: contact.id });
+    return;
+  }
+  if (contact.lead_id) throw new Error(CONTACT_OF_OTHER_LEAD);
+  const lead = await getLead(db, leadId);
+  if (!lead) throw new Error('Lead não encontrado.');
+  // Só preenche o batch quando o contato não tem: a origem real do contato não muda.
+  await updateContact(db, contact.id, { lead_id: lead.id, ...(contact.batch_id ? {} : { batch_id: lead.batch_id }) });
+  await logEvent(db, lead.id, 'contato_ligado', { contact_id: contact.id, vinculado: true, manual: true });
+}
+
+/**
+ * Mais um número para o lead. Se o número já é contato sem lead, só liga; se é de outro lead, recusa.
+ * Número novo vira contato manual, já ligado ao lead e ao batch dele.
+ */
+export async function addContactToLead(db: Db, leadId: string, input: { name: string; phone_e164: string }): Promise<Contact> {
+  const lead = await getLead(db, leadId);
+  if (!lead) throw new Error('Lead não encontrado.');
+  const existing = await findContactByPhone(db, input.phone_e164);
+  if (existing) {
+    if (existing.lead_id === lead.id) return existing;
+    if (existing.lead_id) throw new Error(CONTACT_OF_OTHER_LEAD);
+    await linkContactToLead(db, existing.id, lead.id);
+    return { ...existing, lead_id: lead.id };
+  }
+  const created = await createContact(db, { name: input.name, phone_e164: input.phone_e164, origin: 'manual', status: 'novo', lead_id: lead.id, batch_id: lead.batch_id });
+  await logEvent(db, lead.id, 'contato_criado', { contact_id: created.id, manual: true });
+  return created;
+}
+
+export type LeadOption = { id: string; name: string; city: string | null; stage: Lead['stage']; batch_id: string | null };
+
+/** Busca de lead pelo nome, para ligar um contato. */
+export async function searchLeads(db: Db, term: string, limit = 8): Promise<LeadOption[]> {
+  const clean = term.replace(/[,()%*"\\]/g, ' ').trim();
+  if (clean.length < 2) return [];
+  const { data, error } = await db
+    .from('leads')
+    .select('id, name, city, stage, batch_id')
+    .ilike('name', `%${clean}%`)
+    .not('stage', 'in', '(analisando,descartado)')
+    .order('stage_changed_at', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return data as LeadOption[];
 }

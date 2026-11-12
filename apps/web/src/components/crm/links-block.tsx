@@ -21,7 +21,7 @@ function LinkRow({ contactId, kind, label, url }: { contactId: string; kind: 'pa
   });
   const open = editing || !url;
   return (
-    <div className="space-y-1.5 rounded-lg border border-border p-3">
+    <div className="mx-2 mt-1 space-y-1.5 rounded-lg border border-border p-3">
       <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
       {open ? (
         <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); save(); }}>

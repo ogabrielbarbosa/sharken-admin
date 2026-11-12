@@ -276,3 +276,39 @@ describe('retryMessage', () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+describe('reply', () => {
+  const capture = () => {
+    const calls: unknown[] = [];
+    return { calls, provider: { sendText: async (input: unknown) => (calls.push(input), { externalId: `ext-${++n}` }) } };
+  };
+
+  it('cita a mensagem recebida: manda a citação ao provedor e guarda id e trecho', async () => {
+    const c = await mk('em_conversa', { responded_at: now.toISOString() });
+    await pg.query(`insert into messages (contact_id, direction, kind, body, status, external_id, at) values ($1, 'entrada', 'texto', 'Quanto custa?', 'recebida', 'IN-Q1', $2)`, [c.id, now.toISOString()]);
+    const { calls, provider } = capture();
+    const m = await sendMessage(db, provider, { contactId: c.id, text: 'R$ 500', clientMessageId: `c-${++n}`, quotedExternalId: 'IN-Q1' }, now);
+    expect(calls[0]).toMatchObject({ quoted: { externalId: 'IN-Q1', fromMe: false, text: 'Quanto custa?' } });
+    expect(m).toMatchObject({ quoted_external_id: 'IN-Q1', quoted_preview: 'Quanto custa?' });
+  });
+
+  it('recusa citar mensagem de outro contato ou que não existe', async () => {
+    const a = await mk('em_conversa', { responded_at: now.toISOString() });
+    const b = await mk('em_conversa', { responded_at: now.toISOString() });
+    await pg.query(`insert into messages (contact_id, direction, kind, body, status, external_id, at) values ($1, 'entrada', 'texto', 'oi', 'recebida', 'IN-B1', $2)`, [b.id, now.toISOString()]);
+    await expect(sendMessage(db, ok(), { contactId: a.id, text: 'x', clientMessageId: `c-${++n}`, quotedExternalId: 'IN-B1' }, now)).rejects.toThrow('Mensagem citada não encontrada');
+    expect(await listMessages(db, a.id)).toHaveLength(0);
+  });
+
+  it('o reenvio de uma resposta com erro mantém a citação', async () => {
+    const c = await mk('em_conversa', { responded_at: now.toISOString() });
+    await pg.query(`insert into messages (contact_id, direction, kind, body, status, external_id, at) values ($1, 'entrada', 'imagem', null, 'recebida', 'IN-R1', $2)`, [c.id, now.toISOString()]);
+    await expect(sendMessage(db, failing(), { contactId: c.id, text: 'Essa?', clientMessageId: `c-${++n}`, quotedExternalId: 'IN-R1' }, now)).rejects.toThrow();
+    const old = (await listMessages(db, c.id)).find((m) => m.direction === 'saida')!;
+    expect(old.quoted_preview).toBe('📷 Imagem');
+    const { calls, provider } = capture();
+    const again = await retryMessage(db, provider, old.id, `r-${++n}`, now);
+    expect(calls[0]).toMatchObject({ quoted: { externalId: 'IN-R1', text: '📷 Imagem' } });
+    expect(again.quoted_external_id).toBe('IN-R1');
+  });
+});

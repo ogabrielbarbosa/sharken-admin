@@ -4,7 +4,7 @@ import { ChevronRight, Layers, Plus, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { NewBatchDrawer } from '@/components/batches/new-batch-drawer';
 import { Topbar } from '@/components/layout/topbar';
-import { Button, Card, EmptyState, LinkButton, Status, Table, Toolbar, type Tone } from '@/components/ui';
+import { Button, Card, EmptyState, LinkButton, Status, Table, type Tone } from '@/components/ui';
 import { AutoRefresh } from '@/components/ui/auto-refresh';
 import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
 import { authedDb } from '@/lib/auth';
@@ -39,19 +39,23 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <Topbar crumbs={[{ label: 'Batches' }]} />
+      <Topbar
+        crumbs={[{ label: 'Batches' }]}
+        actions={
+          <>
+            <form>
+              {etapa && <input type="hidden" name="etapa" value={etapa} />}
+              <AutoSubmitSelect name="local" defaultValue={local ?? ''} aria-label="Localização" className="w-36 sm:w-52">
+                <option value="">Localização: Todas</option>
+                {locations.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              </AutoSubmitSelect>
+            </form>
+            <LinkButton href="/painel/batches?novo=1"><Plus /><span className="max-sm:sr-only">Novo batch</span></LinkButton>
+          </>
+        }
+      />
       {!novo && batches.some((b) => b.status === 'buscando' || b.status === 'analisando') && <AutoRefresh />}
       <main className="p-4 lg:p-6">
-        <Toolbar>
-              <form>
-                {etapa && <input type="hidden" name="etapa" value={etapa} />}
-                <AutoSubmitSelect name="local" defaultValue={local ?? ''} aria-label="Localização" className="w-52">
-                  <option value="">Localização: Todas</option>
-                  {locations.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-                </AutoSubmitSelect>
-              </form>
-              <LinkButton href="/painel/batches?novo=1"><Plus />Novo batch</LinkButton>
-        </Toolbar>
         {column && (
           <p className="mb-4 text-sm text-muted-foreground">
             Mostrando batches com leads em {column.label}.{' '}

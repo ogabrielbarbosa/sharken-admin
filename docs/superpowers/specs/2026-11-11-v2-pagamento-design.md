@@ -14,6 +14,8 @@ Depois do contrato assinado, o Gabriel gera o link de pagamento com o combinado 
 
 ## 3. Tela Pagamentos
 
+> **Removida em 2026-11-12.** Tudo passou para Clientes (`/painel/clientes`). Cada linha mostra o que o cliente já pagou (Recebido) e o que falta (Em aberto, que inclui o que está pronto para cobrar), e a situação: Em dia, A cobrar ou Em atraso. O chevron da linha abre os serviços do cliente, com o estado de cada um; os prontos para cobrar têm **Gerar cobrança** com o combinado do contrato preenchido. O botão de mandar o link pelo WhatsApp saiu; o link é copiado na tela do cliente. O texto abaixo fica como histórico.
+
 No menu lateral, em `/painel/pagamentos`. Três seções.
 
 ### Pronto para cobrar

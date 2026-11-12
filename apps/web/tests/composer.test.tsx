@@ -16,6 +16,7 @@ const base = {
   variables: [{ key: 'primeiro_nome', label: 'Primeiro nome', value: 'Ana' }, { key: 'link', label: 'Link', value: null }],
   senderPhone: '+55 19 99999-0000', signatureName: 'Gabriel',
   onSend: vi.fn(async () => {}), onSendMedia: vi.fn(async () => {}), onNote: vi.fn(async () => true), onAfterSendClose: vi.fn(async () => {}),
+  replyTo: null, onCancelReply: vi.fn(), closed: false, onReopen: vi.fn(async () => {}), droppedFile: null,
 };
 
 describe('composerDraft', () => {

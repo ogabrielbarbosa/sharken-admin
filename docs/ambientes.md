@@ -62,17 +62,23 @@ Todas ficam no `.env.local` e no `.env.dev`. As da Evolution são opcionais: só
 
 | Variável | Para quê | Padrão |
 |---|---|---|
-| `EVOLUTION_URL` | Endereço da Evolution API (sem barra no fim) | |
+| `EVOLUTION_URL` | Endereço da Evolution API (sem barra no fim): `https://evo.sharkenapps.com` | |
 | `EVOLUTION_API_KEY` | Chave da Evolution | |
-| `EVOLUTION_INSTANCE` | Nome da instância do número de prospecção | |
+| `WHATSAPP_WEBHOOK_BASE_URL` | Só no local: URL pública (túnel) que a Evolution chama no lugar do `APP_URL` | |
 | `WHATSAPP_WEBHOOK_SECRET` | Segredo do webhook do WhatsApp (`openssl rand -hex 32`) | |
 | `DAILY_FIRST_CONTACT_LIMIT` | Aviso de primeiros contatos por dia | 20 |
 
 ## WhatsApp (Evolution API)
 
-1. Preencha `EVOLUTION_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE` e `WHATSAPP_WEBHOOK_SECRET`.
-2. Rode `pnpm whatsapp:webhook` (no dev, `pnpm whatsapp:webhook:remoto`). Ele registra na instância o webhook `/api/webhooks/whatsapp` com os eventos de mensagem e de conexão. Rode de novo se a URL do app mudar.
-3. No painel, abra o CRM e conecte o número pelo QR Code.
+A Evolution roda na VPS (Coolify), em `https://evo.sharkenapps.com`, e já guarda as mensagens para o worker baixar as mídias.
+
+1. Preencha `EVOLUTION_URL`, `EVOLUTION_API_KEY` e `WHATSAPP_WEBHOOK_SECRET`.
+2. Em **Atendimento › Conexões**, clique em **Nova instância** e dê um nome (ou escolha uma que já existe no servidor). O painel cria a instância, registra o webhook `/api/webhooks/whatsapp` e passa a usá-la no CRM; a instância em uso fica salva no banco (`whatsapp_connection.instance`).
+3. Leia o QR (ou use o código pelo número).
+
+**Importar últimos 2 dias** (em Atendimento › Conexões, com o celular conectado) pede ao worker para trazer as conversas individuais dos últimos 2 dias guardadas na Evolution (`DATABASE_SAVE_DATA_HISTORIC=true`). Tudo entra fechado e sem não lidas; o que já está no CRM é pulado, então dá para rodar de novo. Conversas que o WhatsApp manda só com o LID (sem o número) ficam de fora até a pessoa mandar uma mensagem nova, que traz o número; depois disso, importar de novo completa o histórico dela.
+
+Toda vez que a tela abre, o painel confere o webhook e corrige se a URL do app mudou. Eventos de uma instância que não é a em uso são ignorados. `EVOLUTION_INSTANCE` continua aceito como padrão enquanto nenhuma instância foi escolhida na tela.
 
 Para baixar fotos, áudios, vídeos e documentos recebidos, o worker baixa a mídia da Evolution, e isso exige que ela guarde as mensagens (`DATABASE_SAVE_DATA_NEW_MESSAGE=true` no servidor dela). O `pnpm whatsapp:webhook` registra o webhook sem base64, porque a Vercel limita o corpo a 4,5 MB; se a mídia não baixar, confira essa opção e se o worker está rodando.
 
@@ -91,7 +97,7 @@ pnpm evolution:up     # sobe a Evolution (usa EVOLUTION_API_KEY do .env.local)
 pnpm evolution:down   # para, mantendo a sessão do celular
 ```
 
-No `.env.local`: `EVOLUTION_URL=http://localhost:8085`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, `WHATSAPP_WEBHOOK_SECRET` e `WHATSAPP_WEBHOOK_BASE_URL=http://host.docker.internal:<porta do painel>` (o container chama o painel por esse endereço). Depois, em **Conexões › WhatsApp**, clique em Conectar celular e leia o QR. O botão cria a instância e registra o webhook.
+Para usar a Evolution do Docker em vez da VPS: `EVOLUTION_URL=http://localhost:8085`, `EVOLUTION_API_KEY`, `WHATSAPP_WEBHOOK_SECRET` e `WHATSAPP_WEBHOOK_BASE_URL=http://host.docker.internal:<porta do painel>` (o container chama o painel por esse endereço). Com a Evolution da VPS, o `pnpm local` abre sozinho um túnel do Cloudflare (`scripts/whatsapp-tunnel.mjs`) e aponta o webhook da instância em uso para ele. Um vigia confere a cada 30 s se o túnel responde e se o webhook aponta para ele: se o túnel cair, abre outro e reaponta; se você trocar de instância, aponta a nova. Nesse modo o painel não mexe no webhook (ele nunca registra `localhost` numa Evolution remota), e a tela Conexões avisa em vermelho quando as mensagens recebidas não estão chegando. Um túnel novo leva até 1 minuto para ser achado pelo DNS da VPS; a Evolution tenta de novo nesse meio tempo. Para usar uma URL fixa, defina `WHATSAPP_WEBHOOK_BASE_URL`. Com `pnpm dev` puro não há túnel: as mensagens recebidas só chegam pelo `pnpm local`. Depois, em **Atendimento › Conexões**, use Nova instância e leia o QR.
 
 Conversas de exemplo: `pnpm crm:demo` cria 8 contatos com DDD 00 (o envio para eles é bloqueado) e `pnpm crm:demo --remover` apaga.
 
@@ -164,6 +170,6 @@ Cadastre estas URLs nos painéis dos serviços, trocando `<dominio>` pelo endere
 | Apify | registrado automaticamente a cada busca | segredo na URL |
 | ZapSign | `https://<dominio>/api/webhooks/zapsign?secret=<segredo>` | segredo na URL |
 | Asaas | `https://<dominio>/api/webhooks/asaas` | campo "Token de autenticação" igual ao `<segredo>` |
-| Evolution | `https://<dominio>/api/webhooks/whatsapp?token=<WHATSAPP_WEBHOOK_SECRET>`, registrado por `pnpm whatsapp:webhook:remoto` | segredo na URL |
+| Evolution | `https://<dominio>/api/webhooks/whatsapp?token=<WHATSAPP_WEBHOOK_SECRET>`, registrado pelo painel ao criar a instância | segredo na URL |
 
 O cron de retenção roda sozinho na Vercel, pelo `vercel.json`.

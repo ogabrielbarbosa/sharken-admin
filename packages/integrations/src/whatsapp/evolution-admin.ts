@@ -7,7 +7,7 @@ type Json = Record<string, any>;
 export type EvolutionAdminConfig = { baseUrl: string; apiKey: string; instance: string; fetch?: typeof fetch };
 export type EvolutionState = 'conectado' | 'desconectado' | 'conectando';
 
-export const WEBHOOK_EVENTS = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CONNECTION_UPDATE', 'QRCODE_UPDATED', 'CONTACTS_UPSERT', 'CONTACTS_UPDATE'] as const;
+export const WEBHOOK_EVENTS = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'MESSAGES_EDITED', 'MESSAGES_DELETE', 'CONNECTION_UPDATE', 'QRCODE_UPDATED', 'CONTACTS_UPSERT', 'CONTACTS_UPDATE'] as const;
 
 export type EvolutionInstance = {
   name: string;
@@ -59,6 +59,7 @@ export function createEvolutionAdmin(config: EvolutionAdminConfig) {
   }
 
   async function fetchInstance(): Promise<EvolutionInstance | null> {
+    if (!config.instance) return null;
     const r = await call('GET', `/instance/fetchInstances?instanceName=${name}`);
     if (r.status === 404) return null;
     if (!r.ok) throw new Error(message(r.data, r.status));
@@ -75,6 +76,16 @@ export function createEvolutionAdmin(config: EvolutionAdminConfig) {
     };
   }
 
+  async function findWebhook(): Promise<{ url: string; enabled: boolean; events: string[] } | null> {
+    const w = await call('GET', `/webhook/find/${name}`);
+    return w.ok && w.data?.url ? { url: w.data.url, enabled: !!w.data.enabled, events: w.data.events ?? [] } : null;
+  }
+
+  async function setWebhook(url: string): Promise<void> {
+    const r = await call('POST', `/webhook/set/${name}`, { webhook: { enabled: true, url, byEvents: false, base64: true, events: [...WEBHOOK_EVENTS] } });
+    if (!r.ok) throw new Error(message(r.data, r.status));
+  }
+
   return {
     instanceName: config.instance,
 
@@ -84,10 +95,7 @@ export function createEvolutionAdmin(config: EvolutionAdminConfig) {
         const root = await call('GET', '/');
         const out: EvolutionOverview = { reachable: true, version: root.data?.version ?? null, whatsappWebVersion: root.data?.whatsappWebVersion ?? null, error: null, instance: null, webhook: null };
         out.instance = await fetchInstance();
-        if (out.instance) {
-          const w = await call('GET', `/webhook/find/${name}`);
-          if (w.ok && w.data?.url) out.webhook = { url: w.data.url, enabled: !!w.data.enabled, events: w.data.events ?? [] };
-        }
+        if (out.instance) out.webhook = await findWebhook();
         return out;
       } catch (e) {
         const err = e as Error;
@@ -127,9 +135,21 @@ export function createEvolutionAdmin(config: EvolutionAdminConfig) {
       if (!r.ok) throw new Error(message(r.data, r.status));
     },
 
-    async setWebhook(url: string): Promise<void> {
-      const r = await call('POST', `/webhook/set/${name}`, { webhook: { enabled: true, url, byEvents: false, base64: true, events: [...WEBHOOK_EVENTS] } });
+    setWebhook,
+
+    /** Registra o webhook só quando o da instância está diferente (URL, desligado ou faltando evento). */
+    async ensureWebhook(url: string): Promise<boolean> {
+      const current = await findWebhook();
+      const same = !!current && current.enabled && current.url === url && WEBHOOK_EVENTS.every((e) => current.events.includes(e));
+      if (!same) await setWebhook(url);
+      return !same;
+    },
+
+    /** Nomes das instâncias que já existem no servidor. */
+    async listInstances(): Promise<string[]> {
+      const r = await call('GET', '/instance/fetchInstances');
       if (!r.ok) throw new Error(message(r.data, r.status));
+      return Array.isArray(r.data) ? r.data.map((x: Json) => x?.name).filter((n: unknown): n is string => typeof n === 'string') : [];
     },
 
     async profilePictureUrl(phoneE164: string): Promise<string | null> {
@@ -142,13 +162,28 @@ export function createEvolutionAdmin(config: EvolutionAdminConfig) {
 
 export type EvolutionAdmin = ReturnType<typeof createEvolutionAdmin>;
 
-/** Lê a configuração na hora. Sem as variáveis, devolve null para a tela mostrar "não configurado". */
-export function getEvolutionAdmin(source: Record<string, string | undefined> = process.env): EvolutionAdmin | null {
+/** Nome aceito para instância: minúsculas, números, hífen e sublinhado. */
+export function normalizeInstanceName(raw: string): string {
+  return raw.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+}
+
+type Source = Record<string, string | undefined>;
+
+/** Servidor configurado (URL e chave). A instância é escolhida na tela e fica no banco. */
+export function evolutionConfigured(source: Source = process.env): boolean {
+  return !!source.EVOLUTION_URL?.trim() && !!source.EVOLUTION_API_KEY?.trim();
+}
+
+/**
+ * Lê a configuração na hora. `instance` vem do banco (getActiveInstance); sem ela, usa EVOLUTION_INSTANCE.
+ * Sem servidor configurado, devolve null. Sem instância, o admin existe mas `instanceName` fica vazio.
+ */
+export function getEvolutionAdmin(instance?: string | null, source: Source = process.env): EvolutionAdmin | null {
   try {
     return createEvolutionAdmin({
       baseUrl: requireOptional('EVOLUTION_URL', source),
       apiKey: requireOptional('EVOLUTION_API_KEY', source),
-      instance: requireOptional('EVOLUTION_INSTANCE', source),
+      instance: instance || source.EVOLUTION_INSTANCE || '',
     });
   } catch {
     return null;

@@ -1,6 +1,8 @@
 // pnpm local — prepara e sobe tudo na sua máquina: banco, chaves, usuário, painel e worker.
 // Pode rodar sempre: ele só faz o que falta e nunca apaga dados.
+import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
+import { prepareWhatsAppTunnel } from './whatsapp-tunnel.mjs';
 import { countUsers, createUserInteractive, fail, FOR_SEARCH, ok, quiet, readEnv, run, say, warn } from './lib.mjs';
 
 const checkOnly = process.argv.includes('--check');
@@ -64,6 +66,10 @@ if (busy) fail('A porta 3010 já está em uso. Feche o outro servidor do painel 
 const others = (quiet('pgrep', ['-f', `${process.cwd()}/apps/web.*next (dev|start)`]) ?? '').trim().split('\n').filter(Boolean);
 if (others.length) fail(`Já existe um servidor do painel rodando (PID ${others.join(', ')}). Feche com Ctrl+C no terminal dele ou rode: kill ${others.join(' ')}`);
 
+say('WhatsApp');
+const whatsappEnv = await prepareWhatsAppTunnel(env, 3010);
+if (!env.EVOLUTION_URL) ok('Evolution não configurada (opcional)');
+
 console.log(`
 ┌─────────────────────────────────────────────────────────┐
 │  Painel            http://localhost:3010                │
@@ -71,4 +77,9 @@ console.log(`
 │  Para parar        Ctrl+C (o banco continua com dados)  │
 └─────────────────────────────────────────────────────────┘
 `);
-run('pnpm', ['exec', 'turbo', 'run', 'dev', '--filter=@lps/web', '--filter=@lps/worker'], { env: { ...process.env, APP_ENV: 'local' } });
+// Assíncrono (não spawnSync): o vigia do túnel do WhatsApp precisa rodar enquanto o painel está no ar.
+const dev = spawn('pnpm', ['exec', 'turbo', 'run', 'dev', '--filter=@lps/web', '--filter=@lps/worker'], { stdio: 'inherit', env: { ...process.env, ...whatsappEnv, APP_ENV: 'local' } });
+// Ctrl+C chega ao turbo pelo terminal; aqui só esperamos ele sair. Um kill direto neste processo é repassado.
+process.on('SIGINT', () => {});
+process.on('SIGTERM', () => dev.kill('SIGTERM'));
+dev.on('exit', (code) => process.exit(code ?? 0));

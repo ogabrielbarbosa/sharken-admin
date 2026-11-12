@@ -1,9 +1,9 @@
 'use client';
 
-import { Loader2, LogOut, QrCode, RefreshCw, RotateCw, Smartphone, Webhook } from 'lucide-react';
+import { History, Loader2, LogOut, Plus, QrCode, RefreshCw, RotateCw, Smartphone, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState, useTransition } from 'react';
-import { disconnectAction, refreshQrAction, registerWebhookAction, restartAction, startConnectionAction, syncConnectionAction } from '@/app/painel/conexoes/actions';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { addInstanceAction, disconnectAction, importHistoryAction, refreshQrAction, restartAction, startConnectionAction, syncConnectionAction } from '@/app/painel/crm/conexoes/actions';
 import { qrSrc } from '@/components/crm/reconnect-drawer';
 import { Button, ErrorNote, Input } from '@/components/ui';
 import { createBrowserSupabase } from '@/lib/supabase/browser';
@@ -17,8 +17,18 @@ export function ConnectionRealtime() {
   const router = useRouter();
   useEffect(() => {
     const supabase = createBrowserSupabase();
-    const channel = supabase.channel('conexao-whatsapp').on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_connection' }, () => router.refresh()).subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let stopped = false;
+    // O canal precisa entrar com o token da sessão: como anônimo, a política não deixa passar nada.
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) await supabase.realtime.setAuth(data.session.access_token);
+      if (stopped) return;
+      channel = supabase.channel('conexao-whatsapp').on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_connection' }, () => router.refresh()).subscribe();
+    });
+    return () => {
+      stopped = true;
+      if (channel) void supabase.removeChannel(channel);
+    };
   }, [router]);
   return null;
 }
@@ -43,8 +53,10 @@ export function InstanceActions({ state, configured }: { state: State; configure
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" disabled={!configured || pending} onClick={() => run(syncConnectionAction, 'Estado atualizado.')}><RefreshCw />Verificar agora</Button>
-        <Button variant="outline" disabled={!configured || pending} onClick={() => run(registerWebhookAction, 'Webhook registrado na instância.')}><Webhook />Registrar webhook</Button>
         <Button variant="outline" disabled={!configured || pending} onClick={() => run(restartAction, 'Instância reiniciada.')}><RotateCw />Reiniciar</Button>
+        {state === 'conectado' && (
+          <Button variant="outline" disabled={pending} onClick={() => run(importHistoryAction, 'Importação pedida. As conversas dos últimos 2 dias aparecem no CRM, fechadas, em alguns instantes (precisa do worker rodando).')}><History />Importar últimos 2 dias</Button>
+        )}
         {state === 'conectado' && (
           <Button
             variant="danger"
@@ -58,6 +70,68 @@ export function InstanceActions({ state, configured }: { state: State; configure
       {error && <ErrorNote>{error}</ErrorNote>}
       {notice && <p className="text-xs text-success-foreground">{notice}</p>}
     </div>
+  );
+}
+
+/**
+ * Nova instância: cria no servidor (ou adota uma que já existe), aponta o webhook para o painel
+ * e passa a usá-la no CRM. Depois disso, o painel de QR aparece.
+ */
+export function AddInstance({ disabled, existing, current, primary }: { disabled: boolean; existing: string[]; current: string | null; primary: boolean }) {
+  const router = useRouter();
+  const ref = useRef<HTMLDialogElement>(null);
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const others = existing.filter((n) => n !== current);
+
+  const open = () => { setError(null); setName(''); ref.current?.showModal(); };
+  const close = () => ref.current?.close();
+  const submit = (value: string) => start(async () => {
+    setError(null);
+    const out = await addInstanceAction(value);
+    if (!out.ok) return setError(out.error);
+    close();
+    router.refresh();
+  });
+
+  return (
+    <>
+      <Button variant={primary ? 'primary' : 'outline'} disabled={disabled} onClick={open}><Plus />Nova instância</Button>
+      <dialog
+        ref={ref}
+        aria-label="Nova instância"
+        onClick={(e) => { if (e.target === ref.current) close(); }}
+        className="m-auto w-[calc(100%-2rem)] max-w-md rounded-card border border-border bg-card p-0 text-foreground backdrop:bg-black/60"
+      >
+        <form onSubmit={(e) => { e.preventDefault(); submit(name); }} className="space-y-4 p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">Nova instância</h2>
+              <p className="mt-0.5 text-sm text-muted-foreground">Um nome para a instância. O painel cria a instância, registra o webhook e passa a usá-la no CRM.</p>
+            </div>
+            <button type="button" onClick={close} aria-label="Fechar" className="cursor-pointer text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+          </div>
+          <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="nome-da-instancia" />
+          {others.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Ou use uma que já existe no servidor:</p>
+              <div className="flex flex-wrap gap-2">
+                {others.map((n) => (
+                  <button key={n} type="button" disabled={pending} onClick={() => submit(n)} className="cursor-pointer rounded-md border border-border px-2.5 py-1 font-mono text-xs hover:bg-accent disabled:opacity-50">{n}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {current && <p className="text-xs text-muted-foreground">A instância <span className="font-mono">{current}</span> continua no servidor, mas o CRM deixa de usá-la.</p>}
+          {error && <ErrorNote>{error}</ErrorNote>}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={close}>Cancelar</Button>
+            <Button type="submit" disabled={pending || !name.trim()}>{pending ? <Loader2 className="animate-spin" /> : <Plus />}{pending ? 'Criando…' : 'Adicionar'}</Button>
+          </div>
+        </form>
+      </dialog>
+    </>
   );
 }
 
@@ -114,7 +188,7 @@ export function ConnectPanel({ state, configured }: { state: State; configured: 
         </div>
         {mode === 'qr' ? (
           <ol className="list-decimal space-y-1.5 pl-4 text-sm text-muted-foreground">
-            <li>Abra o WhatsApp no celular do número de prospecção.</li>
+            <li>Abra o WhatsApp no celular.</li>
             <li>Toque em <span className="text-foreground">Configurações › Aparelhos conectados › Conectar aparelho</span>.</li>
             <li>Aponte a câmera para o código ao lado. Ele se renova sozinho.</li>
           </ol>

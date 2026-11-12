@@ -1,9 +1,9 @@
-import { statusAfterInbound, looksLikeStopRequest, type Contact, type Message, type WhatsAppEvent } from '@lps/domain';
+import { statusAfterInbound, looksLikeStopRequest, type Contact, type HistoryEvent, type Message, type WhatsAppEvent } from '@lps/domain';
 import type { Db } from './client';
 import { createContact, findContactByLid, findContactByPhone, setContactStatus, updateContact } from './contacts';
 import { enqueueJob } from './jobs';
 import { getLead, logEvent, moveLead, updateLead } from './leads';
-import { applyStatus, findPendingEcho, insertMessage } from './messages';
+import { applyEdit, applyPollVote, applyReaction, applyRevoke, applyStatus, findByExternalId, findPendingEcho, insertMessage, messagePreview } from './messages';
 
 export const MEDIA_BUCKET = 'whatsapp-media';
 const ECHO_WINDOW_MS = 60_000;
@@ -50,6 +50,13 @@ export async function setConnection(db: Db, e: Omit<ConnectionEvent, 'kind'> & {
   if (error) throw new Error(error.message);
 }
 
+/** Instância da Evolution em uso: a escolhida na tela de conexão, ou EVOLUTION_INSTANCE enquanto nenhuma foi escolhida. */
+export async function getActiveInstance(db: Db, source: Record<string, string | undefined> = process.env): Promise<string | null> {
+  const { data, error } = await db.from('whatsapp_connection').select('instance').eq('id', 1).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as { instance: string | null } | null)?.instance || source.EVOLUTION_INSTANCE || null;
+}
+
 /** Foto e nome do perfil. Só troca o nome quando o contato ainda não tem um (nome igual ao número). */
 async function ingestProfile(db: Db, e: ProfileEvent, now: Date): Promise<void> {
   let contact = e.phoneE164 ? await findContactByPhone(db, e.phoneE164) : null;
@@ -57,12 +64,12 @@ async function ingestProfile(db: Db, e: ProfileEvent, now: Date): Promise<void> 
   if (!contact) return;
   const patch: Partial<Contact> = {};
   if (e.avatarUrl) Object.assign(patch, { avatar_url: e.avatarUrl, avatar_checked_at: now.toISOString() });
-  if (e.pushName && contact.name === contact.phone_e164) patch.name = e.pushName;
+  if (e.pushName && !/^[\d+ ]+$/.test(e.pushName) && contact.name === contact.phone_e164) patch.name = e.pushName;
   if (Object.keys(patch).length) await updateContact(db, contact.id, patch);
 }
 
 /** Acha o contato pelo telefone ou pelo LID, completando o LID quando só o telefone era conhecido. */
-async function findContact(db: Db, e: MessageEvent): Promise<Contact | null> {
+async function findContact(db: Db, e: Pick<MessageEvent, 'phoneE164' | 'lid'>): Promise<Contact | null> {
   let contact = e.phoneE164 ? await findContactByPhone(db, e.phoneE164) : null;
   if (!contact && e.lid) contact = await findContactByLid(db, e.lid);
   if (contact && e.lid && !contact.whatsapp_lid) {
@@ -105,12 +112,13 @@ async function applyInboundStatus(db: Db, contact: Contact, now: Date): Promise<
   }
 }
 
-async function ingestMessage(db: Db, e: MessageEvent, now: Date): Promise<void> {
+/** history: mensagem importada do histórico (não procura eco do painel). Devolve o contato quando gravou algo. */
+async function ingestMessage(db: Db, e: MessageEvent, now: Date, history = false): Promise<Contact | null> {
   let contact = await findContact(db, e);
   if (!contact) {
     if (!e.phoneE164) {
       console.error('whatsapp_sem_telefone', { externalId: e.externalId, lid: e.lid });
-      return;
+      return null;
     }
     // Eco de mensagem enviada pelo celular: o pushName é o do próprio Gabriel, então o nome é o número.
     try {
@@ -120,8 +128,8 @@ async function ingestMessage(db: Db, e: MessageEvent, now: Date): Promise<void> 
         whatsapp_lid: e.lid,
         origin: 'whatsapp_direto',
         status: e.fromMe ? 'contatado' : 'em_conversa',
-        // Quem escreveu primeiro espera atendimento.
-        chat_state: e.fromMe ? 'aberto' : 'pendente',
+        // Quem escreveu primeiro espera atendimento. O histórico importado entra fechado.
+        chat_state: history ? 'fechado' : e.fromMe ? 'aberto' : 'pendente',
       });
     } catch (err) {
       // Outro webhook criou o mesmo número entre a busca e a criação: usa o contato que ganhou.
@@ -131,30 +139,51 @@ async function ingestMessage(db: Db, e: MessageEvent, now: Date): Promise<void> 
     }
   }
 
+  // Contato ainda sem nome (nome = número): usa o nome do perfil que veio com a mensagem.
+  if (!e.fromMe && e.pushName && !/^[\d+ ]+$/.test(e.pushName) && contact.name === contact.phone_e164) {
+    await updateContact(db, contact.id, { name: e.pushName });
+    contact = { ...contact, name: e.pushName };
+  }
+
   if (e.fromMe) {
-    if (await messageExists(db, e.externalId)) return;
-    if (e.text && !e.media) {
+    if (await messageExists(db, e.externalId)) return null;
+    if (!history && e.text && !e.media) {
       const pending = await findPendingEcho(db, contact.id, e.text, new Date(now.getTime() - ECHO_WINDOW_MS));
       if (pending) {
         const { error } = await db.from('messages').update({ external_id: e.externalId, status: 'enviada' }).eq('id', pending.id).eq('status', 'pendente');
         if (error) throw new Error(error.message);
-        return;
+        return null;
       }
     }
+  }
+
+  // Reply: o trecho vem no webhook; sem ele, usa a original se ela já está no CRM.
+  let quotedPreview = e.quoted?.text ?? null;
+  if (e.quoted && !quotedPreview) {
+    const original = await findByExternalId(db, contact.id, e.quoted.externalId);
+    quotedPreview = original ? messagePreview(original) : null;
   }
 
   const row = await insertMessage(db, {
     contact_id: contact.id,
     direction: e.fromMe ? 'saida' : 'entrada',
     sent_from: e.fromMe ? 'celular' : null,
-    kind: e.media?.kind ?? 'texto',
+    kind: e.type ?? e.media?.kind ?? 'texto',
     body: e.text,
+    meta: e.meta ?? {},
     media_mime: e.media?.mime ?? null,
     status: e.fromMe ? 'enviada' : 'recebida',
     external_id: e.externalId,
     at: e.at.toISOString(),
+    quoted_external_id: e.quoted?.externalId ?? null,
+    quoted_preview: quotedPreview,
   });
-  if (!row) return; // já recebida
+  if (!row) {
+    // Já estava no CRM: no histórico, completa os detalhes de mensagens gravadas antes de existirem (meta vazio).
+    if (history && Object.keys(e.meta ?? {}).length) await enrichMessage(db, e);
+    return null;
+  }
+  if (e.edited) await db.from('messages').update({ edited_at: e.at.toISOString() }).eq('id', row.id);
 
   if (e.media) {
     let stored = false;
@@ -168,12 +197,45 @@ async function ingestMessage(db: Db, e: MessageEvent, now: Date): Promise<void> 
     }
     if (!stored) await enqueueJob(db, { type: 'download_media', payload: { message_id: row.id, url: e.media.url, mime: e.media.mime }, dedupeKey: `download_media:${row.id}` });
   }
-  if (e.fromMe) return;
+  if (e.fromMe) return contact;
 
   if (e.text && looksLikeStopRequest(e.text) && contact.lead_id) {
     await logEvent(db, contact.lead_id, 'pedido_parar', { message_id: row.id });
   }
   await applyInboundStatus(db, contact, now);
+  return contact;
+}
+
+async function enrichMessage(db: Db, e: MessageEvent): Promise<void> {
+  const { error } = await db.from('messages').update({ kind: e.type, meta: e.meta }).eq('external_id', e.externalId).eq('meta', '{}');
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Importa mensagens do histórico (já ordenadas da mais antiga para a mais nova). Repetir é seguro:
+ * o que já está no CRM é pulado. Toda conversa que recebeu mensagem importada termina fechada e sem não lidas.
+ */
+export async function importHistory(db: Db, events: HistoryEvent[], now: Date = new Date(), profiles: ProfileEvent[] = []): Promise<{ messages: number; contacts: number }> {
+  const touched = new Set<string>();
+  let messages = 0;
+  for (const e of events) {
+    // Reações e votos vêm depois da mensagem a que se referem (a lista está em ordem cronológica).
+    if (e.kind !== 'message') {
+      await ingestEvent(db, e, now);
+      continue;
+    }
+    const contact = await ingestMessage(db, e, now, true);
+    if (!contact) continue;
+    messages++;
+    touched.add(contact.id);
+  }
+  if (touched.size) {
+    const { error } = await db.from('contacts').update({ chat_state: 'fechado', chat_state_at: now.toISOString(), unread_count: 0 }).in('id', [...touched]);
+    if (error) throw new Error(error.message);
+  }
+  // O histórico vem sem nome: completa com a agenda da Evolution (só onde o nome ainda é o número).
+  for (const p of profiles) await ingestProfile(db, p, now);
+  return { messages, contacts: touched.size };
 }
 
 /** Aplica um evento do WhatsApp ao CRM (spec do CRM, "Recebimento"). */
@@ -184,5 +246,22 @@ export async function ingestEvent(db: Db, event: WhatsAppEvent, now: Date = new 
     await applyStatus(db, event.externalId, event.status);
     return;
   }
-  return ingestMessage(db, event, now);
+  // Reação, edição, exclusão e voto mexem numa mensagem que já está no CRM; se ela não está, não há o que mostrar.
+  if (event.kind === 'reaction') {
+    await applyReaction(db, event.targetExternalId, event.fromMe ? 'eu' : 'contato', event.emoji, event.at);
+    return;
+  }
+  if (event.kind === 'edit') {
+    await applyEdit(db, event.targetExternalId, event.text, event.at);
+    return;
+  }
+  if (event.kind === 'revoke') {
+    await applyRevoke(db, event.targetExternalId, event.at);
+    return;
+  }
+  if (event.kind === 'poll_vote') {
+    await applyPollVote(db, event.targetExternalId, event.fromMe ? 'eu' : 'contato', event.options);
+    return;
+  }
+  await ingestMessage(db, event, now);
 }

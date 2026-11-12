@@ -139,21 +139,6 @@ export async function resolveClientContact(db: Db, client: Pick<ClientRecord, 'i
   return { contactId: created.id };
 }
 
-export type ChargeWithClient = { charge: ChargeRecord; service: ServiceRecord; client: ClientRecord };
-
-async function withClients(db: Db, charges: ChargeRecord[]): Promise<ChargeWithClient[]> {
-  if (!charges.length) return [];
-  const services = unwrap<ServiceRecord[]>(await db.from('services').select().in('id', [...new Set(charges.map((c) => c.service_id))]));
-  const clients = unwrap<ClientRecord[]>(await db.from('clients').select().in('id', [...new Set(services.map((s) => s.client_id))]));
-  const serviceById = new Map(services.map((s) => [s.id, s]));
-  const clientById = new Map(clients.map((c) => [c.id, c]));
-  return charges.flatMap((charge) => {
-    const service = serviceById.get(charge.service_id);
-    const client = service && clientById.get(service.client_id);
-    return service && client ? [{ charge, service, client }] : [];
-  });
-}
-
 /** Serviços com contrato assinado e sem cobrança emitida (nem avulsa nem assinatura; cobrança cancelada não conta). Sem contrato assinado, fora. */
 export async function listReadyToCharge(db: Db): Promise<ContractWithClient[]> {
   const signed = (await listContractsWithClient(db, 'assinado')).filter((r) => r.service.status === 'ativo' && !r.service.asaas_subscription_id);
@@ -161,21 +146,6 @@ export async function listReadyToCharge(db: Db): Promise<ContractWithClient[]> {
   const rows = unwrap<{ service_id: string; status: ChargeStatus }[]>(await db.from('charges').select('service_id, status').in('service_id', signed.map((r) => r.service.id)));
   const charged = new Set(rows.filter((c) => c.status !== 'cancelado').map((c) => c.service_id));
   return signed.filter((r) => !charged.has(r.service.id)).sort((a, b) => +new Date(a.contract.status_at) - +new Date(b.contract.status_at));
-}
-
-/** Cobranças pendentes e vencidas: vencidas primeiro, depois pelo vencimento. */
-export async function listOpenCharges(db: Db): Promise<ChargeWithClient[]> {
-  const charges = unwrap<ChargeRecord[]>(await db.from('charges').select().in('status', ['pendente', 'vencido']).order('due_date'));
-  const rows = await withClients(db, charges);
-  return [...rows.filter((r) => r.charge.status === 'vencido'), ...rows.filter((r) => r.charge.status !== 'vencido')];
-}
-
-/** Cobranças pagas desde `since`, as mais recentes primeiro. Sem `paid_at` (pagas antes da v2), vale a criação. */
-export async function listPaidCharges(db: Db, since: Date): Promise<ChargeWithClient[]> {
-  const charges = unwrap<ChargeRecord[]>(await db.from('charges').select().eq('status', 'pago'));
-  const when = (c: ChargeRecord) => c.paid_at ?? c.created_at;
-  const recent = charges.filter((c) => new Date(when(c)) >= since).sort((a, b) => +new Date(when(b)) - +new Date(when(a)));
-  return withClients(db, recent);
 }
 
 /**

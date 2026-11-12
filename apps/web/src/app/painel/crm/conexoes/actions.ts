@@ -1,22 +1,21 @@
 'use server';
 
 import { getEnv, whatsappWebhookUrl } from '@lps/config';
-import { setConnection, updateContact } from '@lps/db';
-import { getEvolutionAdmin, type EvolutionAdmin } from '@lps/integrations';
+import { enqueueJob, getActiveInstance, setConnection, updateContact } from '@lps/db';
+import { getEvolutionAdmin, normalizeInstanceName, type EvolutionAdmin } from '@lps/integrations';
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import { authedDb } from '@/lib/auth';
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+type Db = Awaited<ReturnType<typeof authedDb>>;
 
-const NOT_CONFIGURED = 'Configure EVOLUTION_URL, EVOLUTION_API_KEY e EVOLUTION_INSTANCE no .env.';
+const NOT_CONFIGURED = 'Configure EVOLUTION_URL e EVOLUTION_API_KEY no .env.';
+const NO_INSTANCE = 'Adicione uma instância primeiro.';
 
-async function withAdmin<T extends object>(fn: (admin: EvolutionAdmin, db: Awaited<ReturnType<typeof authedDb>>) => Promise<T>): Promise<Result<T>> {
+async function guarded<T extends object>(fn: (db: Db) => Promise<T>): Promise<Result<T>> {
   try {
-    const db = await authedDb();
-    const admin = getEvolutionAdmin();
-    if (!admin) return { ok: false, error: NOT_CONFIGURED };
-    const out = await fn(admin, db);
+    const out = await fn(await authedDb());
     revalidatePath('/painel', 'layout');
     return { ok: true, ...out };
   } catch (err) {
@@ -25,8 +24,28 @@ async function withAdmin<T extends object>(fn: (admin: EvolutionAdmin, db: Await
   }
 }
 
+/** Admin da instância em uso (a salva no banco). */
+async function withAdmin<T extends object>(fn: (admin: EvolutionAdmin, db: Db) => Promise<T>): Promise<Result<T>> {
+  return guarded(async (db) => {
+    const admin = getEvolutionAdmin(await getActiveInstance(db));
+    if (!admin) throw new Error(NOT_CONFIGURED);
+    if (!admin.instanceName) throw new Error(NO_INSTANCE);
+    return fn(admin, db);
+  });
+}
+
+/**
+ * Deixa o webhook da instância apontando para este painel, com todos os eventos. No local com a
+ * Evolution da VPS não há URL própria: o túnel do `pnpm local` aponta a instância em uso sozinho.
+ */
+async function ensureWebhook(admin: EvolutionAdmin) {
+  if (!process.env.WHATSAPP_WEBHOOK_SECRET) throw new Error('Configure WHATSAPP_WEBHOOK_SECRET no .env.');
+  const url = whatsappWebhookUrl(getEnv());
+  if (url) await admin.ensureWebhook(url);
+}
+
 /** Lê o estado real na Evolution e grava em whatsapp_connection (o menu e o CRM leem dali). */
-async function sync(admin: EvolutionAdmin, db: Awaited<ReturnType<typeof authedDb>>) {
+async function sync(admin: EvolutionAdmin, db: Db) {
   const instance = await admin.fetchInstance();
   await setConnection(db, {
     state: instance?.state ?? 'desconectado',
@@ -42,7 +61,24 @@ export async function syncConnectionAction() {
   return withAdmin(async (admin, db) => ({ state: (await sync(admin, db))?.state ?? 'desconectado' }));
 }
 
-/** Cria a instância (se faltar), registra o webhook e devolve o QR. */
+/**
+ * Adiciona uma instância e passa a usá-la: cria no servidor se não existir (se existir, só adota),
+ * registra o webhook e grava no banco. Depois é só ler o QR.
+ */
+export async function addInstanceAction(rawName: string) {
+  return guarded(async (db) => {
+    const name = normalizeInstanceName(rawName ?? '');
+    if (!name) throw new Error('Dê um nome à instância (letras, números e hífen).');
+    const admin = getEvolutionAdmin(name);
+    if (!admin) throw new Error(NOT_CONFIGURED);
+    if (!(await admin.fetchInstance())) await admin.createInstance();
+    await ensureWebhook(admin);
+    const instance = await sync(admin, db);
+    return { name, state: instance?.state ?? 'desconectado' };
+  });
+}
+
+/** Cria a instância (se faltar), confere o webhook e devolve o QR. */
 export async function startConnectionAction(phone?: string) {
   return withAdmin(async (admin, db) => {
     let instance = await admin.fetchInstance();
@@ -50,8 +86,7 @@ export async function startConnectionAction(phone?: string) {
       await admin.createInstance();
       instance = await admin.fetchInstance();
     }
-    const url = whatsappWebhookUrl(getEnv());
-    if (url) await admin.setWebhook(url);
+    await ensureWebhook(admin);
     if (instance?.state === 'conectado') {
       await sync(admin, db);
       return { qr: null, pairingCode: null, connected: true };
@@ -75,15 +110,6 @@ export async function refreshQrAction() {
   });
 }
 
-export async function registerWebhookAction() {
-  return withAdmin(async (admin) => {
-    const url = whatsappWebhookUrl(getEnv());
-    if (!url) throw new Error('Configure WHATSAPP_WEBHOOK_SECRET no .env.');
-    await admin.setWebhook(url);
-    return {};
-  });
-}
-
 export async function disconnectAction() {
   return withAdmin(async (admin, db) => {
     await admin.logout();
@@ -95,7 +121,16 @@ export async function disconnectAction() {
 export async function restartAction() {
   return withAdmin(async (admin, db) => {
     await admin.restart();
+    await ensureWebhook(admin);
     await sync(admin, db);
+    return {};
+  });
+}
+
+/** Pede ao worker para trazer as conversas dos últimos 2 dias guardadas na Evolution. Entram fechadas. */
+export async function importHistoryAction() {
+  return withAdmin(async (_admin, db) => {
+    await enqueueJob(db, { type: 'import_history', payload: { days: 2 } });
     return {};
   });
 }
@@ -110,8 +145,8 @@ const AVATAR_BATCH = 15;
 export async function refreshAvatarsAction(contactIds: string[]): Promise<{ updated: number }> {
   try {
     const db = await authedDb();
-    const admin = getEvolutionAdmin();
-    if (!admin || !contactIds.length) return { updated: 0 };
+    const admin = getEvolutionAdmin(await getActiveInstance(db));
+    if (!admin?.instanceName || !contactIds.length) return { updated: 0 };
     const { data: conn } = await db.from('whatsapp_connection').select('state').eq('id', 1).maybeSingle();
     if (conn?.state !== 'conectado') return { updated: 0 };
     const cutoff = new Date(Date.now() - AVATAR_TTL_MS).toISOString();

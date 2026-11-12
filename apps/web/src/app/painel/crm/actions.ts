@@ -9,6 +9,9 @@ import {
   getContact,
   getLead,
   INVALID_NUMBER_MESSAGE,
+  linkContactToLead,
+  searchLeads,
+  type LeadOption,
   listMessages,
   markRead,
   MEDIA_BUCKET,
@@ -21,6 +24,7 @@ import {
   setContactStatus,
   updateContact,
   updateLead,
+  getActiveInstance,
 } from '@lps/db';
 import { normalizeDocument, toMobileE164, validateCloseDeal, type CloseDealInput, type ContactStatus, type OutboundMedia } from '@lps/domain';
 import { getWhatsAppProvider, suggestConversationReply } from '@lps/integrations';
@@ -34,6 +38,8 @@ const STATUSES: ContactStatus[] = ['novo', 'contatado', 'follow_up', 'em_convers
 const fail = (err: unknown): { ok: false; error: string } => ({ ok: false, error: err instanceof Error ? err.message : 'Algo deu errado. Tente de novo.' });
 const refresh = () => revalidatePath('/painel/crm');
 const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+/** Provedor apontado para a instância escolhida em Atendimento › Conexões. */
+const whatsapp = async (db: Awaited<ReturnType<typeof authedDb>>) => getWhatsAppProvider(process.env, await getActiveInstance(db));
 
 async function guarded<T>(fn: () => Promise<T>): Promise<Result<T extends object ? T : object>> {
   try {
@@ -47,12 +53,12 @@ async function guarded<T>(fn: () => Promise<T>): Promise<Result<T extends object
   }
 }
 
-/** Um clique, um contato. O erro volta como texto para a tela mostrar. */
-export async function sendMessageAction(contactId: string, body: string, clientMessageId: string) {
+/** Um clique, um contato. O erro volta como texto para a tela mostrar. `quotedExternalId`: reply a essa mensagem. */
+export async function sendMessageAction(contactId: string, body: string, clientMessageId: string, quotedExternalId: string | null = null) {
   return guarded(async () => {
     if (!contactId || !text(body) || !clientMessageId) throw new Error('Escreva a mensagem antes de enviar.');
     const db = await authedDb();
-    const message = await sendMessage(db, getWhatsAppProvider(), { contactId, text: body, clientMessageId }, new Date());
+    const message = await sendMessage(db, await whatsapp(db), { contactId, text: body, clientMessageId, quotedExternalId }, new Date());
     return { messageId: message.id };
   });
 }
@@ -61,7 +67,7 @@ export async function retryMessageAction(messageId: string, clientMessageId: str
   return guarded(async () => {
     if (!messageId || !clientMessageId) throw new Error('Mensagem não encontrada.');
     const db = await authedDb();
-    const message = await retryMessage(db, getWhatsAppProvider(), messageId, clientMessageId, new Date());
+    const message = await retryMessage(db, await whatsapp(db), messageId, clientMessageId, new Date());
     return { messageId: message.id };
   });
 }
@@ -165,6 +171,15 @@ export async function markReadAction(contactId: string): Promise<void> {
   }
 }
 
+/** Nome do contato, editado direto no painel. Vazio não salva. */
+export async function renameContactAction(contactId: string, name: string) {
+  return guarded(async () => {
+    const value = text(name).slice(0, 120);
+    if (!value) throw new Error('O nome não pode ficar vazio.');
+    await updateContact(await authedDb(), contactId, { name: value });
+  });
+}
+
 /** Comentário interno do lead ligado ao contato. */
 export async function saveLeadCommentAction(contactId: string, comment: string) {
   return guarded(async () => {
@@ -174,15 +189,33 @@ export async function saveLeadCommentAction(contactId: string, comment: string) 
   });
 }
 
+/** Liga o contato a um lead, ou desliga com `leadId` nulo. Um lead pode ter vários contatos. */
+export async function linkLeadAction(contactId: string, leadId: string | null) {
+  return guarded(async () => {
+    const db = await authedDb();
+    await linkContactToLead(db, contactId, leadId);
+    revalidatePath('/painel/batches', 'layout');
+  });
+}
+
+export async function searchLeadsAction(term: string): Promise<LeadOption[]> {
+  try {
+    return await searchLeads(await authedDb(), text(term));
+  } catch (err) {
+    unstable_rethrow(err);
+    return [];
+  }
+}
+
 /** QR da Evolution para reconectar. `qr` vem nulo quando a instância já está conectada. */
 export async function connectionQrAction(): Promise<{ ok: true; qr: string | null } | { ok: false; error: string }> {
   try {
-    await authedDb();
+    const db = await authedDb();
     let provider;
     try {
-      provider = getWhatsAppProvider();
+      provider = await whatsapp(db);
     } catch {
-      return { ok: false, error: 'Configure EVOLUTION_URL, EVOLUTION_API_KEY e EVOLUTION_INSTANCE para conectar.' };
+      return { ok: false, error: 'Configure EVOLUTION_URL e EVOLUTION_API_KEY para conectar.' };
     }
     return { ok: true, qr: await provider.connectionQr() };
   } catch (err) {
@@ -252,7 +285,7 @@ function mediaKind(mime: string, asAudio: boolean): OutboundMedia['kind'] {
 
 /**
  * Arquivo ou áudio gravado no painel: guarda no bucket (o balão mostra pelo caminho) e envia pela Evolution.
- * FormData: contactId, clientMessageId, caption, file, audio ("1" para mensagem de voz).
+ * FormData: contactId, clientMessageId, caption, file, audio ("1" para mensagem de voz), quotedExternalId (reply, opcional).
  */
 export async function sendMediaAction(form: FormData) {
   return guarded(async () => {
@@ -270,8 +303,8 @@ export async function sendMediaAction(form: FormData) {
     if (error) throw new Error(`Falha ao guardar o arquivo: ${error.message}`);
     const message = await sendMessage(
       db,
-      getWhatsAppProvider(),
-      { contactId, text: text(form.get('caption')), clientMessageId, media: { kind, mime, base64: buffer.toString('base64'), fileName: file.name || `arquivo.${mediaExtension(mime)}`, path } },
+      await whatsapp(db),
+      { contactId, text: text(form.get('caption')), clientMessageId, quotedExternalId: text(form.get('quotedExternalId')) || null, media: { kind, mime, base64: buffer.toString('base64'), fileName: file.name || `arquivo.${mediaExtension(mime)}`, path } },
       new Date(),
     );
     return { messageId: message.id };

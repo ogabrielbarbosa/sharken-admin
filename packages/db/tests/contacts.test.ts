@@ -4,7 +4,7 @@ import { PGlite } from '@electric-sql/pglite';
 import type { Lead } from '@lps/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from '../src/client';
-import { createContactFromLead } from '../src/contacts';
+import { addContactToLead, createContactFromLead, linkContactToLead, setContactStatus } from '../src/contacts';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
 let pg: PGlite;
@@ -107,5 +107,60 @@ describe('createContactFromLead', () => {
   it('recusa lead sem celular', async () => {
     const lead = await insertLead('Sem fone', null);
     await expect(createContactFromLead(fakeDb(pg), lead)).rejects.toThrow('Lead sem celular');
+  });
+});
+
+describe('vários contatos por lead', () => {
+  it('adiciona outro número ao mesmo lead, como contato manual do batch dele', async () => {
+    const lead = await insertLead('Dr. Rafa', '5511911112222');
+    const first = await createContactFromLead(fakeDb(pg), lead);
+    const second = await addContactToLead(fakeDb(pg), lead.id, { name: 'Recepção Dr. Rafa', phone_e164: '5511933334444' });
+    expect(second.id).not.toBe(first.id);
+    expect(second).toMatchObject({ lead_id: lead.id, batch_id: lead.batch_id, origin: 'manual', status: 'novo' });
+    const { rows } = await pg.query(`select id from contacts where lead_id = $1`, [lead.id]);
+    expect(rows).toHaveLength(2);
+  });
+
+  it('liga um contato sem lead pelo número e é idempotente', async () => {
+    const lead = await insertLead('Clínica X', '5511955556666');
+    const { rows } = await pg.query<{ id: string }>(`insert into contacts (name, phone_e164, origin) values ('Sócio', '5511977778888', 'whatsapp_direto') returning id`);
+    const linked = await addContactToLead(fakeDb(pg), lead.id, { name: 'ignorado', phone_e164: '5511977778888' });
+    expect(linked.id).toBe(rows[0].id);
+    const again = await addContactToLead(fakeDb(pg), lead.id, { name: 'ignorado', phone_e164: '5511977778888' });
+    expect(again.id).toBe(rows[0].id);
+    const { rows: c } = await pg.query<{ lead_id: string; batch_id: string }>(`select lead_id, batch_id from contacts where id = $1`, [rows[0].id]);
+    expect(c[0]).toEqual({ lead_id: lead.id, batch_id: lead.batch_id });
+  });
+
+  it('recusa número que já é de outro lead', async () => {
+    const a = await insertLead('Ótica A', '5511900001111');
+    const b = await insertLead('Ótica B', '5511900002222');
+    await createContactFromLead(fakeDb(pg), a);
+    await expect(addContactToLead(fakeDb(pg), b.id, { name: 'x', phone_e164: '5511900001111' })).rejects.toThrow('outro lead');
+  });
+
+  it('desliga e liga de novo, registrando os eventos', async () => {
+    const a = await insertLead('Pet A', '5511900003333');
+    const b = await insertLead('Pet B', '5511900004444');
+    const contact = await createContactFromLead(fakeDb(pg), a);
+    await expect(linkContactToLead(fakeDb(pg), contact.id, b.id)).rejects.toThrow('outro lead');
+    await linkContactToLead(fakeDb(pg), contact.id, null);
+    await linkContactToLead(fakeDb(pg), contact.id, b.id);
+    const { rows } = await pg.query<{ lead_id: string }>(`select lead_id from contacts where id = $1`, [contact.id]);
+    expect(rows[0].lead_id).toBe(b.id);
+    const { rows: ev } = await pg.query(`select 1 from events where lead_id = $1 and type = 'contato_desligado'`, [a.id]);
+    expect(ev).toHaveLength(1);
+  });
+
+  it('um número perdido só tira o lead quando nenhum outro segue ativo', async () => {
+    const lead = await insertLead('Estética Y', '5511900005555');
+    await pg.query(`update leads set stage = 'crm' where id = $1`, [lead.id]);
+    const a = await createContactFromLead(fakeDb(pg), { ...lead, stage: 'crm' });
+    const b = await addContactToLead(fakeDb(pg), lead.id, { name: 'Recepção', phone_e164: '5511900006666' });
+    const stage = async () => (await pg.query<{ stage: string }>(`select stage from leads where id = $1`, [lead.id])).rows[0].stage;
+    await setContactStatus(fakeDb(pg), a, 'perdido');
+    expect(await stage()).toBe('crm');
+    await setContactStatus(fakeDb(pg), b, 'perdido');
+    expect(await stage()).toBe('sem_interesse');
   });
 });

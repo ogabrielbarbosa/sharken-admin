@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
-import { refreshAvatarsAction } from '@/app/painel/conexoes/actions';
+import { refreshAvatarsAction } from '@/app/painel/crm/conexoes/actions';
 
 /** Busca na Evolution as fotos que faltam dos contatos na tela (no máximo 15 por vez, a cada 3 dias por contato). */
 export function AvatarRefresher({ ids, enabled }: { ids: string[]; enabled: boolean }) {

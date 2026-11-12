@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { createClient, createService, getCharge, getService, insertCharge, listOpenCharges, listPaidCharges, listReadyToCharge, recordChargePaid, recordContractSigned, updateContract, updateService } from '../src/clients';
+import { createClient, createService, getCharge, getService, insertCharge, listReadyToCharge, recordChargePaid, recordContractSigned, updateContract, updateService } from '../src/clients';
 import { fakeDb } from './fake-db';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
@@ -59,23 +59,6 @@ describe('listReadyToCharge', () => {
   it('serviço sem contrato assinado não aparece mesmo sem cobrança', async () => {
     const { service } = await setup('Só rascunho');
     expect((await listReadyToCharge(db)).some((r) => r.service.id === service.id)).toBe(false);
-  });
-});
-
-describe('listOpenCharges e listPaidCharges', () => {
-  it('abertas: vencidas primeiro; pagas: só os últimos 30 dias', async () => {
-    const { service } = await setup('Cobranças', { contract: 'assinado' });
-    const pending = await charge(service.id, { due_date: '2026-11-15' });
-    const overdue = await charge(service.id, { due_date: '2026-11-20', status: 'vencido' });
-    const recent = await charge(service.id, { status: 'pago', paid_at: '2026-11-06T12:00:00Z' });
-    const old = await charge(service.id, { status: 'pago', paid_at: '2026-09-01T12:00:00Z' });
-    await charge(service.id, { status: 'cancelado' });
-
-    const open = (await listOpenCharges(db)).map((r) => r.charge.id).filter((id) => [pending, overdue].includes(id));
-    expect(open).toEqual([overdue, pending]);
-    const paid = (await listPaidCharges(db, new Date('2026-10-12T00:00:00Z'))).map((r) => r.charge.id);
-    expect(paid).toContain(recent);
-    expect(paid).not.toContain(old);
   });
 });
 

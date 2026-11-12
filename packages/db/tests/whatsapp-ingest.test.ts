@@ -5,7 +5,7 @@ import type { ContactStatus, WhatsAppEvent } from '@lps/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { countChats, createContact, findContactByPhone, getContact, setChatState } from '../src/contacts';
 import { insertMessage, listMessages } from '../src/messages';
-import { ingestEvent } from '../src/whatsapp-ingest';
+import { importHistory, ingestEvent } from '../src/whatsapp-ingest';
 import { fakeDb } from './fake-db';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
@@ -17,7 +17,7 @@ const now = new Date('2026-11-11T12:00:00Z');
 
 type Msg = Extract<WhatsAppEvent, { kind: 'message' }>;
 const msg = (over: Partial<Msg> & { phoneE164: string | null }): Msg => ({
-  kind: 'message', externalId: `ext-${++n}`, lid: null, pushName: null, fromMe: false, text: 'oi', media: null, at: now, ...over,
+  kind: 'message', externalId: `ext-${++n}`, lid: null, pushName: null, fromMe: false, text: 'oi', media: null, type: over.media?.kind ?? 'texto', meta: {}, at: now, ...over,
 });
 const mk = (status: ContactStatus, extra = {}) => createContact(db, { name: 'Fulano', phone_e164: phone(), origin: 'manual', status, ...extra });
 
@@ -205,5 +205,159 @@ describe('estado do atendimento', () => {
     const counts = await countChats(db);
     expect(counts.pendente).toBeGreaterThan(0);
     expect(Object.keys(counts).sort()).toEqual(['aberto', 'fechado', 'pendente', 'pendente_nao_lidas']);
+  });
+});
+
+describe('nome pelo perfil', () => {
+  it('mensagem recebida com nome preenche o contato que só tinha o número', async () => {
+    const p = phone();
+    await ingestEvent(db, msg({ phoneE164: p, fromMe: true, text: 'oi' }), now);
+    await ingestEvent(db, msg({ phoneE164: p, pushName: 'Carla', text: 'olá' }), now);
+    expect((await findContactByPhone(db, p))!.name).toBe('Carla');
+  });
+});
+
+describe('importHistory', () => {
+  it('cria as conversas fechadas, sem não lidas, e repetir não duplica', async () => {
+    const p = phone();
+    const events = [
+      msg({ phoneE164: p, pushName: 'Joana', text: 'oi', at: new Date('2026-11-10T10:00:00Z') }),
+      msg({ phoneE164: p, fromMe: true, text: 'opa', at: new Date('2026-11-10T10:01:00Z') }),
+      msg({ phoneE164: p, pushName: 'Joana', text: 'tudo bem?', at: new Date('2026-11-10T10:02:00Z') }),
+    ];
+    expect(await importHistory(db, events, now)).toEqual({ messages: 3, contacts: 1 });
+    const c = (await findContactByPhone(db, p))!;
+    expect(c).toMatchObject({ name: 'Joana', chat_state: 'fechado', unread_count: 0 });
+    expect(await listMessages(db, c.id)).toHaveLength(3);
+
+    expect(await importHistory(db, events, now)).toEqual({ messages: 0, contacts: 0 });
+    expect(await listMessages(db, c.id)).toHaveLength(3);
+  });
+
+  it('completa o nome pela agenda só onde o nome ainda é o número', async () => {
+    const p = phone();
+    const named = await mk('contatado');
+    await importHistory(db, [msg({ phoneE164: p, fromMe: true, text: 'oi' })], now, [
+      { kind: 'profile', phoneE164: p, lid: null, pushName: 'Daniel', avatarUrl: null },
+      { kind: 'profile', phoneE164: named.phone_e164, lid: null, pushName: 'Outro', avatarUrl: null },
+    ]);
+    expect((await findContactByPhone(db, p))!.name).toBe('Daniel');
+    expect((await getContact(db, named.id))!.name).toBe('Fulano');
+  });
+
+  it('contato que já existia também termina fechado', async () => {
+    const c = await mk('contatado', { chat_state: 'aberto' });
+    await importHistory(db, [msg({ phoneE164: c.phone_e164, text: 'voltei' })], now);
+    expect(await getContact(db, c.id)).toMatchObject({ chat_state: 'fechado', unread_count: 0 });
+  });
+});
+
+describe('reply recebido', () => {
+  it('guarda a citação com o trecho que veio no webhook', async () => {
+    const p = phone();
+    await ingestEvent(db, msg({ phoneE164: p, text: 'Pode mandar de novo?', quoted: { externalId: 'OUT-1', text: 'Segue a página' } }), now);
+    const c = (await findContactByPhone(db, p))!;
+    expect((await listMessages(db, c.id))[0]).toMatchObject({ quoted_external_id: 'OUT-1', quoted_preview: 'Segue a página' });
+  });
+
+  it('sem trecho no webhook usa a original que já está no CRM', async () => {
+    const c = await mk('contatado');
+    await insertMessage(db, { contact_id: c.id, direction: 'saida', body: 'Preparei uma página', status: 'enviada', external_id: 'OUT-2', at: now.toISOString() });
+    await ingestEvent(db, msg({ phoneE164: c.phone_e164, text: 'Gostei', quoted: { externalId: 'OUT-2', text: null } }), now);
+    const reply = (await listMessages(db, c.id)).find((m) => m.direction === 'entrada')!;
+    expect(reply).toMatchObject({ quoted_external_id: 'OUT-2', quoted_preview: 'Preparei uma página' });
+  });
+
+  it('mensagem comum fica sem citação', async () => {
+    const p = phone();
+    await ingestEvent(db, msg({ phoneE164: p }), now);
+    const c = (await findContactByPhone(db, p))!;
+    expect((await listMessages(db, c.id))[0]).toMatchObject({ quoted_external_id: null, quoted_preview: null });
+  });
+});
+
+describe('tipos de mensagem e eventos sobre mensagens', () => {
+  const thread = async (p: string) => listMessages(db, (await findContactByPhone(db, p))!.id);
+
+  it('figurinha grava o tipo, os detalhes e pede a mídia; a prévia diz "Figurinha"', async () => {
+    const p = phone();
+    await ingestEvent(db, msg({ phoneE164: p, text: null, type: 'sticker', meta: { animated: true }, media: { kind: 'sticker', mime: 'image/webp', url: null, base64: null } }), now);
+    expect((await thread(p))[0]).toMatchObject({ kind: 'sticker', meta: { animated: true }, reactions: [], edited_at: null, deleted_at: null });
+    expect((await findContactByPhone(db, p))!.last_message_preview).toBe('Figurinha');
+  });
+
+  it('áudio com duração aparece na prévia com o tempo', async () => {
+    const p = phone();
+    await ingestEvent(db, msg({ phoneE164: p, text: null, type: 'audio', meta: { seconds: 75, ptt: true }, media: { kind: 'audio', mime: 'audio/ogg', url: null, base64: null } }), now);
+    expect((await findContactByPhone(db, p))!.last_message_preview).toBe('🎤 Áudio (1:15)');
+  });
+
+  it('reação: uma por lado, a nova troca a anterior e vazia remove', async () => {
+    const p = phone();
+    await ingestEvent(db, msg({ phoneE164: p, externalId: 'R-ALVO' }), now);
+    const actor = { phoneE164: p, lid: null, at: now };
+    await ingestEvent(db, { kind: 'reaction', targetExternalId: 'R-ALVO', emoji: '❤️', fromMe: false, ...actor });
+    await ingestEvent(db, { kind: 'reaction', targetExternalId: 'R-ALVO', emoji: '👍', fromMe: true, ...actor });
+    await ingestEvent(db, { kind: 'reaction', targetExternalId: 'R-ALVO', emoji: '😂', fromMe: false, ...actor });
+    expect((await thread(p))[0]!.reactions.map((r) => [r.from, r.emoji])).toEqual([['eu', '👍'], ['contato', '😂']]);
+    await ingestEvent(db, { kind: 'reaction', targetExternalId: 'R-ALVO', emoji: null, fromMe: true, ...actor });
+    expect((await thread(p))[0]!.reactions.map((r) => r.emoji)).toEqual(['😂']);
+    // Reação a mensagem que não está no CRM: nada acontece.
+    await ingestEvent(db, { kind: 'reaction', targetExternalId: 'NAO-EXISTE', emoji: '❤️', fromMe: false, ...actor });
+  });
+
+  it('edição troca o texto e guarda o original; exclusão marca sem apagar', async () => {
+    const p = phone();
+    await ingestEvent(db, msg({ phoneE164: p, externalId: 'E-ALVO', text: 'primeiro' }), now);
+    await ingestEvent(db, { kind: 'edit', targetExternalId: 'E-ALVO', text: 'segundo', at: now });
+    await ingestEvent(db, { kind: 'edit', targetExternalId: 'E-ALVO', text: 'terceiro', at: now });
+    const edited = (await thread(p))[0]!;
+    expect(edited).toMatchObject({ body: 'terceiro', meta: { original_body: 'primeiro' } });
+    expect(new Date(edited.edited_at!).getTime()).toBe(now.getTime());
+    await ingestEvent(db, { kind: 'revoke', targetExternalId: 'E-ALVO', at: now });
+    expect((await thread(p))[0]).toMatchObject({ body: 'terceiro' });
+    expect((await thread(p))[0]!.deleted_at).not.toBeNull();
+  });
+
+  it('voto em enquete guarda as opções de cada lado', async () => {
+    const p = phone();
+    await ingestEvent(db, msg({ phoneE164: p, externalId: 'P-ALVO', text: 'Dia?', type: 'enquete', meta: { poll: { name: 'Dia?', options: ['Seg', 'Ter'], multiple: false } } }), now);
+    await ingestEvent(db, { kind: 'poll_vote', targetExternalId: 'P-ALVO', options: ['Ter'], fromMe: false, phoneE164: p, lid: null, at: now });
+    expect((await thread(p))[0]!.meta.poll).toMatchObject({ votes: { contato: ['Ter'] } });
+  });
+
+  it('histórico aplica reações depois das mensagens', async () => {
+    const p = phone();
+    await importHistory(db, [
+      msg({ phoneE164: p, externalId: 'H-1' }),
+      { kind: 'reaction', targetExternalId: 'H-1', emoji: '🙏', fromMe: true, phoneE164: p, lid: null, at: now },
+    ], now);
+    expect((await thread(p))[0]!.reactions).toMatchObject([{ from: 'eu', emoji: '🙏' }]);
+  });
+});
+
+describe('importar de novo completa os detalhes', () => {
+  it('mensagem antiga sem meta ganha o tipo e os detalhes; com meta, fica como está', async () => {
+    const p = phone();
+    await ingestEvent(db, msg({ phoneE164: p, externalId: 'OLD-1', text: null, type: 'outro', meta: {}, media: { kind: 'sticker', mime: 'image/webp', url: null, base64: null } }), now);
+    await importHistory(db, [msg({ phoneE164: p, externalId: 'OLD-1', text: null, type: 'sticker', meta: { animated: true } })], now);
+    const c = (await findContactByPhone(db, p))!;
+    expect((await listMessages(db, c.id))[0]).toMatchObject({ kind: 'sticker', meta: { animated: true } });
+    await importHistory(db, [msg({ phoneE164: p, externalId: 'OLD-1', text: null, type: 'sticker', meta: { animated: false } })], now);
+    expect((await listMessages(db, c.id))[0]!.meta).toEqual({ animated: true });
+  });
+});
+
+describe('prévia da lista acompanha edição e exclusão da última mensagem', () => {
+  it('edita e apaga a última: a prévia muda; numa mensagem antiga, não', async () => {
+    const p = phone();
+    await ingestEvent(db, msg({ phoneE164: p, externalId: 'PV-1', text: 'antiga', at: new Date(now.getTime() - 60_000) }), now);
+    await ingestEvent(db, msg({ phoneE164: p, externalId: 'PV-2', text: 'errada' }), now);
+    await ingestEvent(db, { kind: 'edit', targetExternalId: 'PV-2', text: 'certa', at: now });
+    expect((await findContactByPhone(db, p))!.last_message_preview).toBe('certa');
+    await ingestEvent(db, { kind: 'edit', targetExternalId: 'PV-1', text: 'antiga editada', at: now });
+    expect((await findContactByPhone(db, p))!.last_message_preview).toBe('certa');
+    await ingestEvent(db, { kind: 'revoke', targetExternalId: 'PV-2', at: now });
+    expect((await findContactByPhone(db, p))!.last_message_preview).toBe('🚫 Mensagem apagada');
   });
 });

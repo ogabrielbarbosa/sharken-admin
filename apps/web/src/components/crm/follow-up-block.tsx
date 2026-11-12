@@ -29,7 +29,7 @@ export function FollowUpBlock({ contactId, at, note, disabled }: { contactId: st
   return (
     <Section icon={<Bell />} title="Follow-up">
       {editing ? (
-        <div className="space-y-2">
+        <div className="space-y-2 px-2 py-1">
           <input type="date" aria-label="Data do follow-up" value={date} onChange={(e) => setDate(e.target.value)} className="h-8 w-full rounded-md border border-input bg-input-bg px-2 text-sm outline-none" />
           <input aria-label="Anotação do follow-up" value={text} onChange={(e) => setText(e.target.value)} placeholder="Anotação (opcional)" className="h-8 w-full rounded-md border border-input bg-input-bg px-2 text-sm outline-none placeholder:text-muted-foreground" />
           {error && <ErrorNote>{error}</ErrorNote>}
@@ -39,7 +39,7 @@ export function FollowUpBlock({ contactId, at, note, disabled }: { contactId: st
           </div>
         </div>
       ) : at ? (
-        <div className="flex items-start justify-between gap-2 text-sm">
+        <div className="flex items-start justify-between gap-2 px-2 py-1 text-[13px]">
           <div className="min-w-0">
             <p>{brDate(at)}</p>
             {note && <p className="truncate text-xs text-muted-foreground">{note}</p>}
@@ -51,7 +51,7 @@ export function FollowUpBlock({ contactId, at, note, disabled }: { contactId: st
           {error && <ErrorNote>{error}</ErrorNote>}
         </div>
       ) : (
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex h-7 items-center justify-between px-2 text-[13px]">
           <span className="text-muted-foreground">Sem follow-up agendado</span>
           <button type="button" disabled={disabled} onClick={() => setEditing(true)} className="inline-flex cursor-pointer items-center gap-1 font-medium hover:underline disabled:cursor-not-allowed disabled:opacity-50">Agendar <Plus className="size-4" /></button>
         </div>

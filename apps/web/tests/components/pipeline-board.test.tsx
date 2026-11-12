@@ -26,7 +26,7 @@ function lead(stage: LeadStage): Lead {
 }
 
 const leads = STAGES.map(lead);
-const contacts = { 'l-crm': { id: 'c-1', status: 'contatado' as const } };
+const contacts = { 'l-crm': [{ id: 'c-1', status: 'contatado' as const }] };
 
 function column(label: string) {
   return screen.getByRole('region', { name: label });
@@ -52,19 +52,53 @@ describe('Board', () => {
     expect(within(column('Descartados')).getByText('Negócio descartado')).toBeTruthy();
   });
 
-  it('o cartão analisando mostra "Analisando…" e não tem botões', () => {
+  it('Descartados aberta recolhe pelo botão do cabeçalho', () => {
     render(<Board batchId="b1" leads={leads} assets={{}} contacts={contacts} />);
-    const card = screen.getByTestId('card-l-analisando');
-    expect(within(card).getByText('Analisando…')).toBeTruthy();
-    expect(within(card).queryAllByRole('button')).toHaveLength(0);
-    expect(within(card).queryAllByRole('checkbox')).toHaveLength(0);
+    fireEvent.click(within(column('Descartados')).getByRole('button', { name: 'Descartados (2)' }));
+    fireEvent.click(within(column('Descartados')).getByRole('button', { name: 'Recolher descartados' }));
+    expect(within(column('Descartados')).queryByText('Negócio descartado')).toBeNull();
   });
 
-  it('o cartão revisar tem Qualificar e Descartar', () => {
+  it('Novo lead não tem caixas de seleção', () => {
     render(<Board batchId="b1" leads={leads} assets={{}} contacts={contacts} />);
-    const card = screen.getByTestId('card-l-revisar');
-    expect(within(card).getByRole('button', { name: 'Qualificar Negócio revisar' })).toBeTruthy();
-    expect(within(card).getByRole('button', { name: 'Descartar Negócio revisar' })).toBeTruthy();
+    expect(within(column('Novo lead')).queryAllByRole('checkbox')).toHaveLength(0);
+  });
+
+  it('o cartão analisando mostra "Analisando…"', () => {
+    render(<Board batchId="b1" leads={leads} assets={{}} contacts={contacts} />);
+    expect(within(screen.getByTestId('card-l-analisando')).getByText('Analisando…')).toBeTruthy();
+  });
+
+  it('todos os cartões têm o mesmo formato: pontuação na bolinha e status do site, sem avaliação nem botões', () => {
+    render(<Board batchId="b1" leads={leads} assets={{}} contacts={contacts} />);
+    fireEvent.click(within(column('Descartados')).getByRole('button', { name: 'Descartados (2)' }));
+    for (const stage of STAGES) {
+      const card = screen.getByTestId(`card-l-${stage}`);
+      expect(within(card).getByLabelText('Pontuação 70').textContent).toBe('70');
+      expect(within(card).getByText('Sem site')).toBeTruthy();
+      expect(within(card).queryByText(/4\.8/)).toBeNull();
+      expect(within(card).queryAllByRole('button')).toHaveLength(0);
+    }
+  });
+
+  it('o cartão revisar abre ao clicar em qualquer parte', () => {
+    render(<Board batchId="b1" leads={leads} assets={{}} contacts={contacts} />);
+    expect(within(screen.getByTestId('card-l-revisar')).getByRole('link').getAttribute('href')).toBe('/painel/batches/b1?lead=l-revisar');
+  });
+
+  it('arrastar um cartão até Descartados descarta o lead', async () => {
+    const { discardAction } = await import('@/app/painel/batches/[id]/actions');
+    vi.mocked(discardAction).mockResolvedValue({ ok: true } as never);
+    render(<Board batchId="b1" leads={leads} assets={{}} contacts={contacts} />);
+    const card = screen.getByTestId('card-l-pagina');
+    expect(card.getAttribute('draggable')).toBe('true');
+    expect(screen.getByTestId('card-l-vendido').getAttribute('draggable')).toBe('false');
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '', dropEffect: '' };
+    fireEvent.dragStart(card, { dataTransfer });
+    const trash = column('Descartados');
+    fireEvent.dragOver(trash, { dataTransfer });
+    fireEvent.drop(trash, { dataTransfer });
+    expect(discardAction).toHaveBeenCalledWith(['l-pagina']);
   });
 
   it('Página mostra "Falta a página" e Vídeo mostra "Falta o Loom"', () => {
@@ -79,11 +113,24 @@ describe('Board', () => {
     expect(within(screen.getByTestId('card-l-video')).getByText('clinica.com.br')).toBeTruthy();
   });
 
-  it('o cartão no CRM mostra o status do contato e aponta para a conversa', () => {
+  it('com um contato só, o cartão mostra o status e abre a conversa direto', () => {
     render(<Board batchId="b1" leads={leads} assets={{}} contacts={contacts} />);
     const card = screen.getByTestId('card-l-crm');
     expect(within(card).getByText('Contatado')).toBeTruthy();
-    expect(within(card).getByRole('link').getAttribute('href')).toBe('/painel/crm?contato=c-1');
+    expect(within(card).getByRole('link').getAttribute('href')).toBe('/painel/crm?aba=aberto&contato=c-1');
+  });
+
+  it('com vários números, o cartão conta as conversas e abre a lista', () => {
+    const many = { 'l-crm': [{ id: 'c-1', status: 'em_conversa' as const }, { id: 'c-2', status: 'novo' as const }] };
+    render(<Board batchId="b1" leads={leads} assets={{}} contacts={many} />);
+    const card = screen.getByTestId('card-l-crm');
+    expect(within(card).getByText('2 conversas')).toBeTruthy();
+    expect(within(card).getByRole('link').getAttribute('href')).toBe('/painel/batches/b1?lead=l-crm');
+  });
+
+  it('sem contato, o cartão abre a lista para adicionar número', () => {
+    render(<Board batchId="b1" leads={leads} assets={{}} contacts={{}} />);
+    expect(within(screen.getByTestId('card-l-crm')).getByRole('link').getAttribute('href')).toBe('/painel/batches/b1?lead=l-crm');
   });
 
   it('Qualificado resume os itens acrescentados', () => {

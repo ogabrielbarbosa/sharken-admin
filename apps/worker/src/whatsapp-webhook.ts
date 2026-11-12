@@ -7,7 +7,7 @@ const base = requireOptional('EVOLUTION_URL').replace(/\/+$/, '');
 const instance = requireOptional('EVOLUTION_INSTANCE');
 const secret = requireOptional('WHATSAPP_WEBHOOK_SECRET');
 const url = `${webhookBaseUrl(env)}/api/webhooks/whatsapp?token=${secret}`;
-const events = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CONNECTION_UPDATE'];
+const events = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'MESSAGES_EDITED', 'MESSAGES_DELETE', 'CONNECTION_UPDATE', 'CONTACTS_UPSERT', 'CONTACTS_UPDATE'];
 const headers = { apikey: requireOptional('EVOLUTION_API_KEY'), 'content-type': 'application/json' };
 const endpoint = `${base}/webhook/set/${encodeURIComponent(instance)}`;
 
