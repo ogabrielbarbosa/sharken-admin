@@ -111,7 +111,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                 <li key={p.kind}>
                   <Link href={pendencyHref(p)} className="group/p glow-card press block rounded-lg border border-border bg-white/[0.02] p-3">
                     <span className="text-sm">{p.label}</span>
-                    <span className="mt-1 block bg-linear-to-br from-white to-brand-light bg-clip-text text-2xl font-semibold text-transparent tabular-nums">{p.count}</span>
+                    <span className="mt-1 block text-2xl font-semibold text-foreground tabular-nums">{p.count}</span>
                     <span className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                       {p.kind === 'cobranca' ? 'em Clientes' : !p.step ? 'no CRM' : p.batchIds.length === 1 ? 'em 1 batch' : `em ${p.batchIds.length} batches`}<ArrowRight className="size-3.5 transition-[translate,color] duration-200 group-hover/p:translate-x-0.5 group-hover/p:text-brand-soft" />
                     </span>

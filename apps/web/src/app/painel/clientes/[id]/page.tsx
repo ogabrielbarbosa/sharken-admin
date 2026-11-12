@@ -93,7 +93,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
                 </div>
               ))}
             </dl>
-            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full origin-left animate-grow-x rounded-full bg-linear-to-r from-brand to-brand-soft shadow-[0_0_10px_#3b82f680]" style={{ width: `${percent}%` }} /></div>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full origin-left animate-grow-x rounded-full bg-brand shadow-[0_0_10px_#1f88c080]" style={{ width: `${percent}%` }} /></div>
             <p className="mt-1 text-right text-xs text-muted-foreground">{percent}% do faturado</p>
           </Card>
         </div>

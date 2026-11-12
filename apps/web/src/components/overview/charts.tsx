@@ -1,7 +1,7 @@
 import type { FunnelStep } from '@lps/domain';
 
 const FLOW_COLORS = ['var(--color-chart-1)', 'var(--color-chart-2)'];
-const BAR_FILLS = ['linear-gradient(to top, #1d4ed8, #60a5fa)', 'linear-gradient(to top, #6d8fe0, #c7d7ff)'];
+const BAR_FILLS = FLOW_COLORS;
 
 /** Barras finas por dia. Cada barra mostra o valor ao passar o mouse. */
 export function DailyBars({ days, series }: { days: { label: string; values: number[] }[]; series: string[] }) {
@@ -56,7 +56,7 @@ export function Donut({ parts, total, unit }: { parts: { label: string; value: n
         {total > 0 && parts.map((p, i) => {
           const length = (p.value / total) * circumference;
           const el = (
-            <circle key={p.label} cx="75" cy="75" r={radius} fill="none" stroke={FLOW_COLORS[i]} strokeWidth="10" strokeDasharray={`${Math.max(length - 2, 0)} ${circumference}`} strokeDashoffset={-offset} transform="rotate(-90 75 75)" className="animate-fade-in" style={{ animationDuration: '900ms', animationDelay: `${i * 180}ms`, filter: i === 0 ? 'drop-shadow(0 0 6px #3b82f680)' : undefined }}>
+            <circle key={p.label} cx="75" cy="75" r={radius} fill="none" stroke={FLOW_COLORS[i]} strokeWidth="10" strokeDasharray={`${Math.max(length - 2, 0)} ${circumference}`} strokeDashoffset={-offset} transform="rotate(-90 75 75)" className="animate-fade-in" style={{ animationDuration: '900ms', animationDelay: `${i * 180}ms`, filter: i === 0 ? 'drop-shadow(0 0 6px #1f88c080)' : undefined }}>
               <title>{`${p.label}: ${p.value}`}</title>
             </circle>
           );
@@ -85,7 +85,7 @@ export function Funnel({ steps }: { steps: FunnelStep[] }) {
       {steps.map((s, i) => (
         <li key={s.label} className="grid grid-cols-[8rem_1fr_3rem_3rem] items-center gap-3 text-sm">
           <span className="truncate">{s.label}</span>
-          <span className="h-2 overflow-hidden rounded-full bg-white/[0.06]"><span className="block h-full origin-left animate-grow-x rounded-full bg-linear-to-r from-brand to-brand-soft shadow-[0_0_12px_#3b82f680]" style={{ width: `${(s.count / max) * 100}%`, animationDelay: `${i * 80}ms` }} /></span>
+          <span className="h-2 overflow-hidden rounded-full bg-white/[0.06]"><span className="block h-full origin-left animate-grow-x rounded-full bg-brand shadow-[0_0_12px_#1f88c080]" style={{ width: `${(s.count / max) * 100}%`, animationDelay: `${i * 80}ms` }} /></span>
           <span className="text-right font-medium">{s.count}</span>
           <span className="text-right text-xs text-muted-foreground">{s.rate === null ? '—' : `${s.rate}%`}</span>
         </li>

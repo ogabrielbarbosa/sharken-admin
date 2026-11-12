@@ -43,7 +43,7 @@ const day = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2
 
 function TabButton({ active, label, onClick, children, count }: { active: boolean; label: string; onClick: () => void; children: ReactNode; count?: number }) {
   return (
-    <button type="button" title={label} aria-label={label} aria-pressed={active} onClick={onClick} className={`relative inline-flex h-11 flex-1 cursor-pointer items-center justify-center border-b-2 transition-colors [&_svg]:size-[18px] ${active ? 'border-sky-400 text-sky-300' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+    <button type="button" title={label} aria-label={label} aria-pressed={active} onClick={onClick} className={`relative inline-flex h-11 flex-1 cursor-pointer items-center justify-center border-b-2 transition-colors [&_svg]:size-[18px] ${active ? 'border-brand-soft text-brand-light' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
       {children}
       {!!count && <span className="absolute right-2 top-2 min-w-4 rounded-full bg-secondary px-1 text-[10px] leading-4 text-foreground">{count}</span>}
     </button>

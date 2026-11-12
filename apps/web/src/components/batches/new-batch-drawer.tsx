@@ -43,7 +43,7 @@ export function NewBatchDrawer() {
       <ol className="mb-6 flex items-center gap-2 text-xs">
         {STEPS.map((label, i) => (
           <li key={label} className={`flex items-center gap-1.5 transition-colors duration-300 ${i === step ? 'font-medium' : 'text-muted-foreground'}`}>
-            <span className={`flex size-5 items-center justify-center rounded-full transition-[background-color,box-shadow] duration-300 ${i <= step ? 'bg-linear-to-b from-brand-bright to-brand text-white shadow-[0_0_10px_-2px_#3b82f6]' : 'bg-white/[0.06]'}`}>
+            <span className={`flex size-5 items-center justify-center rounded-full transition-[background-color,box-shadow] duration-300 ${i <= step ? 'bg-brand text-white shadow-[0_0_10px_-2px_#1f88c0]' : 'bg-white/[0.06]'}`}>
               {i < step ? <Check className="size-3 animate-check-pop" /> : i + 1}
             </span>
             {label}

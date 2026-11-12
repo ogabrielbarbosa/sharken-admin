@@ -1,7 +1,6 @@
 export * from './apify';
 export * from './anthropic';
 export * from './lead-analysis';
-export * from './storage';
 export * from './reply-suggestions';
 export * from './zapsign';
 export * from './contracts/provider';

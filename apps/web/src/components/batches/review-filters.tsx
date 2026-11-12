@@ -56,7 +56,7 @@ function Group({ groupKey, value, counts, onChange }: { groupKey: FilterGroupKey
           const state = optionState(value, o.value);
           const tone = {
             off: 'border-border text-muted-foreground hover:border-border-strong hover:text-foreground',
-            incluir: 'border-brand-bright bg-brand-bright/20 text-brand-pale shadow-[0_0_12px_-4px_#3b82f6]',
+            incluir: 'border-brand-bright bg-brand-bright/20 text-brand-pale shadow-[0_0_12px_-4px_#1f88c0]',
             excluir: 'border-destructive/60 bg-destructive/15 text-destructive',
           }[state];
           const tip = `${o.hint} ${STATE_HINT[state]}`;

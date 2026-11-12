@@ -66,11 +66,11 @@ function NoteBubble({ m }: { m: ThreadMessage }) {
 function Quote({ author, text, mine, onJump }: { author: string | null; text: string; mine: boolean; onJump: (() => void) | null }) {
   const body = (
     <>
-      <span className={`block text-xs font-semibold ${mine ? 'text-sky-300' : 'text-brand-soft'}`}>{author ?? 'Mensagem citada'}</span>
+      <span className={`block text-xs font-semibold ${mine ? 'text-brand-light' : 'text-brand-soft'}`}>{author ?? 'Mensagem citada'}</span>
       <span className="line-clamp-2 text-xs opacity-80">{text}</span>
     </>
   );
-  const cls = `mb-1.5 block w-full min-w-40 rounded-lg border-l-[3px] px-2.5 py-1.5 text-left ${mine ? 'border-sky-400 bg-black/25' : 'border-brand-soft bg-black/20'}`;
+  const cls = `mb-1.5 block w-full min-w-40 rounded-lg border-l-[3px] px-2.5 py-1.5 text-left ${mine ? 'border-brand-soft bg-black/25' : 'border-brand-soft bg-black/20'}`;
   return onJump
     ? <button type="button" onClick={onJump} className={`${cls} cursor-pointer transition-colors hover:bg-black/40`}>{body}</button>
     : <span className={cls}>{body}</span>;
@@ -127,7 +127,7 @@ function Bubble({ m, onRetry, onReply, quote, showMeta, people, now, animate }: 
       <div className={`flex max-w-[72%] flex-col ${mine ? 'items-end' : 'items-start'}`}>
         <div
           onDoubleClick={() => { if (onReply && m.external_id) onReply(m); }}
-          className={`relative ${bare ? '' : `rounded-2xl px-3.5 py-2 ${mine ? 'bg-[#16263f] text-slate-50' : 'bg-secondary text-foreground'}`} ${mine ? 'origin-bottom-right' : 'origin-bottom-left'} ${showMeta && !bare ? (mine ? 'rounded-br-md' : 'rounded-bl-md') : ''} ${animate ? (mine ? 'animate-bubble-out' : 'animate-bubble-in') : ''} ${m.status === 'pendente' ? 'opacity-80' : ''} ${deleted ? 'opacity-60 ring-1 ring-dashed ring-muted-foreground/40' : ''} ${m.reactions?.length ? 'mb-3' : ''} transition-opacity duration-300`}
+          className={`relative ${bare ? '' : `rounded-2xl px-3.5 py-2 ${mine ? 'bg-[#0f2b3c] text-slate-50' : 'bg-secondary text-foreground'}`} ${mine ? 'origin-bottom-right' : 'origin-bottom-left'} ${showMeta && !bare ? (mine ? 'rounded-br-md' : 'rounded-bl-md') : ''} ${animate ? (mine ? 'animate-bubble-out' : 'animate-bubble-in') : ''} ${m.status === 'pendente' ? 'opacity-80' : ''} ${deleted ? 'opacity-60 ring-1 ring-dashed ring-muted-foreground/40' : ''} ${m.reactions?.length ? 'mb-3' : ''} transition-opacity duration-300`}
         >
           {deleted && <p className="mb-1 flex items-center gap-1 text-[11px] italic text-muted-foreground"><Ban className="size-3" />Apagada para todos no WhatsApp</p>}
           {m.meta?.forwarded && <ForwardedTag />}

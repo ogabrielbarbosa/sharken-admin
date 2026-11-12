@@ -81,7 +81,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               </Card>
               <Card className="p-5">
                 <h2 className="mb-2 font-medium">Análise e pontuação</h2>
-                <p className="bg-linear-to-br from-white to-brand-light bg-clip-text text-3xl font-semibold text-transparent tabular-nums">{lead.score ?? '—'}<span className="ml-1 text-sm font-normal text-muted-foreground">/100</span></p>
+                <p className="text-3xl font-semibold text-foreground tabular-nums">{lead.score ?? '—'}<span className="ml-1 text-sm font-normal text-muted-foreground">/100</span></p>
                 <ul className="mt-3 space-y-1.5 text-sm">
                   {lead.score_reasons?.map((r) => (
                     <li key={r.label} className="flex items-center gap-2">
@@ -110,10 +110,10 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
           </div>
           <Card className="h-fit p-5">
             <h2 className="mb-3 font-medium">Histórico</h2>
-            <ol className="relative space-y-3 before:absolute before:inset-y-1 before:left-[3px] before:w-px before:bg-linear-to-b before:from-brand-bright/60 before:to-transparent">
+            <ol className="relative space-y-3 before:absolute before:inset-y-1 before:left-[3px] before:w-px before:bg-brand/40">
               {events.map((e, i) => (
                 <li key={e.id} className="relative flex justify-between gap-3 pl-5 text-sm">
-                  <span aria-hidden className={`absolute top-1.5 left-0 size-[7px] rounded-full ${i === 0 ? 'bg-brand-bright shadow-[0_0_8px_#3b82f6]' : 'bg-zinc-600'}`} />
+                  <span aria-hidden className={`absolute top-1.5 left-0 size-[7px] rounded-full ${i === 0 ? 'bg-brand-bright shadow-[0_0_8px_#1f88c0]' : 'bg-zinc-600'}`} />
                   <span>{describeEvent(e)}</span>
                   <span className="shrink-0 text-xs text-muted-foreground">{formatDateTime(e.created_at)}</span>
                 </li>

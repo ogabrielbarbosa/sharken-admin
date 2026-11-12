@@ -149,7 +149,7 @@ function AudioPlayer({ m, mine, avatar }: { m: M; mine: boolean; avatar: { name:
   }
 
   const progress = duration ? time / duration : 0;
-  const played = mine ? 'bg-sky-300' : 'bg-brand-soft';
+  const played = mine ? 'bg-brand-light' : 'bg-brand-soft';
   const rest = mine ? 'bg-slate-400/40' : 'bg-muted-foreground/35';
   const ptt = m.meta?.ptt !== false;
 
@@ -203,7 +203,7 @@ function AudioPlayer({ m, mine, avatar }: { m: M; mine: boolean; avatar: { name:
       {ptt && mine && (
         <span className="relative shrink-0">
           <Avatar name={avatar.name} src={avatar.src} seed={avatar.seed} size={42} />
-          <Mic className="absolute -bottom-0.5 -left-1 size-4 rounded-full bg-[#16263f] p-0.5 text-sky-300" />
+          <Mic className="absolute -bottom-0.5 -left-1 size-4 rounded-full bg-[#0f2b3c] p-0.5 text-brand-light" />
         </span>
       )}
       {!ptt && <Radio className="size-4 shrink-0 text-muted-foreground" aria-label="Arquivo de áudio" />}
@@ -242,7 +242,7 @@ function RoundVideo({ url }: { url: string }) {
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => { setPlaying(false); setProgress(0); }}
         onTimeUpdate={(e) => setProgress(e.currentTarget.duration ? e.currentTarget.currentTime / e.currentTarget.duration : 0)} />
       <svg viewBox="0 0 100 100" className="pointer-events-none absolute inset-0 size-full -rotate-90">
-        <circle cx="50" cy="50" r="48.5" fill="none" stroke="currentColor" strokeWidth="2" className="text-sky-300" strokeDasharray={`${progress * 304.7} 304.7`} />
+        <circle cx="50" cy="50" r="48.5" fill="none" stroke="currentColor" strokeWidth="2" className="text-brand-light" strokeDasharray={`${progress * 304.7} 304.7`} />
       </svg>
       {!playing && <Play className="absolute left-1/2 top-1/2 size-10 -translate-x-1/2 -translate-y-1/2 fill-white/90 text-white/90 drop-shadow" />}
     </button>

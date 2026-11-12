@@ -29,7 +29,7 @@ const linkClass = (active: boolean) =>
   `group/link press relative flex h-9 items-center gap-2.5 rounded-md px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/60 ${active ? 'bg-accent font-medium' : 'text-foreground/90 hover:bg-accent'}`;
 
 function Indicator() {
-  return <span aria-hidden className="absolute inset-y-2 -left-3 w-[3px] animate-indicator-in rounded-r-full bg-brand-bright shadow-[0_0_12px_#3b82f6]" />;
+  return <span aria-hidden className="absolute inset-y-2 -left-3 w-[3px] animate-indicator-in rounded-r-full bg-brand-bright shadow-[0_0_12px_#1f88c0]" />;
 }
 
 /** Grupo "Atendimento": Conversas e Conexões. Abre e fecha e lembra a escolha. Recolhido, vira um link para as conversas. */
@@ -127,7 +127,7 @@ export function Sidebar({ email, whatsapp }: { email: string; whatsapp: SidebarW
 
         <div className="relative mt-auto space-y-3">
           <div className="flex items-center gap-2.5 p-1.5">
-            <span className="size-8 shrink-0 rounded-full bg-linear-to-br from-sky-500 to-emerald-300" />
+            <span className="size-8 shrink-0 rounded-full bg-brand" />
             <div className={`min-w-0 flex-1 ${fade}`}>
               <p className="truncate text-sm font-medium">Gabriel</p>
               <p className="truncate text-xs text-muted-foreground">{email}</p>

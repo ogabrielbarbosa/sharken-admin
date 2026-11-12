@@ -7,7 +7,7 @@ export const cx = (...parts: (string | false | undefined | null)[]) => parts.fil
 type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
 const variants: Record<Variant, string> = {
   primary:
-    'bg-linear-to-b from-brand-bright to-brand text-brand-foreground shadow-brand hover:brightness-110 hover:shadow-[0_10px_30px_-8px_#3b82f6cc,inset_0_1px_0_#ffffff40]',
+    'bg-brand text-brand-foreground shadow-brand hover:bg-brand-bright hover:shadow-[0_10px_30px_-8px_#1f88c0cc]',
   secondary: 'bg-secondary text-foreground hover:bg-accent',
   outline: 'border border-input bg-input-bg text-foreground hover:border-border-strong hover:bg-white/5',
   ghost: 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
@@ -75,7 +75,7 @@ export function Badge({ tone = 'neutral', children }: { tone?: Tone; children: R
 }
 
 const dots: Record<Tone, string> = { neutral: 'bg-zinc-500', success: 'bg-success', danger: 'bg-destructive', warning: 'bg-warning', brand: 'bg-brand-bright' };
-const glows: Record<Tone, string> = { neutral: '', success: 'shadow-[0_0_8px_#10b981]', danger: 'shadow-[0_0_8px_#ff6467]', warning: 'shadow-[0_0_8px_#f59e0b]', brand: 'shadow-[0_0_8px_#3b82f6]' };
+const glows: Record<Tone, string> = { neutral: '', success: 'shadow-[0_0_8px_#10b981]', danger: 'shadow-[0_0_8px_#ff6467]', warning: 'shadow-[0_0_8px_#f59e0b]', brand: 'shadow-[0_0_8px_#1f88c0]' };
 export function Status({ tone = 'neutral', children, live }: { tone?: Tone; children: ReactNode; live?: boolean }) {
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium">
@@ -111,9 +111,8 @@ export function SectionTitle({ children, count, tone }: { children: ReactNode; c
 export function EmptyState({ icon, title, description, actions }: { icon?: ReactNode; title: string; description?: string; actions?: ReactNode }) {
   return (
     <Card className="relative flex min-h-96 flex-col items-center justify-center gap-3 overflow-hidden p-8 text-center">
-      <div aria-hidden className="pointer-events-none absolute inset-0 grid-texture opacity-50 mask-[radial-gradient(50%_60%_at_50%_45%,black,transparent)]" />
       {icon && (
-        <span className="relative grid size-12 place-items-center rounded-xl border border-brand-border bg-linear-to-b from-brand-bright/25 to-brand/10 text-brand-light shadow-[0_8px_24px_-8px_#3b82f6] [&_svg]:size-5">
+        <span className="relative grid size-12 place-items-center rounded-xl border border-brand-border bg-brand-muted text-brand-light shadow-[0_8px_24px_-8px_#1f88c0] [&_svg]:size-5">
           {icon}
         </span>
       )}
