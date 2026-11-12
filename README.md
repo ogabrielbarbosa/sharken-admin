@@ -27,3 +27,4 @@ pnpm producao   # publica na nuvem
 pnpm test        # todos os testes
 pnpm typecheck   # tipos de todos os pacotes
 ```
+# sharken-admin
