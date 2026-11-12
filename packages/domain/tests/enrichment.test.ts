@@ -67,7 +67,7 @@ describe('CNPJ', () => {
 
 describe('site', () => {
   it('tira e-mails do texto sem falsos positivos', () => {
-    expect(extractEmails('Fale: Contato@Clinica.com.br. logo@2x.png mailto:contato@clinica.com.br x@sentry.io')).toEqual(['contato@clinica.com.br']);
+    expect(extractEmails('Fale: Contato@Clinica.com.br. logo@2x.png mailto:contato@clinica.com.br x@sentry.io info@mysite.com')).toEqual(['contato@clinica.com.br']);
   });
   it('lê o celular de links de WhatsApp', () => {
     expect(whatsappFromHref('https://wa.me/5512991234567?text=oi')).toBe('5512991234567');

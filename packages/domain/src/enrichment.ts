@@ -51,7 +51,7 @@ export function brDomainOf(url: string | null | undefined): string | null {
 
 export const onlyDigits = (s: string | null | undefined) => (s ?? '').replace(/\D/g, '');
 
-const JUNK_EMAIL = /(example\.|sentry|wixpress|\.png$|\.jpe?g$|\.gif$|\.webp$|\.svg$|@2x|domain\.com|email\.com$|seuemail|seu-email|nome@)/i;
+const JUNK_EMAIL = /(example\.|sentry|wixpress|\.png$|\.jpe?g$|\.gif$|\.webp$|\.svg$|@2x|domain\.com|email\.com$|seuemail|seu-email|nome@|mysite\.com|yoursite|seusite|seudominio|exemplo\.|test@|teste@)/i;
 
 /** E-mails válidos e únicos em um texto (minúsculos), sem os falsos positivos comuns de páginas. */
 export function extractEmails(text: string | null | undefined): string[] {
