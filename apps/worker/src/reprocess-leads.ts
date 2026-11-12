@@ -8,7 +8,7 @@ import { createAdminClient, enqueueJob, logEvent, updateBatch } from '@lps/db';
  * - quem está em Novo lead e ainda não foi enriquecido ganha só a procura de contatos.
  * Uso: pnpm leads:reprocess <batch_id> [--dry]
  */
-const [batchId, flag] = process.argv.slice(2);
+const [batchId, flag] = process.argv.slice(2).filter((a) => a !== '--');
 if (!batchId) {
   console.error('Uso: pnpm leads:reprocess <batch_id> [--dry]');
   process.exit(1);
