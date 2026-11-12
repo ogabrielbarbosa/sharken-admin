@@ -19,10 +19,11 @@ export async function POST(request: Request) {
   let failed = false;
   try {
     const db = createAdminClient();
-    // Instância antiga ainda apontando para cá: ignora, o CRM só ouve a instância em uso.
+    // O CRM só ouve a instância em uso. Sem instância no banco (nenhuma conexão feita, ou banco
+    // recriado), uma instância que ficou ligada na Evolution com o webhook antigo não grava nada.
     const from = typeof (raw as { instance?: unknown })?.instance === 'string' ? (raw as { instance: string }).instance : null;
-    const active = from ? await getActiveInstance(db) : null;
-    if (from && active && from !== active) return Response.json({ ok: true, ignored: true });
+    const active = await getActiveInstance(db);
+    if (!from || !active || from !== active) return Response.json({ ok: true, ignored: true });
     for (const event of getWhatsAppProvider().normalize(raw)) {
       try {
         await ingestEvent(db, event, new Date());

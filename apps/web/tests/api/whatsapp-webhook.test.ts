@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ingestEvent = vi.fn();
-vi.mock('@lps/db', () => ({ createAdminClient: () => ({}), getActiveInstance: async () => 'atual', ingestEvent: (...a: unknown[]) => ingestEvent(...a) }));
+let active: string | null = 'atual';
+vi.mock('@lps/db', () => ({ createAdminClient: () => ({}), getActiveInstance: async () => active, ingestEvent: (...a: unknown[]) => ingestEvent(...a) }));
 vi.mock('@lps/integrations', () => ({
   getWhatsAppProvider: () => ({ normalize: (raw: { events?: unknown[] }) => raw.events ?? [] }),
 }));
@@ -11,7 +12,7 @@ import { POST } from '@/app/api/webhooks/whatsapp/route';
 
 const call = (body: string, token = 'certo') => POST(new Request(`https://x.test/api/webhooks/whatsapp?token=${token}`, { method: 'POST', body }));
 
-beforeEach(() => { process.env.WHATSAPP_WEBHOOK_SECRET = 'certo'; ingestEvent.mockReset(); });
+beforeEach(() => { process.env.WHATSAPP_WEBHOOK_SECRET = 'certo'; ingestEvent.mockReset(); active = 'atual'; });
 afterEach(() => { delete process.env.WHATSAPP_WEBHOOK_SECRET; });
 
 describe('webhook do WhatsApp', () => {
@@ -26,7 +27,18 @@ describe('webhook do WhatsApp', () => {
   });
   it('eventos ingeridos respondem 200', async () => {
     ingestEvent.mockResolvedValue(undefined);
-    expect((await call(JSON.stringify({ events: [{ kind: 'message' }, { kind: 'message' }] }))).status).toBe(200);
+    expect((await call(JSON.stringify({ instance: 'atual', events: [{ kind: 'message' }, { kind: 'message' }] }))).status).toBe(200);
+  });
+  it('ignora tudo quando nenhuma instância está em uso (banco sem conexão)', async () => {
+    active = null;
+    ingestEvent.mockResolvedValue(undefined);
+    expect((await call(JSON.stringify({ instance: 'prospeccao', events: [{ kind: 'message' }, { kind: 'connection' }] }))).status).toBe(200);
+    expect(ingestEvent).not.toHaveBeenCalled();
+  });
+  it('ignora eventos sem instância identificada', async () => {
+    ingestEvent.mockResolvedValue(undefined);
+    await call(JSON.stringify({ events: [{ kind: 'message' }] }));
+    expect(ingestEvent).not.toHaveBeenCalled();
   });
   it('ignora eventos de outra instância', async () => {
     ingestEvent.mockResolvedValue(undefined);
@@ -40,7 +52,7 @@ describe('webhook do WhatsApp', () => {
   });
   it('falha em algum evento responde 500, depois de tentar todos', async () => {
     ingestEvent.mockRejectedValueOnce(new Error('banco caiu')).mockResolvedValue(undefined);
-    const res = await call(JSON.stringify({ events: [{ kind: 'message' }, { kind: 'message' }] }));
+    const res = await call(JSON.stringify({ instance: 'atual', events: [{ kind: 'message' }, { kind: 'message' }] }));
     expect(res.status).toBe(500);
     expect(ingestEvent).toHaveBeenCalledTimes(2);
   });
