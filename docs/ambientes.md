@@ -5,7 +5,7 @@
 | Comando | O que faz |
 |---|---|
 | `pnpm local` | Sobe tudo na sua máquina: instala o que falta, abre o Docker, liga o banco local, aplica migrações, prepara o `.env.local`, cria o seu usuário na primeira vez e inicia o painel e o worker |
-| `pnpm producao` | Publica na nuvem: confere o `.env.dev`, aplica as migrações no Supabase da nuvem, cria o usuário se faltar, envia as variáveis e faz o deploy na Vercel, e liga o worker usando o banco da nuvem |
+| `pnpm producao` | Publica na nuvem: confere o `.env.dev`, aplica as migrações no Supabase da VPS (por túnel SSH), cria o usuário se faltar, envia as variáveis e faz o deploy na Vercel. O worker roda na VPS (veja Produção) |
 
 Os dois podem ser rodados quantas vezes quiser: só fazem o que falta e nunca apagam dados. `pnpm local:check` faz a preparação sem iniciar o painel.
 
@@ -55,6 +55,18 @@ pnpm dev        # painel em http://localhost:3010 e worker juntos
 | http://127.0.0.1:57324 | Caixa de e-mails do Supabase local |
 
 O banco local usa as portas 57321 a 57324 para não conflitar com outros projetos Supabase da sua máquina.
+
+## Produção
+
+| Parte | Onde | Deploy |
+|---|---|---|
+| Painel, API, webhooks e cron (`apps/web`) | Vercel, projeto `sharken-admin`, em https://admin.sharkenapps.com | Automático a cada push na `main` |
+| Worker (`apps/worker`) | VPS, pelo Coolify, app `sharken-worker` (projeto "My first project") | Automático a cada push na `main` que mexa em `apps/worker`, `packages`, `pnpm-lock.yaml` ou `package.json` (webhook do GitHub para o Coolify) |
+| Banco, auth e storage | Supabase auto-hospedado na VPS, serviço `supa-sharken` no Coolify, em https://supa-sharken.sharkenapps.com | `pnpm producao` aplica as migrações por túnel SSH (`SUPABASE_DB_*` no `.env.dev`) |
+
+Backup: `pg_dumpall` diário às 3h em `/root/backups/supa-sharken/` na VPS (14 dias, `/root/backups/supa-sharken.sh`). Cobre só o banco; os arquivos do Storage ficam no volume do MinIO do serviço. O Studio fica no mesmo endereço do Supabase, com o usuário e a senha de `DASHBOARD_USERNAME`/`DASHBOARD_PASSWORD` no Coolify.
+
+O worker não roda na Vercel porque fica ligado o tempo todo e usa o Chromium. A imagem é `apps/worker/Dockerfile`, construída a partir da raiz do repositório. As variáveis dele ficam no painel do Coolify (as mesmas do `.env.dev`). Quando mudar uma chave no `.env.dev`, atualize também na Vercel (o `pnpm producao` faz isso) e no Coolify.
 
 ## Variáveis da v2
 

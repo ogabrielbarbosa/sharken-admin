@@ -1,0 +1,15 @@
+**/node_modules
+**/.next
+**/.turbo
+.vercel
+.git
+.env
+.env.*
+backups
+supabase
+assets
+docs
+*.png
+*.pen
+apps/web
+apps/worker/tmp
