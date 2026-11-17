@@ -9,7 +9,7 @@ function clip(text: string): string {
 }
 
 /** Tudo o que se sabe do negócio, em Markdown, para colar no Claude Desktop. */
-export function buildBriefing(lead: Lead, assets: LeadAsset[]): string {
+export function buildBriefing(lead: Lead, assets: LeadAsset[], materialImage?: (path: string) => string | null): string {
   const ready = assets.filter((a) => a.status === 'pronto');
   const out: string[] = [`# ${lead.name}`];
 
@@ -45,8 +45,14 @@ export function buildBriefing(lead: Lead, assets: LeadAsset[]): string {
     }));
   }
 
-  const photos = [...new Set([...ready.flatMap((a) => a.extracted_images ?? []), ...lead.photos])];
+  // Caminhos do material ficam no bucket privado: só entram como link temporário devolvido por quem chama.
+  const photos = [...new Set(lead.photos)];
   if (photos.length) out.push('', '## Fotos', ...photos.map((u) => `- ${u}`));
+
+  const materialLinks = materialImage
+    ? [...new Set(ready.flatMap((a) => a.extracted_images ?? []).map((p) => materialImage(p)).filter((u): u is string => !!u))]
+    : [];
+  if (materialLinks.length) out.push('', '## Imagens do material (links temporários, não usar na página)', ...materialLinks.map((u) => `- ${u}`));
 
   const links = [
     lead.website_url && `- Site: ${lead.website_url}`,

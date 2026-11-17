@@ -32,8 +32,8 @@ function Row({ title, children }: { title: string; children: ReactNode }) {
 const label = (t: string) => <p className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">{t}</p>;
 
 /** Modal de Qualificado: o que o sistema tem, o que o Gabriel acrescenta, briefing e "Informações completas". */
-export function CompleteModal({ lead, assets, position, prevHref, nextHref, closeHref, workerStale }: {
-  lead: Lead; assets: LeadAsset[]; position: string; prevHref: string | null; nextHref: string | null; closeHref: string; workerStale: boolean;
+export function CompleteModal({ lead, assets, position, prevHref, nextHref, closeHref, workerStale, materialLinks }: {
+  lead: Lead; assets: LeadAsset[]; materialLinks: Record<string, string>; position: string; prevHref: string | null; nextHref: string | null; closeHref: string; workerStale: boolean;
 }) {
   const router = useRouter();
   const { pending, notice, run } = useStageAction(closeHref);
@@ -60,7 +60,7 @@ export function CompleteModal({ lead, assets, position, prevHref, nextHref, clos
           <Button variant="ghost" disabled={pending} onClick={() => run(() => discardAction([lead.id]), (r) => { if (r.ok) close(); })}><Trash2 />Descartar</Button>
           <div className="flex flex-wrap items-center gap-2">
             {!check.ok && <span className="text-xs text-muted-foreground">{check.reason}</span>}
-            <CopyButton text={buildBriefing(lead, assets)} label="Copiar briefing" />
+            <CopyButton text={buildBriefing(lead, assets, (p) => materialLinks[p] ?? null)} label="Copiar briefing" />
             <Button disabled={pending || !check.ok} onClick={() => run(() => completeInfoAction(lead.id), (r) => { if (r.ok) close(); })}><ArrowRight />Informações completas</Button>
           </div>
         </>

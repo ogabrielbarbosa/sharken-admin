@@ -41,9 +41,20 @@ describe('buildBriefing', () => {
     expect(md).toContain('Dono quer destaque para o plano mensal');
     expect(md).not.toContain('TEXTO DO ERRO');
   });
-  it('lista as fotos extraídas e as do lead', () => {
-    expect(md).toContain('- https://img/x.jpg');
-    expect(md).toContain('- https://img/1.jpg');
+  it('lista as fotos do lead e não o caminho interno das imagens do material', () => {
+    const withPath = [asset({ extracted_images: ['lead/extraidas/a-0.jpg'] })];
+    const out = buildBriefing(completeLead, withPath);
+    expect(out).not.toContain('lead/extraidas/a-0.jpg');
+    expect(out).not.toContain('Imagens do material');
+    expect(out).toContain('## Fotos');
+    expect(out).toContain('- https://img/1.jpg');
+  });
+  it('com resolvedor, põe as imagens do material numa seção própria com o link devolvido', () => {
+    const withPath = [asset({ extracted_images: ['lead/extraidas/a-0.jpg'] })];
+    const out = buildBriefing(completeLead, withPath, (p) => `https://signed/${p}`);
+    expect(out).toContain('## Imagens do material (links temporários, não usar na página)\n- https://signed/lead/extraidas/a-0.jpg');
+    expect(out).not.toContain('- lead/extraidas/a-0.jpg');
+    expect(out).toContain('- https://img/1.jpg');
   });
   it('lista site, Instagram e links acrescentados', () => {
     const out = buildBriefing({ ...completeLead, website_url: 'https://patinhas.com', instagram_url: 'https://instagram.com/pat' }, assets);
