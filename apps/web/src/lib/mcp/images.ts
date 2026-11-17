@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { wrapExternal } from './external';
 import type { Lead, LeadAsset } from '@lps/domain';
 
 export type McpContent = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
@@ -67,7 +68,7 @@ function describe(s: ImageSource, failed: boolean, overBudget = false): string {
   const lines = [`${ORIGIN_LABEL[s.origin]}`];
   if (s.post_url) lines.push(`Post: ${s.post_url}`);
   if (!s.temporary) lines.push(`Link: ${s.url}`);
-  if (s.caption) lines.push(`Legenda: <conteudo_externo>${s.caption.replace(/<\/?conteudo_externo>/gi, '')}</conteudo_externo>`);
+  if (s.caption) lines.push(`Legenda: ${wrapExternal(s.caption)}`);
   if (s.temporary) lines.push('Aviso: link temporário, não usar na página.');
   if (failed) lines.push('Falha: não consegui baixar esta imagem.');
   if (overBudget) lines.push(...(s.temporary ? [`Link: ${s.url}`] : []), 'Imagem: não coube nesta resposta; peça com `limite` menor ou `origem` específica.');
@@ -98,6 +99,7 @@ async function download(url: string, fetcher: typeof fetch): Promise<{ data: str
   if (new URL(url).protocol !== 'https:') throw new Error('só https');
   const res = await fetcher(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (res.url && new URL(res.url).protocol !== 'https:') throw new Error('redirecionou para http');
   const mimeType = (res.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
   if (!mimeType.startsWith('image/')) throw new Error('não é imagem');
   const buf = await readCapped(res);
