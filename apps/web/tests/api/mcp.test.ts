@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   mcpGetLead: vi.fn(),
   mcpGetChat: vi.fn(),
   mcpListChats: vi.fn(),
+  mcpListLeads: vi.fn(),
   createSignedUrls: vi.fn(),
 }));
 
@@ -23,11 +24,12 @@ vi.mock('@lps/db', async (importOriginal) => {
     mcpGetLead: mocks.mcpGetLead,
     mcpGetChat: mocks.mcpGetChat,
     mcpListChats: mocks.mcpListChats,
+    mcpListLeads: mocks.mcpListLeads,
   };
 });
 
 const { POST } = await import('@/app/api/mcp/route');
-const { GET: metadata } = await import('@/app/.well-known/oauth-protected-resource/route');
+const { GET: metadata } = await import('@/app/.well-known/oauth-protected-resource/[[...path]]/route');
 
 const LEAD_ID = '11111111-1111-4111-8111-111111111111';
 const CONTACT_ID = '22222222-2222-4222-8222-222222222222';
@@ -147,6 +149,51 @@ describe('/api/mcp', () => {
     expect(mocks.createSignedUrls).toHaveBeenCalledWith(['w1/m1.jpg'], 3600);
   });
 
+  it('ver_atendimento com 100 mensagens devolve todas, inclusive a mais recente', async () => {
+    mocks.mcpGetChat.mockResolvedValue({
+      workspace: 'Gabriel',
+      contact: { id: CONTACT_ID, name: 'Ana <x>', phone_e164: '+5511999999999', status: 'em_conversa', chat_state: 'aberto' },
+      lead: null,
+      messages: Array.from({ length: 100 }, (_, i) => ({ id: `m${i}`, direction: 'entrada', kind: 'texto', body: `msg${i}`, media_path: null, status: 'recebida', at: `2026-11-17T10:00:${String(i % 60).padStart(2, '0')}Z` })),
+    });
+    const r = await call('ver_atendimento', { contact_id: CONTACT_ID });
+    const out = JSON.parse(r.content[0].text);
+    expect(out.messages).toHaveLength(100);
+    expect(out.messages[99].id).toBe('m99');
+    expect(out.contact.name).toBe('<conteudo_externo>Ana ‹x›</conteudo_externo>');
+  });
+
+  it('listar_leads com limite 120 devolve os 120', async () => {
+    mocks.mcpListLeads.mockResolvedValue({ leads: Array.from({ length: 120 }, (_, i) => ({ id: `l${i}`, name: `L${i}` })), next: 'abc' });
+    const r = await call('listar_leads', { limite: 120 });
+    const out = JSON.parse(r.content[0].text);
+    expect(out.leads).toHaveLength(120);
+    expect(out.next).toBe('abc');
+    expect(mocks.mcpListLeads).toHaveBeenCalledWith(expect.anything(), access, expect.objectContaining({ limit: 120 }));
+  });
+
+  it('lista de terceiros dentro do lead sai cortada com aviso', async () => {
+    mocks.mcpGetLead.mockResolvedValue({
+      workspace: 'Gabriel',
+      lead: { id: LEAD_ID, name: 'Padaria', address: 'Rua A', stage: 'pagina', photos: Array.from({ length: 60 }, (_, i) => `https://maps/${i}`), instagram_media: [], reviews: [], site_data: null, enrichment: null },
+      assets: [],
+      contacts: [],
+    });
+    const r = await call('ver_lead', { lead_id: LEAD_ID });
+    expect(r.content[0].text).toContain('… 10 itens omitidos');
+    expect(r.content[0].text).toContain('<conteudo_externo>Rua A</conteudo_externo>');
+  });
+
+  it('erro desconhecido não vaza para o cliente', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.mcpListChats.mockRejectedValue(new Error('relation "x" does not exist'));
+    const r = await call('listar_atendimentos', {});
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toBe('Erro ao consultar os dados.');
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it('cursor inválido vira erro da ferramenta', async () => {
     mocks.mcpListChats.mockRejectedValue(new Error('Cursor inválido.'));
     const r = await call('listar_atendimentos', { cursor: 'zzz' });
@@ -159,8 +206,23 @@ describe('/.well-known/oauth-protected-resource', () => {
   it('aponta o Supabase como servidor de autorização', async () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://supa.test';
     const res = await metadata(new Request('https://admin.test/.well-known/oauth-protected-resource'));
+    expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.authorization_servers).toEqual(['https://supa.test/auth/v1']);
     expect(body.authorization_servers[0]).toContain('/auth/v1');
+  });
+
+  it('responde também com o caminho do recurso no fim', async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://supa.test';
+    process.env.APP_URL = 'https://admin.test';
+    try {
+      const res = await metadata(new Request('https://admin.test/.well-known/oauth-protected-resource/api/mcp'));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.resource).toBe('https://admin.test/api/mcp');
+      expect(body.authorization_servers).toEqual(['https://supa.test/auth/v1']);
+    } finally {
+      delete process.env.APP_URL;
+    }
   });
 });

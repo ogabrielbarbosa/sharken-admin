@@ -20,31 +20,48 @@ type Ctx = { db: Db; access: Access };
 
 const SIGNED_URL_SECONDS = 3600;
 const NOT_FOUND = 'Não encontrado.';
-/** Limites para uma resposta de texto não passar de algumas centenas de KB. */
+/** Limites para uma resposta de texto ficar em ~200 mil caracteres no máximo. */
 const MAX_STRING = 4000;
-const MAX_ARRAY = 50;
-const MAX_REVIEWS = 20;
-const MAX_TEXT = 1_500_000;
+const MAX_NESTED = 50;
+const MAX_TEXT = 200_000;
+/**
+ * Listas de terceiros dentro do lead que podem ser longas: cortadas com aviso. As coleções da resposta
+ * (mensagens, leads, conversas, batches, colunas) não entram aqui: o tamanho delas é o `limite` da consulta.
+ */
+const NESTED_CAPS: Record<string, number> = {
+  reviews: 20, photos: MAX_NESTED, images: MAX_NESTED, headings: MAX_NESTED, instagram_media: MAX_NESTED,
+  emails: MAX_NESTED, phones: MAX_NESTED, people: MAX_NESTED, notes: MAX_NESTED, whatsappLinks: MAX_NESTED,
+  categories: MAX_NESTED, site_checks: MAX_NESTED, site_signals: MAX_NESTED,
+};
+/** Mensagens de erro que podem ir para o cliente; as demais ficam só no log. */
+const KNOWN_ERRORS = new Set(['Cursor inválido.', 'Não encontrado.']);
 
 /** Campos cujo texto vem de terceiros (Google, sites, Instagram, WhatsApp, arquivos enviados). */
 const EXTERNAL_KEYS = new Set([
   'description', 'text', 'title', 'headings', 'caption', 'extracted_text', 'body', 'notes',
-  'company', 'people', 'categories', 'quoted_preview', 'last_message_preview',
+  'company', 'people', 'categories', 'quoted_preview', 'last_message_preview', 'address',
 ]);
 
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const;
 
-const uuid = z.string().uuid();
+const uuid = z.uuid();
 const isUuid = (id: string) => uuid.safeParse(id).success;
 
 const clip = (s: string) => (s.length > MAX_STRING ? `${s.slice(0, MAX_STRING)}…` : s);
 
-/** Copia o valor cortando textos e listas longas e marcando como externo o texto dos campos de terceiros. */
-function prepare(value: unknown, external = false): unknown {
+/**
+ * Copia o valor cortando textos longos e as listas de NESTED_CAPS (com aviso de quantos itens saíram) e
+ * marcando como externo o texto dos campos de terceiros.
+ */
+function prepare(value: unknown, external = false, cap?: number): unknown {
   if (typeof value === 'string') return external ? wrapExternal(clip(value)) : clip(value);
-  if (Array.isArray(value)) return value.slice(0, MAX_ARRAY).map((v) => prepare(v, external));
+  if (Array.isArray(value)) {
+    const items = value.slice(0, cap ?? value.length).map((v) => prepare(v, external));
+    const omitted = value.length - items.length;
+    return omitted > 0 ? [...items, `… ${omitted} itens omitidos`] : items;
+  }
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, prepare(v, external || EXTERNAL_KEYS.has(k))]));
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, prepare(v, external || EXTERNAL_KEYS.has(k), NESTED_CAPS[k])]));
   }
   return value;
 }
@@ -63,7 +80,9 @@ function safe<A>(fn: (args: A) => Promise<ToolResult>) {
     try {
       return await fn(args);
     } catch (e) {
-      return error(e instanceof Error ? e.message : 'Erro ao consultar.');
+      if (e instanceof Error && KNOWN_ERRORS.has(e.message)) return error(e.message);
+      console.error('Erro numa ferramenta do MCP:', e);
+      return error('Erro ao consultar os dados.');
     }
   };
 }
@@ -85,7 +104,8 @@ const materialPaths = (assets: LeadAsset[]) =>
 function contactView(c: Contact) {
   return {
     id: c.id,
-    name: c.name,
+    // Nome do perfil do WhatsApp: quem escolhe é o contato.
+    name: wrapExternal(c.name),
     phone: c.phone_e164,
     status: c.status,
     chat_state: c.chat_state,
@@ -102,11 +122,9 @@ function contactView(c: Contact) {
 }
 
 function leadView(lead: Lead, workspace: string, assets: LeadAsset[], contacts: Contact[], signed: Map<string, string>) {
-  const { reviews, ...rest } = lead;
   return {
-    ...rest,
+    ...lead,
     workspace,
-    reviews: (reviews ?? []).slice(0, MAX_REVIEWS),
     material: assets.map((a) => ({
       id: a.id,
       kind: a.kind,
