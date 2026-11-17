@@ -96,3 +96,28 @@ Cadastre estas URLs nos painéis dos serviços, trocando `<segredo>` pelo `WEBHO
 | Evolution | `https://admin.sharkenapps.com/api/webhooks/whatsapp?token=<WHATSAPP_WEBHOOK_SECRET>`, registrado pelo painel | segredo na URL |
 
 Os crons de retenção e de cobranças vencidas (`/api/cron/overdue`, 7h de Brasília) rodam sozinhos na Vercel, pelo `vercel.json`.
+
+## MCP (leitura para o Claude e outras ferramentas)
+
+Endpoint: `https://admin.sharkenapps.com/api/mcp` (Streamable HTTP, sem estado). Só lê: batches, leads por coluna,
+tudo de um lead (com briefing e imagens) e atendimentos. Cada usuário vê os próprios workspaces; o administrador vê todos.
+
+**Como conectar**
+- claude.ai e app do Claude: Configurações › Conectores › Adicionar conector personalizado › cole a URL. Ele abre o
+  login do Sharken e a tela "Autorizar acesso".
+- Claude Code: `claude mcp add --transport http sharken https://admin.sharkenapps.com/api/mcp` e depois `/mcp` para entrar.
+- Cursor e outros: adicionar como servidor MCP remoto (HTTP) com a mesma URL; o OAuth é descoberto sozinho.
+
+**Como funciona o login**
+- O Supabase Auth do `supa-sharken` é o servidor OAuth 2.1 (variáveis no Coolify: `GOTRUE_OAUTH_SERVER_ENABLED=true`,
+  `GOTRUE_OAUTH_SERVER_ALLOW_DYNAMIC_REGISTRATION=true`, `GOTRUE_OAUTH_SERVER_AUTHORIZATION_PATH=/oauth/consent`;
+  `API_EXTERNAL_URL` tem de ser o endereço público `https://supa-sharken.sharkenapps.com/auth/v1`).
+- O Kong deixa abertas (sem `apikey`) as rotas de descoberta (`/.well-known/oauth-authorization-server/auth/v1`) e
+  `/auth/v1/oauth/*` (autorizar, token, registro de cliente). O resto de `/auth/v1/` continua exigindo `apikey`.
+- `/.well-known/oauth-protected-resource` (no admin) aponta o Supabase como servidor de autorização; a URL pública
+  vem de `APP_URL`.
+- O token emitido é uma sessão do usuário marcada com `client_id`; a migração 0020 recusa insert/update/delete de
+  sessões com esse claim. Tabela nova com política para `authenticated` precisa da mesma restrição (o teste de
+  migrações falha se faltar).
+
+**Revogar acesso:** apagar as sessões do cliente OAuth no Supabase (Studio › Authentication) ou trocar a senha do usuário.
