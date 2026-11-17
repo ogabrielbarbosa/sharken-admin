@@ -1,8 +1,20 @@
 import { createServerClient } from '@supabase/ssr';
 import { type NextRequest, NextResponse } from 'next/server';
+import { PAGES_ROUTE, pagesHost } from '@/lib/pages-host';
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const host = request.headers.get('host');
+
+  // No host das páginas só existe /<id>; nada do painel, da API ou do login responde ali.
+  if (host === pagesHost()) {
+    const id = /^\/([A-Za-z0-9]{6,32})\/?$/.exec(pathname)?.[1];
+    if (!id) return new NextResponse('Página não encontrada.', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } });
+    return NextResponse.rewrite(new URL(`${PAGES_ROUTE}/${id}`, request.url));
+  }
+  // Fora dele, o caminho interno não existe: o HTML publicado nunca roda no domínio do painel.
+  if (pathname.startsWith(PAGES_ROUTE)) return new NextResponse('Not found', { status: 404 });
+
   const painel = pathname.startsWith('/painel');
   // O consentimento OAuth também precisa da sessão renovada com os cookies gravados na resposta:
   // a página (Server Component) não grava cookies e a ação seguinte usaria o refresh token antigo.

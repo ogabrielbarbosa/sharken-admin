@@ -17,3 +17,4 @@ export * from './invites';
 export * from './billing';
 export * from './read-only';
 export * from './mcp-read';
+export * from './pages';

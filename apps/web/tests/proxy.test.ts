@@ -70,4 +70,20 @@ describe('proxy', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('location')).toBeNull();
   });
+
+  it('no host das páginas reescreve /<id> e não toca na sessão', async () => {
+    const res = await proxy(req('pages.sharkenapps.com', '/abcDEF2345'));
+    expect(res.headers.get('x-middleware-rewrite')).toBe('http://pages.sharkenapps.com/paginas-publicadas/abcDEF2345');
+    expect(ssr.created).toBe(0);
+  });
+
+  it('no host das páginas o resto é 404, painel incluído', async () => {
+    for (const path of ['/', '/painel/batches', '/api/mcp', '/login', '/a/b', '/oauth/consent']) {
+      expect((await proxy(req('pages.sharkenapps.com', path))).status).toBe(404);
+    }
+  });
+
+  it('no domínio do painel o caminho interno das páginas não existe', async () => {
+    expect((await proxy(req('app.local', '/paginas-publicadas/abcDEF2345'))).status).toBe(404);
+  });
 });

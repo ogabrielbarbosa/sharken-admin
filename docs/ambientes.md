@@ -99,8 +99,21 @@ Os crons de retenção e de cobranças vencidas (`/api/cron/overdue`, 7h de Bras
 
 ## MCP (leitura para o Claude e outras ferramentas)
 
-Endpoint: `https://admin.sharkenapps.com/api/mcp` (Streamable HTTP, sem estado). Só lê: batches, leads por coluna,
+Endpoint: `https://admin.sharkenapps.com/api/mcp` (Streamable HTTP, sem estado). Lê batches, leads por coluna,
 tudo de um lead (com briefing e imagens) e atendimentos. Cada usuário vê os próprios workspaces; o administrador vê todos.
+A única escrita é a página do lead (abaixo).
+
+**Páginas publicadas (`publicar_pagina`, `alterar_expiracao_da_pagina`, `listar_paginas`)**
+- O agente manda o HTML completo de um lead; o servidor grava na tabela `pages` (id aleatório de 10 caracteres)
+  e devolve `https://pages.sharkenapps.com/<id>`. O link vai para `leads.page_url`; lead em Página passa para Vídeo,
+  como ao colar o link no quadro. Com `pagina_id`, troca o HTML e mantém o link.
+- `expira_em_horas` (ex.: 24) conta a partir de agora; sem ele ou `null`, não expira. A expiração é conferida a cada
+  visita (sem cron): vencida responde 410 "Esta página expirou". `alterar_expiracao_da_pagina` muda ou reabre.
+- `pages.sharkenapps.com` é um domínio do mesmo projeto da Vercel (CNAME no Cloudflare, DNS only). O `proxy.ts`
+  só deixa passar `/<id>` nesse host e reescreve para `/paginas-publicadas/<id>`, que só responde nele. O HTML sai
+  com `Content-Security-Policy: sandbox` sem `allow-same-origin` (origem opaca, sem cookies/armazenamento),
+  `noindex` e `no-store`. Limite de 2 milhões de caracteres: imagens por link (Instagram no R2), não em base64.
+- O host vem de `PAGES_URL` (padrão `https://pages.sharkenapps.com`).
 
 **Como conectar**
 - claude.ai e app do Claude: Configurações › Conectores › Adicionar conector personalizado › cole a URL. Ele abre o

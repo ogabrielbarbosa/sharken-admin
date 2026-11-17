@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   mcpListChats: vi.fn(),
   mcpListLeads: vi.fn(),
   createSignedUrls: vi.fn(),
+  publishPage: vi.fn(),
+  scopeDb: vi.fn(),
 }));
 
 vi.mock('@/lib/mcp/access', () => ({ resolveAccess: mocks.resolveAccess }));
@@ -25,6 +27,8 @@ vi.mock('@lps/db', async (importOriginal) => {
     mcpGetChat: mocks.mcpGetChat,
     mcpListChats: mocks.mcpListChats,
     mcpListLeads: mocks.mcpListLeads,
+    publishPage: mocks.publishPage,
+    scopeDb: mocks.scopeDb,
   };
 });
 
@@ -83,13 +87,36 @@ describe('/api/mcp', () => {
     expect((await result(res)).serverInfo.name).toBe('sharken');
   });
 
-  it('tools/list traz as 8 ferramentas, todas só de leitura', async () => {
+  it('tools/list: só as ferramentas de página gravam', async () => {
     const { tools } = await result(await rpc('tools/list', {}));
     expect(tools.map((t: { name: string }) => t.name).sort()).toEqual([
-      'listar_atendimentos', 'listar_batches', 'listar_leads', 'listar_workspaces',
-      'ver_atendimento', 'ver_batch', 'ver_imagens_do_lead', 'ver_lead',
+      'alterar_expiracao_da_pagina', 'listar_atendimentos', 'listar_batches', 'listar_leads', 'listar_paginas', 'listar_workspaces',
+      'publicar_pagina', 'ver_atendimento', 'ver_batch', 'ver_imagens_do_lead', 'ver_lead',
     ]);
-    for (const t of tools) expect(t.annotations?.readOnlyHint).toBe(true);
+    const writers = tools.filter((t: { annotations?: { readOnlyHint?: boolean } }) => !t.annotations?.readOnlyHint).map((t: { name: string }) => t.name).sort();
+    expect(writers).toEqual(['alterar_expiracao_da_pagina', 'publicar_pagina']);
+  });
+
+  it('publicar_pagina grava no workspace do lead e devolve o link', async () => {
+    mocks.mcpGetLead.mockResolvedValue({ lead: { id: LEAD_ID, name: 'Padaria', workspace_id: 'w1' }, workspace: 'Gabriel', assets: [], contacts: [] });
+    mocks.scopeDb.mockReturnValue('scoped');
+    mocks.publishPage.mockResolvedValue({
+      page: { id: 'abcDEF2345', lead_id: LEAD_ID, title: null, expires_at: null, created_at: 'x', updated_at: 'x' },
+      url: 'https://pages.sharkenapps.com/abcDEF2345',
+    });
+    const r = await call('publicar_pagina', { lead_id: LEAD_ID, html: '<h1>oi</h1>', expira_em_horas: 24 });
+    expect(r.isError).toBeFalsy();
+    expect(mocks.scopeDb).toHaveBeenCalledWith(expect.anything(), 'w1');
+    expect(mocks.publishPage).toHaveBeenCalledWith('scoped', expect.objectContaining({ leadId: LEAD_ID, html: '<h1>oi</h1>', expiresInHours: 24, userId: 'u1' }));
+    expect(JSON.parse(r.content[0].text).url).toBe('https://pages.sharkenapps.com/abcDEF2345');
+  });
+
+  it('publicar_pagina em lead fora do acesso não grava', async () => {
+    mocks.mcpGetLead.mockResolvedValue(null);
+    const r = await call('publicar_pagina', { lead_id: LEAD_ID, html: '<h1>oi</h1>' });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toBe('Lead não encontrado.');
+    expect(mocks.publishPage).not.toHaveBeenCalled();
   });
 
   it('listar_workspaces devolve os do acesso', async () => {
