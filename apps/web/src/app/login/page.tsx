@@ -24,7 +24,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <Field label="E-mail"><Input name="email" type="email" placeholder="voce@email.com" required /></Field>
           <Field label="Senha"><Input name="password" type="password" placeholder="••••••••••" required /></Field>
           <Button type="submit" className="w-full">Entrar</Button>
-          <p className="text-center text-sm text-muted-foreground">Primeiro acesso? <Link href="/cadastro" className="text-foreground underline">Criar conta</Link></p>
+          <p className="text-center text-sm text-muted-foreground">Primeiro acesso? <Link href={next ? `/cadastro?${new URLSearchParams({ next })}` : '/cadastro'} className="text-foreground underline">Criar conta</Link></p>
         </form>
       </div>
     </main>

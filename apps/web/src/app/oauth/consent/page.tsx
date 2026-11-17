@@ -3,6 +3,7 @@ import { Logo } from '@/components/layout/logo';
 import { Button } from '@/components/ui';
 import { createServerClient } from '@/lib/supabase/server';
 import { approve, deny } from './actions';
+import { redirectHost } from './redirect-host';
 
 const messages: Record<string, string> = {
   falhou: 'Não foi possível concluir. Tente de novo.',
@@ -28,7 +29,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Prom
 
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?next=${encodeURIComponent(`/oauth/consent?authorization_id=${id}`)}`);
+  if (!user) redirect(`/login?next=${encodeURIComponent(`/oauth/consent?authorization_id=${encodeURIComponent(id)}`)}`);
 
   const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(id);
   if (error || !data) {
@@ -43,7 +44,11 @@ export default async function ConsentPage({ searchParams }: { searchParams: Prom
       <p className="text-sm">
         <strong>{data.client.name}</strong> quer acessar sua conta da Sharken.
       </p>
-      <p className="text-sm text-muted-foreground">Vai poder ler batches, leads e conversas dos seus workspaces, sem alterar nada.</p>
+      <p className="text-sm">Vai voltar para: <strong>{redirectHost(data.redirect_uri)}</strong></p>
+      <p className="text-sm">Você está entrando como <strong>{user.email ?? data.user.email}</strong></p>
+      <p className="text-sm text-muted-foreground">
+        Vai poder ler os dados dos seus workspaces (batches, leads e conversas pelo MCP), sem alterar nada. Só autorize se foi você que pediu essa conexão agora.
+      </p>
       <div className="flex gap-2">
         <form action={deny.bind(null, id)} className="flex-1">
           <Button type="submit" variant="outline" className="w-full">Recusar</Button>
