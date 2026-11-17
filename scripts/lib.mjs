@@ -25,6 +25,6 @@ export function quiet(cmd, args, opts = {}) {
 export function readEnv(file) {
   if (!existsSync(file)) return null;
   return Object.fromEntries(
-    readFileSync(file, 'utf8').split('\n').map((l) => l.match(/^([A-Z_]+)=(.*)$/)).filter(Boolean).map((m) => [m[1], m[2].trim().replace(/^(['"])(.*)\1$/, '$2')]),
+    readFileSync(file, 'utf8').split('\n').map((l) => l.match(/^([A-Z][A-Z0-9_]*)=(.*)$/)).filter(Boolean).map((m) => [m[1], m[2].trim().replace(/^(['"])(.*)\1$/, '$2')]),
   );
 }
