@@ -73,6 +73,8 @@ describe('/api/mcp', () => {
     expect(res.status).toBe(401);
     expect(res.headers.get('www-authenticate')).toContain('resource_metadata=');
     expect(res.headers.get('www-authenticate')).toContain('/.well-known/oauth-protected-resource');
+    // Sem openid: o Supabase não emite ID token com HS256 e a troca do código falharia.
+    expect(res.headers.get('www-authenticate')).toContain('scope="email profile"');
   });
 
   it('token recusado responde 401', async () => {
@@ -237,6 +239,8 @@ describe('/.well-known/oauth-protected-resource', () => {
     const body = await res.json();
     expect(body.authorization_servers).toEqual(['https://supa.test/auth/v1']);
     expect(body.authorization_servers[0]).toContain('/auth/v1');
+    expect(body.scopes_supported).toEqual(['email', 'profile']);
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
   });
 
   it('responde também com o caminho do recurso no fim', async () => {

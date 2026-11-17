@@ -129,6 +129,11 @@ A única escrita é a página do lead (abaixo).
   `/auth/v1/oauth/*` (autorizar, token, registro de cliente). O resto de `/auth/v1/` continua exigindo `apikey`.
 - `/.well-known/oauth-protected-resource` (no admin) aponta o Supabase como servidor de autorização; a URL pública
   vem de `APP_URL`.
+- Escopos pedidos: só `email profile` (`scopes_supported` do recurso e `scope` no `WWW-Authenticate` do 401). Sem
+  `openid` de propósito: com ele o Supabase tenta emitir um ID token, que exige chave assimétrica, e o nosso assina
+  com HS256; a troca do código falha ("HS256 is not supported for ID token signing") e o Claude mostra "Não foi
+  possível conectar". Se algum cliente insistir em `openid`, a saída é configurar uma chave ES256/RS256 no Auth
+  (`GOTRUE_JWT_KEYS`), o que muda a assinatura de todos os tokens (PostgREST, Realtime e Storage precisam aceitar).
 - O token emitido é uma sessão do usuário marcada com `client_id`; a migração 0020 recusa insert/update/delete de
   sessões com esse claim. Tabela nova com política para `authenticated` precisa da mesma restrição (o teste de
   migrações falha se faltar).

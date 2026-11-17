@@ -3,6 +3,7 @@ import { createMcpHandler, withMcpAuth } from 'mcp-handler';
 import { createAdminClient, readOnlyDb, type Access } from '@lps/db';
 import { resolveAccess } from '@/lib/mcp/access';
 import { registerPageTools } from '@/lib/mcp/page-tools';
+import { MCP_SCOPES } from '@/lib/mcp/scopes';
 import { registerTools } from '@/lib/mcp/tools';
 
 export const maxDuration = 60;
@@ -49,10 +50,20 @@ async function mcp(req: Request): Promise<Response> {
   return handler(req);
 }
 
-const handler = withMcpAuth(mcp, verifyToken, {
+const authed = withMcpAuth(mcp, verifyToken, {
   required: true,
   resourceMetadataPath: '/.well-known/oauth-protected-resource',
   resourceUrl: appUrl(),
 });
+
+/** No 401, diz ao cliente quais escopos pedir (sem `openid`; ver MCP_SCOPES). */
+async function handler(req: Request): Promise<Response> {
+  const res = await authed(req);
+  const challenge = res.headers.get('www-authenticate');
+  if (res.status !== 401 || !challenge || /\bscope=/.test(challenge)) return res;
+  const headers = new Headers(res.headers);
+  headers.set('www-authenticate', `${challenge}, scope="${MCP_SCOPES.join(' ')}"`);
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
 
 export { handler as GET, handler as POST, handler as DELETE };
