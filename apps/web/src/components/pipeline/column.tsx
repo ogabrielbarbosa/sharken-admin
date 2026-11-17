@@ -12,27 +12,30 @@ const Count = ({ n }: { n: number }) => (
  * Com `trash.armed` (um cartão sendo arrastado), a coluna vira uma lixeira: soltar ali chama `trash.onDrop`.
  * Com `trash`, no desktop a coluna fica presa na borda direita do quadro: recolhida sempre,
  * aberta só durante o arraste, para estar à mão mesmo quando o quadro não cabe na tela.
+ * Com `target` (o cartão arrastado pode vir para cá), a coluna se destaca e soltar ali chama `target.onDrop`.
  */
-export function Column({ label, count, visible, collapsed, onExpand, onCollapse, headerStart, empty, trash, children }: {
+export function Column({ label, count, visible, collapsed, onExpand, onCollapse, headerStart, empty, trash, target, children }: {
   label: string; count: number; visible: boolean; collapsed?: boolean; onExpand?: () => void; onCollapse?: () => void;
-  headerStart?: ReactNode; empty?: string; trash?: { armed: boolean; onDrop: () => void }; children: ReactNode;
+  headerStart?: ReactNode; empty?: string; trash?: { armed: boolean; onDrop: () => void }; target?: { onDrop: () => void }; children: ReactNode;
 }) {
   const show = visible ? 'flex' : 'hidden md:flex';
   const ref = useRef<HTMLElement>(null);
   const wasCollapsed = useRef(collapsed);
   const [over, setOver] = useState(false);
   const armed = !!trash?.armed;
-  useEffect(() => { if (!armed) setOver(false); }, [armed]);
+  const onDrop = armed ? trash?.onDrop : target?.onDrop;
+  useEffect(() => { if (!onDrop) setOver(false); }, [onDrop]);
 
-  const dropProps = armed ? {
+  const dropProps = onDrop ? {
     onDragOver: (e: DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOver(true); },
     onDragLeave: (e: DragEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false); },
-    onDrop: (e: DragEvent) => { e.preventDefault(); setOver(false); trash?.onDrop(); },
+    onDrop: (e: DragEvent) => { e.preventDefault(); setOver(false); onDrop(); },
   } : {};
   const pin = 'md:sticky md:right-0 md:z-20 md:bg-background md:pl-2 md:shadow-[-16px_0_16px_-8px_var(--color-background)]';
   const trashLook = over
     ? 'border-dashed !border-destructive !bg-destructive-subtle text-destructive'
     : 'border-dashed !border-destructive/50 !bg-destructive/[0.04] text-destructive/80';
+  const targetLook = target ? `md:border-dashed ${over ? 'md:!border-primary md:!bg-primary/[0.08]' : 'md:!border-primary/50'}` : '';
 
   // Ao expandir, a coluna nasce no fim do quadro, fora da tela: rola até ela.
   useEffect(() => {
@@ -59,7 +62,7 @@ export function Column({ label, count, visible, collapsed, onExpand, onCollapse,
   }
 
   return (
-    <section ref={ref} aria-label={label} {...dropProps} className={`${show} ${armed ? pin : 'relative'} min-w-0 flex-col transition-colors md:h-full md:w-72 md:shrink-0 md:rounded-lg md:border md:border-border md:bg-white/[0.02] ${armed ? `rounded-lg border ${trashLook}` : ''}`}>
+    <section ref={ref} aria-label={label} {...dropProps} className={`${show} ${armed ? pin : 'relative'} min-w-0 flex-col transition-colors md:h-full md:w-72 md:shrink-0 md:rounded-lg md:border md:border-border md:bg-white/[0.02] ${armed ? `rounded-lg border ${trashLook}` : targetLook}`}>
       {armed && (
         <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-background text-sm">
           <div className={`absolute inset-0 rounded-lg ${over ? 'bg-destructive-subtle' : 'bg-destructive/[0.04]'}`} />

@@ -21,7 +21,7 @@ Novo lead → Qualificado → Página → Vídeo → Pronto para abordar ──�
      └──────────────┴─────────┴───────┴──► Descartados
 ```
 
-Todas as etapas são obrigatórias e seguem nessa ordem. O lead anda por botões, sem arrastar, para não pular etapa.
+Todas as etapas são obrigatórias e seguem nessa ordem. O lead anda pelos botões ou arrastando o cartão uma etapa para a frente ou para trás (nunca pulando etapa); quando o avanço pede um link, soltar abre o modal do lead.
 
 | Coluna | `leads.stage` | Cartão mostra | Clicar abre | Avança com |
 |---|---|---|---|---|

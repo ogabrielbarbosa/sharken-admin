@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertTransition, canTransition, columnOf, InvalidTransitionError, PIPELINE_COLUMNS, type LeadStage } from '../src/stages';
+import { assertTransition, canTransition, columnOf, dropMove, InvalidTransitionError, PIPELINE_COLUMNS, type LeadStage } from '../src/stages';
 
 const allowed: [LeadStage, LeadStage][] = [
   ['analisando', 'revisar'],
@@ -69,5 +69,27 @@ describe('colunas', () => {
     expect(all.sort()).toEqual(
       ['analisando', 'revisar', 'completar', 'pagina', 'video', 'crm', 'vendido', 'descartado', 'sem_interesse', 'nao_contatar'].sort(),
     );
+  });
+});
+
+describe('dropMove', () => {
+  it('liga cada etapa às colunas para onde o cartão pode ser arrastado', () => {
+    expect(dropMove('revisar', 'qualificado')).toBe('qualificar');
+    expect(dropMove('completar', 'pagina')).toBe('completar');
+    expect(dropMove('pagina', 'video')).toBe('abrir');
+    expect(dropMove('pagina', 'qualificado')).toBe('voltar');
+    expect(dropMove('video', 'pronto')).toBe('abrir');
+    expect(dropMove('video', 'pagina')).toBe('voltar');
+    expect(dropMove('crm', 'descartados')).toBe('descartar');
+  });
+
+  it('não deixa pular etapa nem soltar na própria coluna', () => {
+    expect(dropMove('revisar', 'pagina')).toBeNull();
+    expect(dropMove('analisando', 'qualificado')).toBeNull();
+    expect(dropMove('completar', 'video')).toBeNull();
+    expect(dropMove('video', 'qualificado')).toBeNull();
+    expect(dropMove('crm', 'video')).toBeNull();
+    expect(dropMove('pagina', 'pagina')).toBeNull();
+    expect(dropMove('vendido', 'descartados')).toBeNull();
   });
 });

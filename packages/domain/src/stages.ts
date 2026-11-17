@@ -37,6 +37,25 @@ export function canTransition(from: LeadStage, to: LeadStage): boolean {
   return NEXT[from]?.includes(to) ?? false;
 }
 
+/**
+ * O que acontece ao soltar um cartão numa coluna do quadro. Só vale uma etapa para a frente ou para trás:
+ * `qualificar`/`completar`/`voltar`/`descartar` rodam a ação da etapa; `abrir` abre o modal do lead,
+ * porque Página → Vídeo e Vídeo → Pronto precisam de um link. `null`: a coluna não aceita o cartão.
+ */
+export type DropMove = 'qualificar' | 'completar' | 'abrir' | 'voltar' | 'descartar';
+
+const DROPS: Partial<Record<LeadStage, Partial<Record<PipelineColumn, DropMove>>>> = {
+  revisar: { qualificado: 'qualificar' },
+  completar: { pagina: 'completar' },
+  pagina: { video: 'abrir', qualificado: 'voltar' },
+  video: { pronto: 'abrir', pagina: 'voltar' },
+};
+
+export function dropMove(stage: LeadStage, column: PipelineColumn): DropMove | null {
+  if (column === 'descartados') return canTransition(stage, 'descartado') ? 'descartar' : null;
+  return DROPS[stage]?.[column] ?? null;
+}
+
 export class InvalidTransitionError extends Error {
   constructor(from: LeadStage, to: LeadStage) {
     super(`Transição inválida: ${from} → ${to}`);

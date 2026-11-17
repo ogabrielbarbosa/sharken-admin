@@ -4,11 +4,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Lead, LeadStage } from '@lps/domain';
 import { Board } from '@/components/pipeline/board';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }) }));
+const push = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push }) }));
 vi.mock('next/link', () => ({
   default: ({ href, children, replace: _r, scroll: _s, ...rest }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children: ReactNode; replace?: boolean; scroll?: boolean }) => <a href={href} {...rest}>{children}</a>,
 }));
-vi.mock('@/app/painel/batches/[id]/actions', () => ({ qualifyAction: vi.fn(), discardAction: vi.fn() }));
+vi.mock('@/app/painel/batches/[id]/actions', () => ({ qualifyAction: vi.fn(), discardAction: vi.fn(), completeInfoAction: vi.fn(), stepBackAction: vi.fn() }));
 
 afterEach(cleanup);
 
@@ -99,6 +100,46 @@ describe('Board', () => {
     fireEvent.dragOver(trash, { dataTransfer });
     fireEvent.drop(trash, { dataTransfer });
     expect(discardAction).toHaveBeenCalledWith(['l-pagina']);
+  });
+
+  it('arrastar de Novo lead até Qualificado qualifica o lead', async () => {
+    const { qualifyAction } = await import('@/app/painel/batches/[id]/actions');
+    vi.mocked(qualifyAction).mockResolvedValue({ ok: true } as never);
+    render(<Board batchId="b1" leads={leads} assets={{}} contacts={contacts} />);
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '', dropEffect: '' };
+    fireEvent.dragStart(screen.getByTestId('card-l-revisar'), { dataTransfer });
+    fireEvent.dragOver(column('Qualificado'), { dataTransfer });
+    fireEvent.drop(column('Qualificado'), { dataTransfer });
+    expect(qualifyAction).toHaveBeenCalledWith(['l-revisar']);
+  });
+
+  it('arrastar de Vídeo de volta para Página volta uma etapa', async () => {
+    const { stepBackAction } = await import('@/app/painel/batches/[id]/actions');
+    vi.mocked(stepBackAction).mockResolvedValue({ ok: true } as never);
+    render(<Board batchId="b1" leads={leads} assets={{}} contacts={contacts} />);
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '', dropEffect: '' };
+    fireEvent.dragStart(screen.getByTestId('card-l-video'), { dataTransfer });
+    fireEvent.drop(column('Página'), { dataTransfer });
+    expect(stepBackAction).toHaveBeenCalledWith('l-video', 'video');
+  });
+
+  it('arrastar de Página até Vídeo abre o modal para colar o link', () => {
+    render(<Board batchId="b1" leads={leads} assets={{}} contacts={contacts} />);
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '', dropEffect: '' };
+    fireEvent.dragStart(screen.getByTestId('card-l-pagina'), { dataTransfer });
+    fireEvent.drop(column('Vídeo'), { dataTransfer });
+    expect(push).toHaveBeenCalledWith('/painel/batches/b1?lead=l-pagina', { scroll: false });
+  });
+
+  it('soltar numa coluna que pula etapa não faz nada', async () => {
+    const { qualifyAction, completeInfoAction } = await import('@/app/painel/batches/[id]/actions');
+    vi.mocked(qualifyAction).mockClear();
+    render(<Board batchId="b1" leads={leads} assets={{}} contacts={contacts} />);
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '', dropEffect: '' };
+    fireEvent.dragStart(screen.getByTestId('card-l-revisar'), { dataTransfer });
+    fireEvent.drop(column('Página'), { dataTransfer });
+    expect(qualifyAction).not.toHaveBeenCalled();
+    expect(completeInfoAction).not.toHaveBeenCalled();
   });
 
   it('Página mostra "Falta a página" e Vídeo mostra "Falta o Loom"', () => {

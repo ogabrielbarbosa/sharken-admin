@@ -1,9 +1,9 @@
 'use client';
 
 import type { PipelineResult } from '@lps/db';
-import { canTransition, columnOf, PIPELINE_COLUMNS, type Lead, type LeadAsset, type PipelineColumn } from '@lps/domain';
+import { columnOf, dropMove, PIPELINE_COLUMNS, type Lead, type LeadAsset, type PipelineColumn } from '@lps/domain';
 import { useRouter } from 'next/navigation';
-import { discardAction } from '@/app/painel/batches/[id]/actions';
+import { completeInfoAction, discardAction, qualifyAction, stepBackAction } from '@/app/painel/batches/[id]/actions';
 import { useState, useTransition } from 'react';
 import { boardHref } from '@/lib/board-href';
 import { Column } from './column';
@@ -66,9 +66,25 @@ export function Board({ batchId, leads, assets, contacts, query = '', openId }: 
 }) {
   const [tab, setTab] = useState<PipelineColumn>('novo');
   const [showDiscarded, setShowDiscarded] = useState(false);
+  const router = useRouter();
   const { notice, run } = useStageAction();
-  // Cartão sendo arrastado: Descartados vira lixeira.
-  const [dragging, setDragging] = useState<string | null>(null);
+  // Cartão sendo arrastado: as colunas uma etapa antes ou depois aceitam o cartão, e Descartados vira lixeira.
+  const [dragging, setDragging] = useState<Lead | null>(null);
+
+  const dropOn = (column: PipelineColumn) => {
+    const lead = dragging;
+    const move = lead && dropMove(lead.stage, column);
+    if (!lead || !move) return undefined;
+    return () => {
+      setDragging(null);
+      if (move === 'qualificar') run(() => qualifyAction([lead.id]));
+      else if (move === 'completar') run(() => completeInfoAction(lead.id));
+      else if (move === 'voltar') run(() => stepBackAction(lead.id, lead.stage as 'pagina' | 'video'));
+      else if (move === 'descartar') run(() => discardAction([lead.id]));
+      // Página → Vídeo e Vídeo → Pronto pedem um link: abre o modal do lead.
+      else router.push(boardHref(batchId, query, lead.id), { scroll: false });
+    };
+  };
 
   const byColumn = Object.fromEntries(PIPELINE_COLUMNS.map((c) => [c.key, [] as Lead[]])) as Record<PipelineColumn, Lead[]>;
   for (const lead of leads) byColumn[columnOf(lead.stage)].push(lead);
@@ -106,7 +122,8 @@ export function Board({ batchId, leads, assets, contacts, query = '', openId }: 
               onExpand={() => setShowDiscarded(true)}
               onCollapse={discarded ? () => setShowDiscarded(false) : undefined}
               empty={EMPTY[c.key]}
-              trash={discarded ? { armed: !!dragging, onDrop: () => { const id = dragging; setDragging(null); if (id) run(() => discardAction([id])); } } : undefined}
+              trash={discarded ? { armed: !!dragging, onDrop: dropOn('descartados') ?? (() => setDragging(null)) } : undefined}
+              target={!discarded && dropOn(c.key) ? { onDrop: dropOn(c.key)! } : undefined}
             >
               {list.map((lead) => (
                 <LeadCard
@@ -116,7 +133,7 @@ export function Board({ batchId, leads, assets, contacts, query = '', openId }: 
                   active={lead.id === openId}
                   assets={assets[lead.id]}
                   contacts={contacts[lead.id]}
-                  drag={canTransition(lead.stage, 'descartado') ? { onStart: () => setDragging(lead.id), onEnd: () => setDragging(null) } : undefined}
+                  drag={PIPELINE_COLUMNS.some((col) => dropMove(lead.stage, col.key)) ? { onStart: () => setDragging(lead), onEnd: () => setDragging(null) } : undefined}
                 />
               ))}
             </Column>
