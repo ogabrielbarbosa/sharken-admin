@@ -44,6 +44,23 @@ describe('migrações', () => {
     expect(rows.every((r) => r.relrowsecurity)).toBe(true);
   });
 
+  it('cria política restritiva contra escrita por OAuth em toda tabela que authenticated grava', async () => {
+    const { rows } = await db.query<{ tablename: string }>(`
+      select distinct tablename from pg_policies
+      where schemaname = 'public' and 'authenticated' = any(roles) and cmd <> 'SELECT' and permissive = 'PERMISSIVE'
+      except
+      select tablename from pg_policies
+      where policyname like tablename || '_no_oauth_write%' and permissive = 'RESTRICTIVE'`);
+    expect(rows).toEqual([]);
+  });
+
+  it('a política de OAuth cobre só insert, update e delete', async () => {
+    const { rows } = await db.query<{ cmd: string }>(
+      `select distinct cmd from pg_policies where policyname like '%\\_no\\_oauth\\_write%'`,
+    );
+    expect(rows.map((r) => r.cmd).sort()).toEqual(['DELETE', 'INSERT', 'UPDATE']);
+  });
+
   it('recusa etapa desconhecida', async () => {
     await expect(
       db.query(`insert into leads (place_id, name, stage) values ('a', 'x', 'etapa_errada')`),
