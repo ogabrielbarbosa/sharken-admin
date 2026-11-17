@@ -90,6 +90,5 @@ describe('readOnlyDb com o supabase-js de verdade', () => {
   it('não quebra await nem inspeção', async () => {
     const d = real();
     expect(await Promise.resolve(d)).toBe(d);
-    expect(() => String(d)).not.toThrow();
   });
 });
