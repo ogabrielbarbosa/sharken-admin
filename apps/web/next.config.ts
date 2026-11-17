@@ -7,6 +7,12 @@ import type { NextConfig } from 'next';
 const envFile = join(import.meta.dirname, '../..', '.env');
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 
+// Impede que outro site embuta login e consentimento (clickjacking).
+const noFraming = [
+  { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+  { key: 'X-Frame-Options', value: 'DENY' },
+];
+
 const config: NextConfig = {
   transpilePackages: ['@lps/domain', '@lps/config', '@lps/db', '@lps/integrations'],
   outputFileTracingRoot: join(import.meta.dirname, '../..'),
@@ -15,6 +21,8 @@ const config: NextConfig = {
   experimental: { serverActions: { bodySizeLimit: '20mb' } },
   headers: async () => [
     { source: '/p/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] },
+    { source: '/oauth/:path*', headers: noFraming },
+    { source: '/login', headers: noFraming },
   ],
 };
 

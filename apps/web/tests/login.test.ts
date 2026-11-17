@@ -24,5 +24,8 @@ describe('safeNext', () => {
     expect(safeNext('/\\evil.com')).toBe('/painel');
     expect(safeNext('https://evil.com')).toBe('/painel');
     expect(safeNext(null)).toBe('/painel');
+    expect(safeNext('/\t/evil.com')).toBe('/painel');
+    expect(safeNext('/\n/evil.com')).toBe('/painel');
+    expect(safeNext('/%2F%2Fevil.com')).toBe('/%2F%2Fevil.com'); // fica no mesmo site, sem virar externo
   });
 });
