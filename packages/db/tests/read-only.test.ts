@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
+import { createClient } from '@supabase/supabase-js';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Db } from '../src/client';
 import { READ_ONLY_ERROR, readOnlyDb } from '../src/read-only';
@@ -60,5 +61,35 @@ describe('readOnlyDb', () => {
     expect(() => (bucket as any).remove(['p'])).toThrow(READ_ONLY_ERROR);
     expect(upload).not.toHaveBeenCalled();
     expect(remove).not.toHaveBeenCalled();
+  });
+});
+
+describe('readOnlyDb com o supabase-js de verdade', () => {
+  const real = () => readOnlyDb(createClient('http://localhost:1', 'key') as unknown as Db) as any;
+
+  it('from().select() continua devolvendo um builder', () => {
+    const q = real().from('leads').select('*');
+    expect(typeof q.eq).toBe('function');
+    expect(typeof q.then).toBe('function');
+  });
+
+  it.each([
+    ['schema().from().insert', (d: any) => d.schema('public').from('leads').insert({})],
+    ['rest.from().insert', (d: any) => d.rest.from('leads').insert({})],
+    ['rest.rpc', (d: any) => d.rest.rpc('x')],
+    ['auth.admin', (d: any) => d.auth.admin.deleteUser('x')],
+    ['functions', (d: any) => d.functions.invoke('x')],
+    ['channel', (d: any) => d.channel('x')],
+    ['storage.createBucket', (d: any) => d.storage.createBucket('x')],
+    ['storage.deleteBucket', (d: any) => d.storage.deleteBucket('x')],
+    ['storage.from().upload', (d: any) => d.storage.from('b').upload('p', 'x')],
+  ])('lança em %s', (_n, fn) => {
+    expect(() => fn(real())).toThrow(READ_ONLY_ERROR);
+  });
+
+  it('não quebra await nem inspeção', async () => {
+    const d = real();
+    expect(await Promise.resolve(d)).toBe(d);
+    expect(() => String(d)).not.toThrow();
   });
 });
