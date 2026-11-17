@@ -1,7 +1,7 @@
 import type { Lead } from './types';
 
 export type MessageTemplates = { sem_site: string; fora_do_ar: string; melhorar_site: string; follow_up: string };
-export type MessageVars = { nome: string; cidade: string; tipo: string; motivo: string; link: string };
+export type MessageVars = { nome: string; cidade: string; tipo: string; motivo: string; link: string; seu_nome?: string };
 
 const FIELDS: Record<string, keyof MessageVars> = {
   '[nome do negócio]': 'nome',
@@ -9,6 +9,7 @@ const FIELDS: Record<string, keyof MessageVars> = {
   '[tipo de negócio]': 'tipo',
   '[motivo]': 'motivo',
   '[link]': 'link',
+  '[seu nome]': 'seu_nome',
 };
 
 export function renderMessage(template: string, vars: MessageVars): string {
@@ -21,18 +22,18 @@ export function renderMessage(template: string, vars: MessageVars): string {
   });
 }
 
-export function messageVars(lead: Pick<Lead, 'name' | 'city' | 'business_type' | 'reason'>, link: string): MessageVars {
-  return { nome: lead.name, cidade: lead.city ?? 'sua região', tipo: lead.business_type ?? '', motivo: lead.reason ?? '', link };
+export function messageVars(lead: Pick<Lead, 'name' | 'city' | 'business_type' | 'reason'>, link: string, signer?: string): MessageVars {
+  return { nome: lead.name, cidade: lead.city ?? 'sua região', tipo: lead.business_type ?? '', motivo: lead.reason ?? '', link, seu_nome: signer };
 }
 
-export function selectFirstMessage(lead: Lead, templates: MessageTemplates, extra: { link: string }): string {
+export function selectFirstMessage(lead: Lead, templates: MessageTemplates, extra: { link: string; signer?: string }): string {
   const template =
     lead.flow === 'melhorar_site' ? templates.melhorar_site : lead.site_status === 'fora_do_ar' ? templates.fora_do_ar : templates.sem_site;
-  return renderMessage(template, messageVars(lead, extra.link));
+  return renderMessage(template, messageVars(lead, extra.link, extra.signer));
 }
 
-export function buildFollowUpMessage(lead: Lead, templates: MessageTemplates, extra: { link: string }): string {
-  return renderMessage(templates.follow_up, messageVars(lead, extra.link));
+export function buildFollowUpMessage(lead: Lead, templates: MessageTemplates, extra: { link: string; signer?: string }): string {
+  return renderMessage(templates.follow_up, messageVars(lead, extra.link, extra.signer));
 }
 
 export function buildWhatsAppLink(phoneE164: string, text: string): string {

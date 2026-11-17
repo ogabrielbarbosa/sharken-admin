@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, FilePenLine, Layers, LayoutGrid, LogOut, MessageCircle, Users } from 'lucide-react';
+import { ChevronDown, FilePenLine, Layers, LayoutGrid, LogOut, MessageCircle, Settings, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -17,6 +17,7 @@ const before: Item[] = [
 const after: Item[] = [
   { href: '/painel/contratos', label: 'Contratos', icon: FilePenLine },
   { href: '/painel/clientes', label: 'Clientes', icon: Users },
+  { href: '/painel/configuracoes', label: 'Configurações', icon: Settings },
 ];
 
 const CRM = '/painel/crm';
@@ -84,7 +85,7 @@ function AtendimentoGroup({ whatsapp, pathname, collapsed, fade }: { whatsapp: S
   );
 }
 
-export function Sidebar({ email, whatsapp, workspaces, current }: { email: string; whatsapp: SidebarWhatsApp; workspaces: WorkspaceItem[]; current: string }) {
+export function Sidebar({ email, whatsapp, workspaces, current, isAdmin }: { email: string; whatsapp: SidebarWhatsApp; workspaces: WorkspaceItem[]; current: string; isAdmin: boolean }) {
   const pathname = usePathname();
   const { collapsed, mobileOpen, closeMobile } = useShell();
   const onBatch = pathname.startsWith('/painel/leads');
@@ -118,7 +119,7 @@ export function Sidebar({ email, whatsapp, workspaces, current }: { email: strin
           <Logo compact={collapsed} className="h-[22px] w-auto" />
         </Link>
 
-        <WorkspaceSwitcher workspaces={workspaces} current={current} collapsed={collapsed} fade={fade} />
+        <WorkspaceSwitcher workspaces={workspaces} current={current} collapsed={collapsed} fade={fade} canSwitch={isAdmin} />
 
         <p className={`relative mb-2 px-2.5 text-xs text-sidebar-label ${fade}`}>Menu</p>
         {/* -mx-3/px-3: a rolagem corta o que sai da caixa, e o indicador fica 12px à esquerda do link. */}

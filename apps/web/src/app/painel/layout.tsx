@@ -9,7 +9,7 @@ import { summarizeWhatsApp } from '@/lib/connections';
 export const dynamic = 'force-dynamic';
 
 export default async function PainelLayout({ children }: { children: ReactNode }) {
-  const { user, workspaces, workspace } = await getSession();
+  const { user, isAdmin, workspaces, workspace } = await getSession();
   const db = await authedDb();
   const { data: conn } = await db.from('whatsapp_connection').select('state').maybeSingle();
   const whatsapp = summarizeWhatsApp((conn?.state as string | undefined) ?? null);
@@ -24,6 +24,7 @@ export default async function PainelLayout({ children }: { children: ReactNode }
             whatsapp={whatsapp}
             workspaces={workspaces.map((w) => ({ id: w.id, name: w.name }))}
             current={workspace.id}
+            isAdmin={isAdmin}
           />
           <div className="my-2 mr-2 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-card [scrollbar-color:#ffffff26_transparent] [scrollbar-width:thin] bg-background max-lg:m-0 max-lg:rounded-none">{children}</div>
         </div>

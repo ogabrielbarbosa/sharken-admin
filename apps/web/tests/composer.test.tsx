@@ -21,27 +21,27 @@ const base = {
 
 describe('composerDraft', () => {
   it('sem link da página devolve vazio, sem erro', () => {
-    expect(composerDraft({ contact: { status: 'novo', follow_up_at: null }, lead: { ...lead, page_url: null } as Lead, link: null, now })).toBe('');
+    expect(composerDraft({ contact: { status: 'novo', follow_up_at: null }, lead: { ...lead, page_url: null } as Lead, link: null, now, signer: 'Gabriel' })).toBe('');
   });
 
   it('em novo vem a mensagem de primeiro contato com o link', () => {
-    const text = composerDraft({ contact: { status: 'novo', follow_up_at: null }, lead, link: LINK, now });
+    const text = composerDraft({ contact: { status: 'novo', follow_up_at: null }, lead, link: LINK, now, signer: 'Gabriel' });
     expect(text).toContain('Pet Shop Feliz');
     expect(text).toContain(LINK);
   });
 
   it('o texto da URL substitui o pré-preenchimento', () => {
-    expect(composerDraft({ contact: { status: 'novo', follow_up_at: null }, lead, link: LINK, texto: 'Segue o contrato: x', now })).toBe('Segue o contrato: x');
+    expect(composerDraft({ contact: { status: 'novo', follow_up_at: null }, lead, link: LINK, texto: 'Segue o contrato: x', now, signer: 'Gabriel' })).toBe('Segue o contrato: x');
   });
 
   it('follow-up vencido em contatado traz a mensagem de follow-up', () => {
-    const text = composerDraft({ contact: { status: 'contatado', follow_up_at: '2026-11-10T00:00:00Z' }, lead, link: LINK, now });
+    const text = composerDraft({ contact: { status: 'contatado', follow_up_at: '2026-11-10T00:00:00Z' }, lead, link: LINK, now, signer: 'Gabriel' });
     expect(text).toContain('de novo');
     expect(text).toContain(LINK);
   });
 
   it('em conversa o campo começa vazio', () => {
-    expect(composerDraft({ contact: { status: 'em_conversa', follow_up_at: null }, lead, link: LINK, now })).toBe('');
+    expect(composerDraft({ contact: { status: 'em_conversa', follow_up_at: null }, lead, link: LINK, now, signer: 'Gabriel' })).toBe('');
   });
 });
 

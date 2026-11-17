@@ -3,14 +3,17 @@
 import { Check, ChevronsUpDown, Settings2 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { switchWorkspaceAction } from '@/app/painel/workspaces/actions';
+import { switchWorkspaceAction } from '@/app/painel/configuracoes/actions';
 
 export type WorkspaceItem = { id: string; name: string };
 
 const initial = (name: string) => name.trim().slice(0, 1).toUpperCase() || 'W';
 
-/** Workspace em uso no topo do menu, com a lista para trocar e o atalho para gerenciar. */
-export function WorkspaceSwitcher({ workspaces, current, collapsed, fade }: { workspaces: WorkspaceItem[]; current: string; collapsed: boolean; fade: string }) {
+/**
+ * Workspace em uso no topo do menu. Só o administrador troca (lista e atalho para todos os workspaces);
+ * os demais veem o nome do workspace deles, sem saber que existem outros.
+ */
+export function WorkspaceSwitcher({ workspaces, current, collapsed, fade, canSwitch }: { workspaces: WorkspaceItem[]; current: string; collapsed: boolean; fade: string; canSwitch: boolean }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
@@ -26,6 +29,14 @@ export function WorkspaceSwitcher({ workspaces, current, collapsed, fade }: { wo
   }, [open]);
 
   if (!active) return null;
+  if (!canSwitch) {
+    return (
+      <div title={collapsed ? active.name : undefined} className="mb-4 flex h-10 items-center gap-2.5 rounded-md border border-border bg-white/[0.02] px-2 text-sm">
+        <span className="grid size-6 shrink-0 place-items-center rounded bg-brand text-xs font-semibold text-brand-foreground">{initial(active.name)}</span>
+        <span className={`min-w-0 flex-1 truncate font-medium ${fade}`}>{active.name}</span>
+      </div>
+    );
+  }
   return (
     <div ref={ref} className="relative mb-4">
       <button
@@ -34,7 +45,7 @@ export function WorkspaceSwitcher({ workspaces, current, collapsed, fade }: { wo
         aria-expanded={open}
         title={collapsed ? active.name : undefined}
         // Recolhido, o menu cortaria a lista: leva para a página de workspaces.
-        onClick={() => (collapsed && window.matchMedia('(min-width: 1024px)').matches ? (window.location.href = '/painel/workspaces') : setOpen((v) => !v))}
+        onClick={() => (collapsed && window.matchMedia('(min-width: 1024px)').matches ? (window.location.href = '/painel/configuracoes?aba=workspaces') : setOpen((v) => !v))}
         className="press flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-md border border-border bg-white/[0.02] px-2 text-left text-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60"
       >
         <span className="grid size-6 shrink-0 place-items-center rounded bg-brand text-xs font-semibold text-brand-foreground">{initial(active.name)}</span>
@@ -63,8 +74,8 @@ export function WorkspaceSwitcher({ workspaces, current, collapsed, fade }: { wo
             </button>
           ))}
           <div className="my-1 border-t border-border" />
-          <Link href="/painel/workspaces" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-white/5 hover:text-foreground">
-            <Settings2 className="size-3.5" />Gerenciar workspaces
+          <Link href="/painel/configuracoes?aba=workspaces" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-white/5 hover:text-foreground">
+            <Settings2 className="size-3.5" />Todos os workspaces
           </Link>
         </div>
       )}

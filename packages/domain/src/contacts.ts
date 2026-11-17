@@ -173,10 +173,11 @@ export function sendKind(c: Pick<Contact, 'status' | 'follow_up_at'>, now: Date)
   return 'normal';
 }
 
-export function firstContactText(lead: Lead, link: string): string {
-  return selectFirstMessage(lead, MESSAGES, { link });
+/** `signer` é quem fala na mensagem ("Aqui é o ..."): o nome nas Configurações do workspace. */
+export function firstContactText(lead: Lead, link: string, signer: string): string {
+  return selectFirstMessage(lead, MESSAGES, { link, signer });
 }
 
-export function followUpText(link: string): string {
-  return MESSAGES.follow_up.replace('[link]', link);
+export function followUpText(link: string, signer: string): string {
+  return MESSAGES.follow_up.replace('[link]', link).replace('[seu nome]', signer);
 }

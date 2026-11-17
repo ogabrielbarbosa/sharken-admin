@@ -32,13 +32,14 @@ export function composerDraft(input: {
   link: string | null;
   texto?: string;
   now: Date;
+  signer: string;
 }): string {
   if (input.texto?.trim()) return input.texto;
   const { contact, lead, link, now } = input;
   if (!lead || !link) return '';
   try {
-    if (contact.status === 'novo') return firstContactText(lead, link);
-    if (contact.status === 'contatado' && isFollowUpDue(contact, now)) return followUpText(link);
+    if (contact.status === 'novo') return firstContactText(lead, link, input.signer);
+    if (contact.status === 'contatado' && isFollowUpDue(contact, now)) return followUpText(link, input.signer);
   } catch {
     // Lead sem cidade, motivo ou outro campo da mensagem: o campo começa vazio.
   }

@@ -79,16 +79,18 @@ describe('followUpDueAt e sendKind', () => {
 describe('textos', () => {
   const lead = { name: 'Padaria Bom Pão', city: 'Campinas', business_type: 'padaria', reason: 'o site não abre no celular', flow: 'sem_site', site_status: null } as unknown as Lead;
   it('sem site', () => {
-    const t = firstContactText(lead, 'https://x.com/p');
+    const t = firstContactText(lead, 'https://x.com/p', 'Gabriel');
     expect(t).toContain('Padaria Bom Pão');
     expect(t).toContain('https://x.com/p');
     expect(t).toContain('não encontrei um site');
+    expect(t).toContain('Aqui é o Gabriel');
+    expect(firstContactText(lead, 'l', 'João')).toContain('Aqui é o João');
   });
   it('fora do ar e melhorar site', () => {
-    expect(firstContactText({ ...lead, site_status: 'fora_do_ar' }, 'l')).toContain('não consegui');
-    expect(firstContactText({ ...lead, flow: 'melhorar_site' }, 'l')).toContain('o site não abre no celular');
+    expect(firstContactText({ ...lead, site_status: 'fora_do_ar' }, 'l', 'Gabriel')).toContain('não consegui');
+    expect(firstContactText({ ...lead, flow: 'melhorar_site' }, 'l', 'Gabriel')).toContain('o site não abre no celular');
   });
-  it('follow-up', () => expect(followUpText('https://x.com/p')).toBe(MESSAGES.follow_up.replace('[link]', 'https://x.com/p')));
+  it('follow-up', () => expect(followUpText('https://x.com/p', 'João')).toBe(MESSAGES.follow_up.replace('[link]', 'https://x.com/p').replace('[seu nome]', 'João')));
 });
 
 import { outreachKind } from '../src/contacts';

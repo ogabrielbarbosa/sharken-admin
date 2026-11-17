@@ -60,18 +60,39 @@ export function requireWorkspace(db: Db): string {
   return ws;
 }
 
-export type Workspace = { id: string; name: string; slug: string; role: 'owner' | 'member' };
+export type WorkspaceSettings = {
+  commercial_name: string | null;
+  signature_name: string | null;
+  daily_first_contact_limit: number | null;
+};
+export type Workspace = { id: string; name: string; slug: string; role: 'owner' | 'member' } & WorkspaceSettings;
 
-export async function listUserWorkspaces(db: Db, userId: string): Promise<Workspace[]> {
-  const { data, error } = await db
-    .from('workspace_members')
-    .select('role, workspaces (id, name, slug, created_at)')
-    .eq('user_id', userId);
+const WORKSPACE_COLUMNS = 'id, name, slug, created_at, commercial_name, signature_name, daily_first_contact_limit';
+type WorkspaceRow = Omit<Workspace, 'role'> & { created_at: string };
+const toWorkspace = (w: WorkspaceRow, role: Workspace['role']): Workspace => ({
+  id: w.id, name: w.name, slug: w.slug, role,
+  commercial_name: w.commercial_name, signature_name: w.signature_name, daily_first_contact_limit: w.daily_first_contact_limit,
+});
+
+export async function isPlatformAdmin(db: Db, userId: string): Promise<boolean> {
+  const { data, error } = await db.from('platform_admins').select('user_id').eq('user_id', userId).maybeSingle();
   if (error) throw new Error(error.message);
-  return ((data ?? []) as unknown as { role: Workspace['role']; workspaces: Omit<Workspace, 'role'> & { created_at: string } }[])
-    .filter((m) => m.workspaces)
+  return !!data;
+}
+
+/** Workspaces do usuário. O administrador da plataforma enxerga todos, como dono. */
+export async function listUserWorkspaces(db: Db, userId: string, admin = false): Promise<Workspace[]> {
+  if (admin) {
+    const { data, error } = await db.from('workspaces').select(WORKSPACE_COLUMNS).order('created_at');
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as WorkspaceRow[]).map((w) => toWorkspace(w, 'owner'));
+  }
+  const { data, error } = await db.from('workspace_members').select(`role, workspaces (${WORKSPACE_COLUMNS})`).eq('user_id', userId);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as { role: Workspace['role']; workspaces: WorkspaceRow | null }[])
+    .filter((m): m is { role: Workspace['role']; workspaces: WorkspaceRow } => !!m.workspaces)
     .sort((a, b) => a.workspaces.created_at.localeCompare(b.workspaces.created_at))
-    .map((m) => ({ id: m.workspaces.id, name: m.workspaces.name, slug: m.workspaces.slug, role: m.role }));
+    .map((m) => toWorkspace(m.workspaces, m.role));
 }
 
 /** Workspace dono da instância da Evolution (o webhook chega só com o nome da instância). */

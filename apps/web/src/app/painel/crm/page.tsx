@@ -1,4 +1,4 @@
-import { getEnv, QUICK_REPLIES } from '@lps/config';
+import { QUICK_REPLIES } from '@lps/config';
 import {
   clientByContact,
   FOLLOW_UP_LIMIT_MESSAGE,
@@ -25,7 +25,7 @@ import type { LegacyLine, ThreadMessage } from '@/components/crm/thread';
 import { NewContactDialog } from '@/components/crm/new-contact-dialog';
 import { CrmRealtime } from '@/components/crm/use-crm-realtime';
 import { Topbar } from '@/components/layout/topbar';
-import { authedDb } from '@/lib/auth';
+import { authedDb, getSession, workspaceProfile } from '@/lib/auth';
 import { composerDraft, crmHref, duration, eventLabel, stopRequestPending } from '@/lib/crm';
 import { flowLabel } from '@/lib/lead-labels';
 
@@ -44,7 +44,6 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
   const tab = TABS.find((t) => t === params.aba) ?? 'aberto';
   const search = params.q?.trim() ?? '';
   const db = await authedDb();
-  const env = getEnv();
   const now = new Date();
 
   await markStalePending(db, new Date(now.getTime() - 2 * 60_000));
@@ -61,7 +60,8 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
   };
   const connection = connectionInfo.state;
   const base = crmHref(tab, { q: search });
-  const dailyLimit = env.DAILY_FIRST_CONTACT_LIMIT;
+  const profile = workspaceProfile((await getSession()).workspace);
+  const dailyLimit = profile.dailyLimit;
 
   const list = (
     <ContactList contacts={contacts} counts={counts} tab={tab} selectedId={selected?.id ?? null} search={search} now={now} connection={connectionInfo} />
@@ -113,8 +113,8 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
 
   const templates: Template[] = [];
   if (lead && link) {
-    try { templates.push({ label: 'Primeiro contato', text: firstContactText(lead, link) }); } catch { /* lead sem campo da mensagem */ }
-    templates.push({ label: 'Follow-up', text: followUpText(link) });
+    try { templates.push({ label: 'Primeiro contato', text: firstContactText(lead, link, profile.signer) }); } catch { /* lead sem campo da mensagem */ }
+    templates.push({ label: 'Follow-up', text: followUpText(link, profile.signer) });
   }
 
   const blockReason = sendBlockReason(selected as Contact, { doNotContact: !!dnc.data?.length, connected: connection !== 'desconectado', kind: 'normal' })
@@ -137,14 +137,15 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
   }
 
   const phoneLabel = connectionInfo.phone ? connectionInfo.phone.replace(/^\+?55(\d{2})(\d{4,5})(\d{4})$/, '+55 $1 $2-$3') : null;
-  const me = { name: process.env.CRM_SIGNATURE_NAME || 'Gabriel', avatar: (connectionRow.data?.profile_pic_url as string | null | undefined) ?? null, phone: phoneLabel };
+  const me = { name: profile.signer, avatar: (connectionRow.data?.profile_pic_url as string | null | undefined) ?? null, phone: phoneLabel };
   const variables: Variable[] = [
     { key: 'nome', label: 'Nome do contato', value: selected.name },
     { key: 'primeiro_nome', label: 'Primeiro nome', value: selected.name.split(/\s+/)[0] ?? null },
     { key: 'telefone', label: 'Telefone', value: selected.phone_e164 },
     { key: 'link', label: 'Link da página', value: link },
     { key: 'cidade', label: 'Cidade', value: lead?.city ?? null },
-    { key: 'empresa', label: 'Nome comercial', value: env.COMMERCIAL_NAME },
+    { key: 'empresa', label: 'Nome comercial', value: profile.company },
+    { key: 'meu_nome', label: 'Seu nome', value: profile.signer },
   ];
   const quickReplies = QUICK_REPLIES.map((r) => ({ shortcut: r.atalho, title: r.titulo, text: r.texto }));
   // 1ª resposta: da primeira mensagem recebida até a primeira enviada depois dela.
@@ -165,7 +166,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           messages={threadMessages}
           legacy={legacy}
           now={now}
-          draft={composerDraft({ contact: selected, lead, link, texto: params.texto, now })}
+          draft={composerDraft({ contact: selected, lead, link, texto: params.texto, now, signer: profile.signer })}
           templates={templates}
           blockReason={blockReason}
           backHref={base}
