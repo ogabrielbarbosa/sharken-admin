@@ -1,6 +1,6 @@
 'use server';
 
-import { createAdminClient, slugify } from '@lps/db';
+import { createAdminClient, inviteToWorkspace, slugify } from '@lps/db';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -48,42 +48,34 @@ export async function saveWorkspaceAction(formData: FormData) {
   back('workspace', { ok: 'Configurações salvas.' });
 }
 
-async function findUserByEmail(email: string) {
-  const db = createAdminClient();
-  for (let page = 1; page <= 20; page++) {
-    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw new Error(error.message);
-    const found = data.users.find((u) => u.email?.toLowerCase() === email);
-    if (found) return found;
-    if (data.users.length < 200) return null;
+async function invite(workspaceId: string, email: string, role: 'owner' | 'member', invitedBy: string, aba: Tab) {
+  if (!/^\S+@\S+\.\S+$/.test(email)) back(aba, { erro: 'E-mail inválido.' });
+  try {
+    return await inviteToWorkspace(createAdminClient(), { workspaceId, email, role, invitedBy });
+  } catch (err) {
+    return back(aba, { erro: (err as Error).message });
   }
-  return null;
 }
 
-/** Acha a conta pelo e-mail ou cria com a senha dada, e põe no workspace. */
-async function addMember(workspaceId: string, email: string, password: string, role: 'owner' | 'member', aba: Tab) {
-  if (!/^\S+@\S+\.\S+$/.test(email)) back(aba, { erro: 'E-mail inválido.' });
-  const db = createAdminClient();
-  let user = await findUserByEmail(email);
-  let created = false;
-  if (!user) {
-    if (password.length < 8) back(aba, { erro: 'Conta nova: defina uma senha com pelo menos 8 caracteres.' });
-    const { data, error } = await db.auth.admin.createUser({ email, password, email_confirm: true });
-    if (error || !data.user) back(aba, { erro: `Não foi possível criar a conta: ${error?.message}` });
-    user = data.user!;
-    created = true;
-  }
-  const { error } = await db.from('workspace_members').upsert({ workspace_id: workspaceId, user_id: user!.id, role }, { onConflict: 'workspace_id,user_id' });
-  if (error) back(aba, { erro: error.message });
-  return created;
-}
+const invitedMessage = (email: string, result: 'adicionado' | 'convidado') =>
+  result === 'adicionado'
+    ? `${email} já tinha conta e entrou no workspace.`
+    : `${email} adicionado. Peça para a pessoa abrir o painel, clicar em Criar conta e usar esse e-mail.`;
 
 export async function addMemberAction(formData: FormData) {
-  const { workspace } = await requireOwner('membros');
+  const { workspace, user } = await requireOwner('membros');
   const email = text(formData, 'email').toLowerCase();
-  const created = await addMember(workspace.id, email, String(formData.get('password') ?? ''), formData.get('role') === 'member' ? 'member' : 'owner', 'membros');
+  const result = await invite(workspace.id, email, formData.get('role') === 'member' ? 'member' : 'owner', user.id, 'membros');
   revalidatePath(HERE);
-  back('membros', { ok: created ? `Conta criada para ${email}. Mande o e-mail e a senha para a pessoa entrar.` : `${email} adicionado.` });
+  back('membros', { ok: invitedMessage(email, result) });
+}
+
+export async function cancelInviteAction(formData: FormData) {
+  const { workspace } = await requireOwner('membros');
+  const { error } = await createAdminClient().from('workspace_invites').delete().eq('id', text(formData, 'invite_id')).eq('workspace_id', workspace.id);
+  if (error) back('membros', { erro: error.message });
+  revalidatePath(HERE);
+  back('membros', { ok: 'Convite cancelado.' });
 }
 
 export async function removeMemberAction(formData: FormData) {
@@ -105,9 +97,9 @@ export async function switchWorkspaceAction(id: string) {
   redirect('/painel');
 }
 
-/** Admin: cria o workspace de uma operação nova e, se informado, já cria a conta do dono. */
+/** Admin: cria o workspace de uma operação nova e, se informado, já adiciona o dono pelo e-mail. */
 export async function createWorkspaceAction(formData: FormData) {
-  await requireAdmin();
+  const { user } = await requireAdmin();
   const name = text(formData, 'name');
   if (!name) back('workspaces', { erro: 'Dê um nome ao workspace.' });
   const db = createAdminClient();
@@ -122,12 +114,7 @@ export async function createWorkspaceAction(formData: FormData) {
   }).select('id').single();
   if (error || !data) back('workspaces', { erro: `Não foi possível criar: ${error?.message}` });
   const email = text(formData, 'email').toLowerCase();
-  let created = false;
-  if (email) created = await addMember(data!.id, email, String(formData.get('password') ?? ''), 'owner', 'workspaces');
+  const result = email ? await invite(data!.id, email, 'owner', user.id, 'workspaces') : null;
   revalidatePath('/painel', 'layout');
-  back('workspaces', {
-    ok: email
-      ? `Workspace ${name} criado com ${email} como dono.${created ? ' Mande o e-mail e a senha para a pessoa entrar.' : ''}`
-      : `Workspace ${name} criado. Entre nele para configurar.`,
-  });
+  back('workspaces', { ok: `Workspace ${name} criado.${email && result ? ` ${invitedMessage(email, result)}` : ' Entre nele para configurar.'}` });
 }

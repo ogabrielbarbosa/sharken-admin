@@ -1,10 +1,11 @@
+import Link from 'next/link';
 import { Logo } from '@/components/layout/logo';
 import { Button, Field, Input } from '@/components/ui';
 import { signIn } from './actions';
 
 const messages: Record<string, string> = {
   credenciais: 'E-mail ou senha incorretos.',
-  'sem-workspace': 'Sua conta ainda não está em nenhum workspace. Peça para quem te convidou te adicionar.',
+  'sem-workspace': 'Sua conta ainda não está em nenhum workspace. Peça para quem administra adicionar o seu e-mail.',
   config: 'Faltam as chaves do Supabase. Rode pnpm setup:local e reinicie o servidor.',
 };
 
@@ -22,6 +23,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <Field label="E-mail"><Input name="email" type="email" placeholder="voce@email.com" required /></Field>
           <Field label="Senha"><Input name="password" type="password" placeholder="••••••••••" required /></Field>
           <Button type="submit" className="w-full">Entrar</Button>
+          <p className="text-center text-sm text-muted-foreground">Primeiro acesso? <Link href="/cadastro" className="text-foreground underline">Criar conta</Link></p>
         </form>
       </div>
     </main>

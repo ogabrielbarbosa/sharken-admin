@@ -39,7 +39,7 @@ describe('migrações', () => {
     expect(rows.map((r) => r.relname)).toEqual([
       'batches', 'charges', 'clients', 'contacts', 'contracts', 'do_not_contact', 'events',
       'jobs', 'lead_assets', 'leads', 'messages', 'platform_admins', 'services', 'sites', 'videos', 'whatsapp_connection',
-      'workspace_members', 'workspaces',
+      'workspace_invites', 'workspace_members', 'workspaces',
     ]);
     expect(rows.every((r) => r.relrowsecurity)).toBe(true);
   });

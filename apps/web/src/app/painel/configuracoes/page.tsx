@@ -1,12 +1,12 @@
 import { getEnv } from '@lps/config';
-import { createAdminClient } from '@lps/db';
-import { Building2, Check, LogIn, Plus, Trash2, UserPlus, Users } from 'lucide-react';
+import { createAdminClient, pendingInvites } from '@lps/db';
+import { Building2, Check, Clock, LogIn, Plus, Trash2, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge, Button, Card, Field, Input, Select } from '@/components/ui';
 import { getSession } from '@/lib/auth';
-import { addMemberAction, createWorkspaceAction, removeMemberAction, saveWorkspaceAction, switchWorkspaceAction } from './actions';
+import { addMemberAction, cancelInviteAction, createWorkspaceAction, removeMemberAction, saveWorkspaceAction, switchWorkspaceAction } from './actions';
 
 type Tab = 'workspace' | 'membros' | 'workspaces';
 const ROLE = { owner: 'Dono', member: 'Membro' } as const;
@@ -123,7 +123,7 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
 }
 
 async function MembersTab({ workspaceId, me, canEdit }: { workspaceId: string; me: string; canEdit: boolean }) {
-  const members = await membersOf(workspaceId);
+  const [members, invites] = await Promise.all([membersOf(workspaceId), pendingInvites(createAdminClient(), { workspaceId })]);
   return (
     <>
       <Section title="Membros" description="Quem trabalha neste workspace. Cada pessoa entra com o próprio e-mail e senha.">
@@ -143,19 +143,34 @@ async function MembersTab({ workspaceId, me, canEdit }: { workspaceId: string; m
               )}
             </li>
           ))}
-          {!members.length && <li className="py-2.5 text-sm text-muted-foreground">Ninguém ainda.</li>}
+          {invites.map((inv) => (
+            <li key={inv.id} className="flex items-center gap-3 py-2.5">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full border border-dashed border-border text-muted-foreground"><Clock className="size-3.5" /></span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">{inv.email}</p>
+                <p className="text-xs text-muted-foreground">Aguardando criar a conta</p>
+              </div>
+              <Badge tone={inv.role === 'owner' ? 'brand' : 'neutral'}>{ROLE[inv.role]}</Badge>
+              {canEdit && (
+                <form action={cancelInviteAction}>
+                  <input type="hidden" name="invite_id" value={inv.id} />
+                  <Button type="submit" variant="ghost" aria-label={`Cancelar convite de ${inv.email}`}><X /></Button>
+                </form>
+              )}
+            </li>
+          ))}
+          {!members.length && !invites.length && <li className="py-2.5 text-sm text-muted-foreground">Ninguém ainda.</li>}
         </ul>
       </Section>
       {canEdit && (
         <form action={addMemberAction}>
           <Section
             title="Adicionar pessoa"
-            description="Se a pessoa ainda não tem conta, ela é criada com a senha que você definir. Mande o e-mail e a senha para ela."
+            description="Só o e-mail. A pessoa cria a própria senha em Criar conta, na tela de entrada, e já cai neste workspace."
             footer={<Button type="submit"><UserPlus />Adicionar</Button>}
           >
-            <div className="grid gap-4 sm:grid-cols-[1fr_1fr_9rem]">
+            <div className="grid gap-4 sm:grid-cols-[1fr_9rem]">
               <Field label="E-mail"><Input name="email" type="email" required /></Field>
-              <Field label="Senha" hint="Só para conta nova (mín. 8)"><Input name="password" type="text" autoComplete="off" /></Field>
               <Field label="Papel">
                 <Select name="role" defaultValue="member">
                   <option value="member">Membro</option>
@@ -198,7 +213,7 @@ async function WorkspacesTab({ workspaces, current }: { workspaces: { id: string
       <form action={createWorkspaceAction}>
         <Section
           title="Novo workspace"
-          description="Uma operação nova, vazia. Se informar o e-mail do dono, a conta dele já é criada."
+          description="Uma operação nova, vazia. Informe o e-mail do dono: ele cria a senha em Criar conta e já cai aqui."
           footer={<Button type="submit"><Plus />Criar workspace</Button>}
         >
           <div className="grid gap-4 sm:grid-cols-2">
@@ -206,8 +221,7 @@ async function WorkspacesTab({ workspaces, current }: { workspaces: { id: string
             <Field label="Nome dele nas mensagens"><Input name="signature_name" placeholder="Ex.: João" /></Field>
             <Field label="Nome comercial" hint="Opcional"><Input name="commercial_name" /></Field>
             <div />
-            <Field label="E-mail do dono" hint="Opcional"><Input name="email" type="email" /></Field>
-            <Field label="Senha do dono" hint="Só para conta nova (mín. 8)"><Input name="password" type="text" autoComplete="off" /></Field>
+            <Field label="E-mail do dono" hint="Opcional: dá para adicionar depois em Membros"><Input name="email" type="email" /></Field>
           </div>
         </Section>
       </form>
