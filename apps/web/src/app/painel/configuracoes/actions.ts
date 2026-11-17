@@ -8,10 +8,11 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getSession, WORKSPACE_COOKIE } from '@/lib/auth';
+import { createServerClient } from '@/lib/supabase/server';
 import { abacateWebhookUrl } from '@/lib/billing';
 
 const HERE = '/painel/configuracoes';
-type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'servicos' | 'workspaces';
+type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'servicos' | 'mcp' | 'workspaces';
 const back = (aba: Tab, msg: { erro?: string; ok?: string }): never =>
   redirect(`${HERE}?${new URLSearchParams({ aba, ...(msg.erro ? { erro: msg.erro } : {}), ...(msg.ok ? { ok: msg.ok } : {}) })}`);
 
@@ -190,4 +191,16 @@ export async function toggleCatalogItemAction(formData: FormData) {
   await updateCatalogItem(scopeDb(createAdminClient(), workspace.id), text(formData, 'id'), { active });
   revalidatePath('/painel', 'layout');
   back('servicos', { ok: active ? 'Serviço reativado.' : 'Serviço arquivado: some do Fechar negócio, mas os clientes que já têm continuam iguais.' });
+}
+
+/** Desconecta uma ferramenta (Claude, Cursor…) do MCP: revoga o consentimento e derruba as sessões dela. */
+export async function revokeMcpConnectionAction(formData: FormData) {
+  await getSession();
+  const clientId = text(formData, 'client_id');
+  if (!clientId) back('mcp', { erro: 'Conexão não encontrada.' });
+  const supabase = await createServerClient();
+  const { error } = await supabase.auth.oauth.revokeGrant({ clientId });
+  if (error) back('mcp', { erro: 'Não foi possível desconectar. Tente de novo.' });
+  revalidatePath(HERE);
+  back('mcp', { ok: 'Conexão removida. A ferramenta perdeu o acesso.' });
 }

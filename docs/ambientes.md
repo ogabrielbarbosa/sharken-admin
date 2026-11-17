@@ -120,4 +120,7 @@ tudo de um lead (com briefing e imagens) e atendimentos. Cada usuário vê os pr
   sessões com esse claim. Tabela nova com política para `authenticated` precisa da mesma restrição (o teste de
   migrações falha se faltar).
 
-**Revogar acesso:** apagar as sessões do cliente OAuth no Supabase (Studio › Authentication) ou trocar a senha do usuário.
+**Tela:** Configurações › MCP (Claude) mostra o endereço, o passo a passo e as conexões autorizadas do usuário.
+
+**Revogar acesso:** botão Desconectar em Configurações › MCP (revoga o consentimento e derruba as sessões da ferramenta).
+Por fora: apagar as sessões do cliente OAuth no Supabase (Studio › Authentication) ou trocar a senha do usuário.

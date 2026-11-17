@@ -1,21 +1,23 @@
 import { getEnv } from '@lps/config';
 import { createAdminClient, getWorkspaceBilling, listCatalog, pendingInvites, scopeDb } from '@lps/db';
 import { CYCLES, formatBRL, maskApiKey } from '@lps/domain';
-import { Archive, ArchiveRestore, Building2, Check, Clock, CreditCard, LogIn, Package, Plus, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { Archive, ArchiveRestore, Building2, Check, Clock, CreditCard, LogIn, Package, Plug, Plus, Trash2, Unplug, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { WhatsAppConnection, whatsappIntro } from '@/components/connections/whatsapp-connection';
 import { Topbar } from '@/components/layout/topbar';
 import { WhatsAppIcon } from '@/components/ui/whatsapp-icon';
 import { Badge, Button, Card, Field, Input, Select } from '@/components/ui';
+import { CopyButton } from '@/components/ui/copy-button';
 import { getSession } from '@/lib/auth';
 import { formatDate } from '@/lib/lead-labels';
+import { listMcpConnections, mcpEndpoint } from '@/lib/mcp/connections';
 import {
-  addMemberAction, cancelInviteAction, createWorkspaceAction, removeBillingAction, removeMemberAction, saveBillingAction,
+  addMemberAction, cancelInviteAction, createWorkspaceAction, removeBillingAction, removeMemberAction, revokeMcpConnectionAction, saveBillingAction,
   saveCatalogItemAction, saveWorkspaceAction, switchWorkspaceAction, toggleCatalogItemAction,
 } from './actions';
 
-type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'servicos' | 'workspaces';
+type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'servicos' | 'mcp' | 'workspaces';
 const ROLE = { owner: 'Dono', member: 'Membro' } as const;
 const HERE = '/painel/configuracoes';
 
@@ -61,6 +63,7 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
     { key: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon },
     { key: 'servicos', label: 'Serviços', icon: Package },
     { key: 'pagamentos', label: 'Pagamentos', icon: CreditCard },
+    { key: 'mcp', label: 'MCP (Claude)', icon: Plug },
     ...(isAdmin ? [{ key: 'workspaces' as const, label: 'Todos os workspaces', icon: LogIn }] : []),
   ];
   const tab = tabs.find((t) => t.key === params.aba)?.key ?? 'workspace';
@@ -126,6 +129,8 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
           {tab === 'servicos' && <CatalogTab workspaceId={workspace.id} canEdit={canEdit} />}
 
           {tab === 'pagamentos' && <BillingTab workspaceId={workspace.id} canEdit={canEdit} />}
+
+          {tab === 'mcp' && <McpTab endpoint={mcpEndpoint(env.APP_URL)} />}
 
           {tab === 'workspaces' && isAdmin && <WorkspacesTab workspaces={workspaces} current={workspace.id} />}
         </div>
@@ -358,6 +363,94 @@ async function CatalogTab({ workspaceId, canEdit }: { workspaceId: string; canEd
           </Section>
         </form>
       )}
+    </>
+  );
+}
+
+function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
+  return (
+    <li className="flex gap-3">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-medium">{n}</span>
+      <div className="min-w-0 space-y-1.5 text-sm">
+        <p className="font-medium">{title}</p>
+        {children}
+      </div>
+    </li>
+  );
+}
+
+function CodeLine({ value }: { value: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-input-bg px-3 py-1.5 font-mono text-xs">{value}</code>
+      <CopyButton text={value} />
+    </div>
+  );
+}
+
+async function McpTab({ endpoint }: { endpoint: string }) {
+  const connections = await listMcpConnections();
+  const claudeCode = `claude mcp add --transport http sharken ${endpoint}`;
+  return (
+    <>
+      <Section
+        title="Servidor MCP"
+        description="Liga o Claude (ou outra ferramenta com MCP) aos seus batches, leads com imagens e atendimentos. Só leitura: a ferramenta não altera nada no Sharken."
+      >
+        <div className="space-y-5">
+          <Field label="Endereço do servidor">
+            <CodeLine value={endpoint} />
+          </Field>
+          <ol className="space-y-4">
+            <Step n={1} title="claude.ai ou app do Claude">
+              <p className="text-muted-foreground">
+                Configurações › Conectores › Adicionar conector personalizado. Dê um nome (ex.: Sharken), cole o endereço acima e clique em Conectar.
+              </p>
+            </Step>
+            <Step n={2} title="Claude Code">
+              <p className="text-muted-foreground">Rode no terminal e depois digite /mcp para entrar:</p>
+              <CodeLine value={claudeCode} />
+            </Step>
+            <Step n={3} title="Cursor e outras ferramentas">
+              <p className="text-muted-foreground">Adicione um servidor MCP remoto (HTTP) com o mesmo endereço. O login é descoberto sozinho.</p>
+            </Step>
+          </ol>
+          <p className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
+            Ao conectar, abre a tela do Sharken para você entrar e autorizar. A ferramenta vê os mesmos workspaces que você vê aqui.
+          </p>
+        </div>
+      </Section>
+
+      <Section title="Conexões" description="Ferramentas que você autorizou. Desconectar tira o acesso na hora.">
+        {connections === null ? (
+          <p className="text-sm text-destructive">Não consegui carregar as conexões agora. Recarregue a página.</p>
+        ) : connections.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma ferramenta conectada ainda. Siga os passos acima e ela aparece aqui.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {connections.map((c) => (
+              <li key={c.clientId} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent">
+                  <Plug className="size-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{c.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {c.site ? `${c.site} · ` : ''}Conectado em {formatDate(c.grantedAt)}
+                  </p>
+                </div>
+                <Badge tone="success">Ativa</Badge>
+                <form action={revokeMcpConnectionAction}>
+                  <input type="hidden" name="client_id" value={c.clientId} />
+                  <Button type="submit" variant="danger">
+                    <Unplug />Desconectar
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
     </>
   );
 }
