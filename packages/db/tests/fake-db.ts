@@ -12,9 +12,10 @@ export function fakeDb(pg: PGlite): Db {
       values: {} as Record<string, unknown>,
       filters: [] as Filter[],
       ors: [] as string[],
-      order: '',
+      order: [] as string[],
       single: false,
       limit: 0,
+      offset: 0,
       head: false,
       conflict: null as { column: string; ignore: boolean } | null,
     };
@@ -42,7 +43,7 @@ export function fakeDb(pg: PGlite): Db {
         const onConflict = s.conflict ? (s.conflict.ignore || !keys.filter((k) => k !== s.conflict!.column).length ? ` on conflict (${s.conflict.column}) do nothing` : ` on conflict (${s.conflict.column}) do update set ${keys.filter((k) => k !== s.conflict!.column).map((k) => `${k} = excluded.${k}`).join(',')}`) : '';
         sql = `insert into ${table} (${keys.join(',')}) values (${keys.map((k) => p(enc(s.values[k]))).join(',')})${onConflict} returning *`;
       } else if (s.op === 'update') sql = `update ${table} set ${keys.map((k) => `${k} = ${p(enc(s.values[k]))}`).join(',')}${where} returning *`;
-      else sql = `select * from ${table}${where}${s.order}${s.limit ? ` limit ${s.limit}` : ''}`;
+      else sql = `select * from ${table}${where}${s.order.length ? ' order by ' + s.order.join(', ') : ''}${s.limit ? ` limit ${s.limit}` : ''}${s.offset ? ` offset ${s.offset}` : ''}`;
       try {
         const { rows } = await pg.query(sql, params);
         if (s.head) return { data: null, count: rows.length, error: null };
@@ -67,9 +68,10 @@ export function fakeDb(pg: PGlite): Db {
       is: filter('is'),
       or: (expr: string) => (s.ors.push(expr), b),
       order: (c: string, o: { ascending?: boolean; nullsFirst?: boolean } = {}) => (
-        (s.order = ` order by ${c} ${o.ascending === false ? 'desc' : 'asc'} nulls ${o.nullsFirst ? 'first' : 'last'}`), b
+        s.order.push(`${c} ${o.ascending === false ? 'desc' : 'asc'} nulls ${o.nullsFirst ? 'first' : 'last'}`), b
       ),
       limit: (n: number) => ((s.limit = n), b),
+      range: (from: number, to: number) => ((s.offset = from), (s.limit = to - from + 1), b),
       single: () => ((s.single = true), b),
       maybeSingle: () => ((s.single = true), b),
       then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => run().then(res, rej),
