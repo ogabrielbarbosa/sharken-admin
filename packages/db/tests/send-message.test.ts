@@ -7,6 +7,7 @@ import { createContact, getContact, updateContact } from '../src/contacts';
 import { listMessages } from '../src/messages';
 import { retryMessage, sendMessage } from '../src/send-message';
 import { fakeDb } from './fake-db';
+import { TEST_WORKSPACE_DEFAULTS } from './test-defaults';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
 let pg: PGlite;
@@ -33,6 +34,7 @@ beforeAll(async () => {
     create table storage.buckets (id text primary key, name text, public boolean);
   `);
   for (const file of readdirSync(dir).sort()) await pg.exec(readFileSync(join(dir, file), 'utf8'));
+  await pg.exec(TEST_WORKSPACE_DEFAULTS);
   db = fakeDb(pg);
 });
 
@@ -272,7 +274,7 @@ describe('retryMessage', () => {
     expect(after.follow_up_at).toBeNull();
     expect(after.follow_ups_without_reply).toBe(0);
     expect(await listMessages(db, c.id)).toHaveLength(4);
-    const { rows } = await pg.query('select 1 from crm_hoje_ids() as id where id = $1', [c.id]);
+    const { rows } = await pg.query('select 1 from crm_hoje_ids(null) as id where id = $1', [c.id]);
     expect(rows).toHaveLength(0);
   });
 });

@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { TEST_WORKSPACE_DEFAULTS } from './test-defaults';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
 let db: PGlite;
@@ -20,6 +21,7 @@ async function migrated(through?: string): Promise<PGlite> {
     if (through && file.slice(0, 4) > through) break;
     await pg.exec(readFileSync(join(dir, file), 'utf8'));
   }
+  if (!through) await pg.exec(TEST_WORKSPACE_DEFAULTS);
   return pg;
 }
 

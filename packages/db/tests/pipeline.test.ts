@@ -6,6 +6,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { listLeads } from '../src/leads';
 import { completeInfo, qualifyLeads, savePageUrl, saveLoomUrl, stepBack, STALE } from '../src/pipeline';
 import { fakeDb } from './fake-db';
+import { TEST_WORKSPACE_DEFAULTS } from './test-defaults';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
 const LOOM = 'https://www.loom.com/share/abc123def456';
@@ -37,6 +38,7 @@ beforeAll(async () => {
     create table storage.buckets (id text primary key, name text, public boolean);
   `);
   for (const file of readdirSync(dir).sort()) await pg.exec(readFileSync(join(dir, file), 'utf8'));
+  await pg.exec(TEST_WORKSPACE_DEFAULTS);
   batchId = (await pg.query<{ id: string }>(`insert into batches (location, location_key, business_type, quantity, criteria) values ('Rio', 'rio', 'padaria', 5, '{}') returning id`)).rows[0]!.id;
 }, 30000);
 

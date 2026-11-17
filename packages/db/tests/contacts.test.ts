@@ -5,6 +5,7 @@ import type { Lead } from '@lps/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from '../src/client';
 import { addContactToLead, createContactFromLead, linkContactToLead, setContactStatus } from '../src/contacts';
+import { TEST_WORKSPACE_DEFAULTS } from './test-defaults';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
 let pg: PGlite;
@@ -65,6 +66,7 @@ beforeAll(async () => {
     create table storage.buckets (id text primary key, name text, public boolean);
   `);
   for (const file of readdirSync(dir).sort()) await pg.exec(readFileSync(join(dir, file), 'utf8'));
+  await pg.exec(TEST_WORKSPACE_DEFAULTS);
 });
 
 describe('createContactFromLead', () => {

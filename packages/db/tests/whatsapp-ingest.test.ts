@@ -8,6 +8,7 @@ import { insertMessage, listMessages } from '../src/messages';
 import { importHistory, ingestEvent } from '../src/whatsapp-ingest';
 import { scopeDb } from '../src/scope';
 import { fakeDb } from './fake-db';
+import { TEST_WORKSPACE_DEFAULTS } from './test-defaults';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
 let pg: PGlite;
@@ -30,6 +31,7 @@ beforeAll(async () => {
     create table storage.buckets (id text primary key, name text, public boolean);
   `);
   for (const file of readdirSync(dir).sort()) await pg.exec(readFileSync(join(dir, file), 'utf8'));
+  await pg.exec(TEST_WORKSPACE_DEFAULTS);
   db = fakeDb(pg);
 });
 

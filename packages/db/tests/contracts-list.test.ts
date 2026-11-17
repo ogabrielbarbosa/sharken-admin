@@ -4,6 +4,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createClient, createService, listContractsWithClient, updateContract } from '../src/clients';
 import { fakeDb } from './fake-db';
+import { TEST_WORKSPACE_DEFAULTS } from './test-defaults';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
 let pg: PGlite;
@@ -18,6 +19,7 @@ beforeAll(async () => {
     create table storage.buckets (id text primary key, name text, public boolean);
   `);
   for (const file of readdirSync(dir).sort()) await pg.exec(readFileSync(join(dir, file), 'utf8'));
+  await pg.exec(TEST_WORKSPACE_DEFAULTS);
   db = fakeDb(pg);
   for (const [name, status] of [['Ana', 'rascunho'], ['Bia', 'enviado'], ['Caio', 'assinado'], ['Duda', 'enviado']] as const) {
     const client = await createClient(db, { legal_name: `Cliente ${name}`, document: '52998224725', contact_name: name });

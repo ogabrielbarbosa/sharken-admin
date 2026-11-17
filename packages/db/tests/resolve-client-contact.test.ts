@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { clientByContact, createClient, getClient, OPTED_OUT_MESSAGE, resolveClientContact } from '../src/clients';
 import { createContact, getContact } from '../src/contacts';
 import { fakeDb } from './fake-db';
+import { TEST_WORKSPACE_DEFAULTS } from './test-defaults';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
 let pg: PGlite;
@@ -19,6 +20,7 @@ beforeAll(async () => {
     create table storage.buckets (id text primary key, name text, public boolean);
   `);
   for (const file of readdirSync(dir).sort()) await pg.exec(readFileSync(join(dir, file), 'utf8'));
+  await pg.exec(TEST_WORKSPACE_DEFAULTS);
   db = fakeDb(pg);
 });
 

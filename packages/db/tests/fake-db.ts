@@ -1,5 +1,6 @@
 import type { PGlite } from '@electric-sql/pglite';
 import type { Db } from '../src/client';
+import { WORKSPACE_TABLES } from '../src/scope';
 
 type Filter = [string, string, unknown];
 
@@ -18,6 +19,11 @@ export function fakeDb(pg: PGlite): Db {
       conflict: null as { column: string; ignore: boolean } | null,
     };
     const run = async () => {
+      // Sem scopeDb, grava no workspace padrão (o da operação do Gabriel), como o painel faria.
+      if ((s.op === 'insert' || s.op === 'upsert') && WORKSPACE_TABLES.has(table) && table !== 'jobs' && !('workspace_id' in s.values)) {
+        const { rows } = await pg.query(`select id from workspaces where slug = 'sharken'`);
+        s.values = { ...s.values, workspace_id: (rows[0] as { id: string }).id };
+      }
       const params: unknown[] = [];
       const p = (v: unknown) => (params.push(v), `$${params.length}`);
       const conds = s.filters.map(([c, k, v]) => (k === 'in' ? `${c} = any(${p(v)})` : k === 'is' ? `${c} is ${v === null ? 'null' : String(v)}` : `${c} ${k} ${p(v)}`));
