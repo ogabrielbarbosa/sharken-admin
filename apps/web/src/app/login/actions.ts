@@ -3,6 +3,7 @@
 import { acceptInvites, createAdminClient, findUserByEmail, normalizeEmail, pendingInvites } from '@lps/db';
 import { redirect } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase/server';
+import { safeNext } from './safe-next';
 
 const configured = () => !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -16,7 +17,7 @@ export async function signIn(formData: FormData) {
   if (error || !data.user) redirect('/login?erro=credenciais');
   // Convidado para outro workspace depois de já ter conta: entra nele agora.
   await acceptInvites(createAdminClient(), { id: data.user.id, email: data.user.email ?? '' });
-  redirect('/painel');
+  redirect(safeNext(formData.get('next')));
 }
 
 /**

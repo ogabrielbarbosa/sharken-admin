@@ -9,13 +9,14 @@ const messages: Record<string, string> = {
   config: 'Faltam as chaves do Supabase. Rode pnpm setup:local e reinicie o servidor.',
 };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
-  const { erro } = await searchParams;
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ erro?: string; next?: string }> }) {
+  const { erro, next } = await searchParams;
   return (
     <main className="flex min-h-full items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm animate-rise">
         <Logo className="mx-auto mb-8 h-7 w-auto text-[#f4f3f3]" />
         <form action={signIn} className="space-y-4 rounded-card border border-border bg-card p-6">
+          {next && <input type="hidden" name="next" value={next} />}
           <div>
             <h1 className="text-lg font-semibold">Entrar no painel</h1>
           </div>
