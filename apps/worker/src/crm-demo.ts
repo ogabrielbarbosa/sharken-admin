@@ -1,11 +1,19 @@
 import './env';
-import { createAdminClient } from '@lps/db';
+import { createAdminClient, scopeDb } from '@lps/db';
 
 // Conversas de exemplo para ver o CRM funcionando. Os números usam o DDD 00, que não existe,
 // e o envio para eles é bloqueado no painel. Remover: pnpm crm:demo --remover
+// Outro workspace: pnpm crm:demo --workspace <slug> (padrão: sharken)
 
 const DEMO_PREFIX = '5500';
-const db = createAdminClient();
+const slugArg = process.argv.indexOf('--workspace');
+const slug = slugArg >= 0 ? process.argv[slugArg + 1] : 'sharken';
+const { data: ws } = await createAdminClient().from('workspaces').select('id').eq('slug', slug).maybeSingle();
+if (!ws) {
+  console.error(`Workspace ${slug} não encontrado.`);
+  process.exit(1);
+}
+const db = scopeDb(createAdminClient(), ws.id as string);
 
 type Line = [direction: 'entrada' | 'saida', minutesAgo: number, body: string, status?: 'enviada' | 'entregue' | 'lida'];
 type Demo = { name: string; avatar: number | null; chat: 'aberto' | 'pendente' | 'fechado'; status: string; unread?: number; lines: Line[]; note?: [minutesAgo: number, body: string] };

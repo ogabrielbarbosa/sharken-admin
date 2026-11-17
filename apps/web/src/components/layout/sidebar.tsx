@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { signOut } from '@/app/login/actions';
 import { Logo } from './logo';
 import { useShell } from './shell';
+import { WorkspaceSwitcher, type WorkspaceItem } from './workspace-switcher';
 
 type Item = { href: string; label: string; icon: typeof LayoutGrid; exact?: boolean };
 const before: Item[] = [
@@ -83,7 +84,7 @@ function AtendimentoGroup({ whatsapp, pathname, collapsed, fade }: { whatsapp: S
   );
 }
 
-export function Sidebar({ email, whatsapp }: { email: string; whatsapp: SidebarWhatsApp }) {
+export function Sidebar({ email, whatsapp, workspaces, current }: { email: string; whatsapp: SidebarWhatsApp; workspaces: WorkspaceItem[]; current: string }) {
   const pathname = usePathname();
   const { collapsed, mobileOpen, closeMobile } = useShell();
   const onBatch = pathname.startsWith('/painel/leads');
@@ -113,9 +114,11 @@ export function Sidebar({ email, whatsapp }: { email: string; whatsapp: SidebarW
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-60 shrink-0 flex-col overflow-hidden bg-sidebar p-3 transition-[width,translate] duration-300 ease-(--ease-out-expo) max-lg:border-r max-lg:border-border lg:static lg:z-auto lg:h-full ${collapsed ? 'lg:w-17' : ''} ${mobileOpen ? '' : 'max-lg:-translate-x-full'}`}
       >
-        <Link href="/painel" aria-label="Sharken — Overview" className="relative mt-2 mb-8 ml-3.5 block w-fit text-[#f4f3f3]">
+        <Link href="/painel" aria-label="Sharken — Overview" className="relative mt-2 mb-6 ml-3.5 block w-fit text-[#f4f3f3]">
           <Logo compact={collapsed} className="h-[22px] w-auto" />
         </Link>
+
+        <WorkspaceSwitcher workspaces={workspaces} current={current} collapsed={collapsed} fade={fade} />
 
         <p className={`relative mb-2 px-2.5 text-xs text-sidebar-label ${fade}`}>Menu</p>
         {/* -mx-3/px-3: a rolagem corta o que sai da caixa, e o indicador fica 12px à esquerda do link. */}
@@ -129,7 +132,7 @@ export function Sidebar({ email, whatsapp }: { email: string; whatsapp: SidebarW
           <div className="flex items-center gap-2.5 p-1.5">
             <span className="size-8 shrink-0 rounded-full bg-brand" />
             <div className={`min-w-0 flex-1 ${fade}`}>
-              <p className="truncate text-sm font-medium">Gabriel</p>
+              <p className="truncate text-sm font-medium">{email.split('@')[0]}</p>
               <p className="truncate text-xs text-muted-foreground">{email}</p>
             </div>
             <form action={signOut} className={fade}>

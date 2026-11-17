@@ -9,6 +9,7 @@ import { Badge, Button } from '@/components/ui';
 import { blockLeadAction } from '@/lib/common-lead-actions';
 import { NoteField } from './note-field';
 import { EnrichmentInfo } from './enrichment-info';
+import { LeadLinks } from './lead-links';
 import { discardAction, qualifyAction } from '@/app/painel/batches/[id]/actions';
 import { Notice, useStageAction } from '@/components/pipeline/board';
 import { siteLabel, leadMeta, instagramLabel } from '@/lib/lead-labels';
@@ -69,6 +70,7 @@ export function LeadDrawer({ lead, position, prevHref, nextHref, closeHref }: { 
           </div>
         </div>
         <div className="flex flex-1 flex-col gap-5 p-6">
+          <LeadLinks lead={lead} />
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Stat title="Site" value={site.label} sub={url} />
             <Stat title="Instagram" value={ig.label.split(' · ')[0]} sub={lead.instagram_url && lead.instagram_last_post_at ? `último post ${(ig.label.split(' · ')[1] ?? '').replace(/^(\d)/, 'há $1')}`.trim() : undefined} />

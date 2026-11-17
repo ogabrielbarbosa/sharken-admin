@@ -1,5 +1,5 @@
 import { getEnv, isLocalUrl, whatsappWebhookUrl } from '@lps/config';
-import { getActiveInstance, setConnection } from '@lps/db';
+import { createAdminClient, getActiveInstance, setConnection, workspaceOf } from '@lps/db';
 import { evolutionConfigured, getEvolutionAdmin } from '@lps/integrations';
 import { TriangleAlert } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -33,10 +33,13 @@ async function WhatsAppConnection() {
   const reachable = !!overview?.reachable;
   const instance = overview?.instance ?? null;
   const state = instance?.state ?? 'desconectado';
-  const instances = admin && reachable ? await admin.listInstances().catch(() => []) : [];
+  // Instâncias de outros workspaces não aparecem para escolha.
+  const { data: others } = await createAdminClient().from('whatsapp_connection').select('instance').neq('workspace_id', workspaceOf(db)).not('instance', 'is', null);
+  const taken = new Set((others ?? []).map((o) => o.instance as string));
+  const instances = admin && reachable ? (await admin.listInstances().catch(() => [])).filter((n) => !taken.has(n)) : [];
 
   // O estado salvo acompanha o real: o CRM e o menu nunca ficam com um estado velho.
-  const { data: saved } = await db.from('whatsapp_connection').select('state, phone').eq('id', 1).maybeSingle();
+  const { data: saved } = await db.from('whatsapp_connection').select('state, phone').maybeSingle();
   if (admin?.instanceName && reachable && (saved?.state !== state || (instance?.phone && saved?.phone !== instance.phone))) {
     await setConnection(db, { state, phone: instance?.phone ?? null, profileName: instance?.profileName ?? null, profilePicUrl: instance?.profilePicUrl ?? null, instance: admin.instanceName }, new Date());
   }

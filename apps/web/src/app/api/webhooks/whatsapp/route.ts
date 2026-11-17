@@ -1,5 +1,5 @@
 import { secretMatches } from '@lps/config';
-import { createAdminClient, getActiveInstance, ingestEvent } from '@lps/db';
+import { createAdminClient, ingestEvent, scopeDb, workspaceByInstance } from '@lps/db';
 import { getWhatsAppProvider } from '@lps/integrations';
 
 export async function POST(request: Request) {
@@ -18,13 +18,13 @@ export async function POST(request: Request) {
   // (external_id único e messageExists), então reprocessar os eventos que já deram certo é seguro.
   let failed = false;
   try {
-    const db = createAdminClient();
-    // O CRM só ouve a instância em uso. Sem instância no banco (nenhuma conexão feita, ou banco
-    // recriado), uma instância que ficou ligada na Evolution com o webhook antigo não grava nada.
+    // Cada workspace tem a sua instância. Instância que não está ligada a nenhum workspace (ou que ficou
+    // na Evolution com o webhook antigo) não grava nada.
     const from = typeof (raw as { instance?: unknown })?.instance === 'string' ? (raw as { instance: string }).instance : null;
-    const active = await getActiveInstance(db);
-    if (!from || !active || from !== active) return Response.json({ ok: true, ignored: true });
-    for (const event of getWhatsAppProvider().normalize(raw)) {
+    const workspaceId = from ? await workspaceByInstance(createAdminClient(), from) : null;
+    if (!from || !workspaceId) return Response.json({ ok: true, ignored: true });
+    const db = scopeDb(createAdminClient(), workspaceId);
+    for (const event of getWhatsAppProvider(process.env, from).normalize(raw)) {
       try {
         await ingestEvent(db, event, new Date());
       } catch (e) {

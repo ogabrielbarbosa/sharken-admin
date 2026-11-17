@@ -19,6 +19,7 @@ export type Batch = {
   error: string | null;
   apify_run_id: string | null;
   instagram_run_id: string | null;
+  workspace_id: string;
 };
 
 export type SiteSignal = { key: string; label: string; ok: boolean };

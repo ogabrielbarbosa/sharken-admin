@@ -4,6 +4,7 @@ import { signIn } from './actions';
 
 const messages: Record<string, string> = {
   credenciais: 'E-mail ou senha incorretos.',
+  'sem-workspace': 'Sua conta ainda não está em nenhum workspace. Peça para quem te convidou te adicionar.',
   config: 'Faltam as chaves do Supabase. Rode pnpm setup:local e reinicie o servidor.',
 };
 

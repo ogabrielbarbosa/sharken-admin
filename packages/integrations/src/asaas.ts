@@ -47,7 +47,7 @@ export function buildSubscriptionPayload(charge: ChargeFields, customerId: strin
 async function call<T>(path: string, method: string, body?: object): Promise<T> {
   const res = await fetch(`${requireOptional('ASAAS_BASE_URL')}${path}`, {
     method,
-    headers: { access_token: requireOptional('ASAAS_API_KEY'), 'content-type': 'application/json', 'user-agent': 'landing-page-system' },
+    headers: { access_token: requireOptional('ASAAS_API_KEY'), 'content-type': 'application/json', 'user-agent': 'sharken-admin' },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(`O Asaas respondeu ${res.status}: ${(await res.text()).slice(0, 300)}`);

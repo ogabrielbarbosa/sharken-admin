@@ -6,6 +6,7 @@ export type Job = {
   payload: Record<string, string>;
   attempts: number;
   dedupe_key: string | null;
+  workspace_id: string | null;
 };
 
 export async function enqueueJob(db: Db, job: { type: string; payload: object; dedupeKey?: string; runAfter?: Date }) {

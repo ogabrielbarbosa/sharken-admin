@@ -1,5 +1,5 @@
 import './env';
-import { createAdminClient, enqueueJob, logEvent, updateBatch } from '@lps/db';
+import { createAdminClient, enqueueJob, logEvent, scopeDb, updateBatch, workspaceOfRow } from '@lps/db';
 
 /**
  * Aplica as regras novas a um batch já buscado:
@@ -15,7 +15,12 @@ if (!batchId) {
 }
 const dry = flag === '--dry';
 const OLD_RULES = ['Sem telefone celular no cadastro', 'Negócio fechado'];
-const db = createAdminClient();
+const workspaceId = await workspaceOfRow(createAdminClient(), 'batches', batchId);
+if (!workspaceId) {
+  console.error('Batch não encontrado.');
+  process.exit(1);
+}
+const db = scopeDb(createAdminClient(), workspaceId);
 
 const { data, error } = await db.from('leads').select('id, name, stage, exit_reason, enrichment').eq('batch_id', batchId);
 if (error) throw new Error(error.message);

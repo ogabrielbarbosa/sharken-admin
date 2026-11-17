@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { addInstanceAction, disconnectAction, importHistoryAction, refreshQrAction, restartAction, startConnectionAction, syncConnectionAction } from '@/app/painel/crm/conexoes/actions';
 import { qrSrc } from '@/components/crm/reconnect-drawer';
 import { Button, ErrorNote, Input } from '@/components/ui';
+import { useWorkspaceId } from '@/components/layout/workspace';
 import { createBrowserSupabase } from '@/lib/supabase/browser';
 
 type State = 'conectado' | 'desconectado' | 'conectando';
@@ -15,6 +16,7 @@ const STATE_POLL_MS = 4_000;
 /** Liga o Realtime da tabela whatsapp_connection: o webhook grava, a tela atualiza. */
 export function ConnectionRealtime() {
   const router = useRouter();
+  const workspaceId = useWorkspaceId();
   useEffect(() => {
     const supabase = createBrowserSupabase();
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -23,13 +25,13 @@ export function ConnectionRealtime() {
     void supabase.auth.getSession().then(async ({ data }) => {
       if (data.session) await supabase.realtime.setAuth(data.session.access_token);
       if (stopped) return;
-      channel = supabase.channel('conexao-whatsapp').on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_connection' }, () => router.refresh()).subscribe();
+      channel = supabase.channel('conexao-whatsapp').on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_connection', ...(workspaceId ? { filter: `workspace_id=eq.${workspaceId}` } : {}) }, () => router.refresh()).subscribe();
     });
     return () => {
       stopped = true;
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [router]);
+  }, [router, workspaceId]);
   return null;
 }
 

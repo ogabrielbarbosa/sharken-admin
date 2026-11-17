@@ -11,7 +11,7 @@ Existe **um ambiente só**. O painel no seu Mac (`pnpm dev`), o painel publicado
 | `pnpm db:migrate` | Aplica as migrações novas no banco da VPS (por túnel SSH; nunca apaga dados) |
 | `pnpm env:sync` | Envia o `.env` para a Vercel e para o worker no Coolify, e reinicia o worker |
 | `pnpm worker` | Worker no seu Mac. Só quando estiver mexendo no código dele (veja abaixo) |
-| `pnpm user:create email senha` | Cria um usuário do painel |
+| `pnpm user:create email senha [workspace]` | Cria um usuário do painel e o põe no workspace (slug; padrão `sharken`). Também dá para fazer em Workspaces, no painel |
 | `pnpm test` / `pnpm typecheck` | Testes e tipos |
 
 Publicar é dar `git push` na `main`: a Vercel publica o painel e o Coolify reconstrói o worker (quando o push mexe em `apps/worker`, `packages`, `pnpm-lock.yaml` ou `package.json`).

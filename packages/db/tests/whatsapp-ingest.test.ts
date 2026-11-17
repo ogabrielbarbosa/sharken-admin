@@ -6,6 +6,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { countChats, createContact, findContactByPhone, getContact, setChatState } from '../src/contacts';
 import { insertMessage, listMessages } from '../src/messages';
 import { importHistory, ingestEvent } from '../src/whatsapp-ingest';
+import { scopeDb } from '../src/scope';
 import { fakeDb } from './fake-db';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
@@ -152,8 +153,10 @@ describe('ingestEvent', () => {
   });
 
   it('conexão grava e atualiza whatsapp_connection', async () => {
-    await ingestEvent(db, { kind: 'connection', state: 'conectado' }, now);
-    await ingestEvent(db, { kind: 'connection', state: 'desconectado' }, now);
+    const ws = ((await pg.query(`select id from workspaces where slug = 'sharken'`)).rows[0] as { id: string }).id;
+    const scoped = scopeDb(db, ws);
+    await ingestEvent(scoped, { kind: 'connection', state: 'conectado' }, now);
+    await ingestEvent(scoped, { kind: 'connection', state: 'desconectado' }, now);
     const rows = (await pg.query('select state from whatsapp_connection')).rows as { state: string }[];
     expect(rows).toEqual([{ state: 'desconectado' }]);
   });

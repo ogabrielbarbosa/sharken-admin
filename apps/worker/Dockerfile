@@ -14,7 +14,7 @@ COPY packages/domain/package.json packages/domain/
 COPY packages/integrations/package.json packages/integrations/
 
 # Só o worker, os pacotes dele e o tsx da raiz.
-RUN pnpm install --frozen-lockfile --filter "@lps/worker..." --filter landing-page-system \
+RUN pnpm install --frozen-lockfile --filter "@lps/worker..." --filter sharken-admin \
  && pnpm --filter @lps/worker exec playwright install --with-deps chromium \
  && rm -rf /var/lib/apt/lists/*
 

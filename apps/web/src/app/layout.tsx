@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import './globals.css';
 
-export const metadata: Metadata = { title: 'Sharken', robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: 'Sharken Admin', robots: { index: false, follow: false } };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

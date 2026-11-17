@@ -27,7 +27,7 @@ export async function isDoNotContact(db: Db, phoneE164: string): Promise<boolean
 
 /** Só 'desconectado' bloqueia. Sem linha, o estado é desconhecido e o provedor responde por si. */
 export async function isWhatsAppConnected(db: Db): Promise<boolean> {
-  const { data, error } = await db.from('whatsapp_connection').select('state').eq('id', 1).maybeSingle();
+  const { data, error } = await db.from('whatsapp_connection').select('state').maybeSingle();
   if (error) throw new Error(error.message);
   return (data as { state: string } | null)?.state !== 'desconectado';
 }

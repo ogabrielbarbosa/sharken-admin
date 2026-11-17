@@ -1,5 +1,5 @@
 import { getEnv, webhookBaseUrl } from '@lps/config';
-import { countJobs, createAdminClient, enqueueJob, getBatch, importLeads, listBatches, listKnownPlaceIds, listLeads, updateBatch, updateLead } from '@lps/db';
+import { countJobs, createAdminClient, enqueueJob, getBatch, importLeads, listBatches, listKnownPlaceIds, listLeads, scopeDb, updateBatch, updateLead, workspaceOfRow, type Db } from '@lps/db';
 import { mapPlaceToLead, type ApifyPlace, type Batch } from '@lps/domain';
 import { buildInstagramInput, buildMapsInput, fetchDataset, getRun, INSTAGRAM_ACTOR, latestPostDate, MAPS_ACTOR, runOutcome, shouldPollRuns, startActorRun, usernameFromUrl, type InstagramProfile } from './apify';
 
@@ -14,8 +14,14 @@ function webhookUrl(batchId: string, kind: 'maps' | 'instagram'): string | null 
   return url.toString();
 }
 
+/** Cliente preso ao workspace do batch: leads, tarefas e deduplicação ficam dentro dele. */
+async function batchDb(batchId: string): Promise<Db | null> {
+  const workspaceId = await workspaceOfRow(createAdminClient(), 'batches', batchId);
+  return workspaceId ? scopeDb(createAdminClient(), workspaceId) : null;
+}
+
 export async function startMapsSearch(batch: Batch) {
-  const db = createAdminClient();
+  const db = scopeDb(createAdminClient(), batch.workspace_id);
   try {
     const input = buildMapsInput({ location: batch.location, businessType: batch.business_type, quantity: batch.quantity });
     const runId = await startActorRun(MAPS_ACTOR, input, webhookUrl(batch.id, 'maps'));
@@ -26,7 +32,8 @@ export async function startMapsSearch(batch: Batch) {
 }
 
 async function enqueueAnalysis(batchId: string) {
-  const db = createAdminClient();
+  const db = await batchDb(batchId);
+  if (!db) return;
   const leads = await listLeads(db, batchId, ['analisando']);
   await updateBatch(db, batchId, { status: leads.length ? 'analisando' : 'concluido' });
   for (const lead of leads) {
@@ -39,7 +46,8 @@ async function enqueueAnalysis(batchId: string) {
 }
 
 export async function handleMapsResult(batchId: string, event: { succeeded: boolean; datasetId: string | null }) {
-  const db = createAdminClient();
+  const db = await batchDb(batchId);
+  if (!db) return;
   const batch = await getBatch(db, batchId);
   if (!batch) return;
 
@@ -80,7 +88,8 @@ export async function handleMapsResult(batchId: string, event: { succeeded: bool
 }
 
 export async function handleInstagramResult(batchId: string, event: { datasetId: string | null }) {
-  const db = createAdminClient();
+  const db = await batchDb(batchId);
+  if (!db) return;
   if (event.datasetId) {
     try {
       const profiles = await fetchDataset<InstagramProfile>(event.datasetId);
@@ -98,9 +107,9 @@ export async function handleInstagramResult(batchId: string, event: { datasetId:
 
 /** Grava os negócios que o Apify já achou, sem esperar a busca terminar. A análise continua só no fim. */
 export async function syncSearchProgress() {
-  const db = createAdminClient();
-  for (const batch of await listBatches(db)) {
+  for (const batch of await listBatches(createAdminClient())) {
     if (batch.status !== 'buscando' || !batch.apify_run_id) continue;
+    const db = scopeDb(createAdminClient(), batch.workspace_id);
     try {
       const run = await getRun(batch.apify_run_id);
       if (!run.defaultDatasetId) continue;
@@ -117,8 +126,8 @@ export async function syncSearchProgress() {
 
 /** Consulta as buscas em andamento quando o webhook não alcança este ambiente. */
 export async function pollPendingRuns() {
-  const db = createAdminClient();
-  for (const batch of await listBatches(db)) {
+  for (const batch of await listBatches(createAdminClient())) {
+    const db = scopeDb(createAdminClient(), batch.workspace_id);
     if (batch.status === 'buscando' && batch.apify_run_id) {
       const run = await getRun(batch.apify_run_id);
       const outcome = runOutcome(run.status);

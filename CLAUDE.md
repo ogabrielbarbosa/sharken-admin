@@ -1,6 +1,6 @@
-# Prospecção de landing pages
+# Sharken Admin
 
-Sistema de um único usuário para encontrar negócios locais, montar uma página de exemplo e um vídeo para cada um, apoiar a abordagem pelo WhatsApp e, depois da venda, controlar clientes, serviços, contratos e cobranças.
+Sistema para encontrar negócios locais, montar uma página de exemplo e um vídeo para cada um, apoiar a abordagem pelo WhatsApp e, depois da venda, controlar clientes, serviços, contratos e cobranças.
 
 **Objetivo:** gerar caixa rápido, com pouco esforço operacional.
 
@@ -10,6 +10,7 @@ Sistema de um único usuário para encontrar negócios locais, montar uma págin
 
 ## Decisões
 
+- **Workspaces:** cada operação (o Gabriel e cada primo) é um workspace com os próprios batches, leads, conversas, conexão do WhatsApp (instância própria na Evolution), contatos, clientes, contratos e cobranças. Um usuário pode estar em vários e troca pelo menu. O servidor e o worker filtram pelo `scopeDb` (`packages/db/src/scope.ts`); o RLS por membro vale para o Realtime. `do_not_contact` é global. Asaas, ZapSign, Apify e Claude ainda usam as chaves do `.env` (contas do Gabriel) para todos.
 - **Processo:** Batch (localização + tipo de negócio) → pipeline Novo lead → Qualificado → Página → Vídeo → Pronto para abordar, depois CRM global → Contrato → Pagamento. O batch é a unidade de trabalho até o Pronto para abordar; do CRM em diante o contato vale por si, com ou sem lead.
 - **Busca:** localização e tipo de negócio em campos livres. Definir nichos, preços, metas e testes comerciais é com o Gabriel.
 - **Dois fluxos:** sem site (inclui site fora do ar) e melhorar site. O sistema analisa, e o Gabriel revisa e decide em Leads.

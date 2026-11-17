@@ -1,5 +1,6 @@
 import { statusAfterInbound, looksLikeStopRequest, type Contact, type HistoryEvent, type Message, type WhatsAppEvent } from '@lps/domain';
 import type { Db } from './client';
+import { requireWorkspace } from './scope';
 import { createContact, findContactByLid, findContactByPhone, setContactStatus, updateContact } from './contacts';
 import { enqueueJob } from './jobs';
 import { getLead, logEvent, moveLead, updateLead } from './leads';
@@ -40,21 +41,22 @@ type ConnectionEvent = Extract<WhatsAppEvent, { kind: 'connection' }>;
 type ProfileEvent = Extract<WhatsAppEvent, { kind: 'profile' }>;
 
 export async function setConnection(db: Db, e: Omit<ConnectionEvent, 'kind'> & { instance?: string | null; profilePicUrl?: string | null }, now: Date): Promise<void> {
-  const row: Record<string, unknown> = { id: 1, state: e.state, updated_at: now.toISOString() };
+  requireWorkspace(db);
+  const row: Record<string, unknown> = { state: e.state, updated_at: now.toISOString() };
   if (e.phone !== undefined && (e.phone || e.state !== 'conectado')) row.phone = e.phone;
   if (e.profileName !== undefined && (e.profileName || e.state !== 'conectado')) row.profile_name = e.profileName;
   if (e.statusReason !== undefined) row.status_reason = e.statusReason;
   if (e.instance !== undefined) row.instance = e.instance;
   if (e.profilePicUrl !== undefined) row.profile_pic_url = e.profilePicUrl;
-  const { error } = await db.from('whatsapp_connection').upsert(row, { onConflict: 'id' });
+  const { error } = await db.from('whatsapp_connection').upsert(row, { onConflict: 'workspace_id' });
   if (error) throw new Error(error.message);
 }
 
-/** Instância da Evolution em uso: a escolhida na tela de conexão, ou EVOLUTION_INSTANCE enquanto nenhuma foi escolhida. */
-export async function getActiveInstance(db: Db, source: Record<string, string | undefined> = process.env): Promise<string | null> {
-  const { data, error } = await db.from('whatsapp_connection').select('instance').eq('id', 1).maybeSingle();
+/** Instância da Evolution do workspace (a escolhida na tela de conexão). Cada workspace tem a sua. */
+export async function getActiveInstance(db: Db): Promise<string | null> {
+  const { data, error } = await db.from('whatsapp_connection').select('instance').maybeSingle();
   if (error) throw new Error(error.message);
-  return (data as { instance: string | null } | null)?.instance || source.EVOLUTION_INSTANCE || null;
+  return (data as { instance: string | null } | null)?.instance || null;
 }
 
 /** Foto e nome do perfil. Só troca o nome quando o contato ainda não tem um (nome igual ao número). */

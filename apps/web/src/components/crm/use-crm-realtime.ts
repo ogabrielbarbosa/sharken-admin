@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { useWorkspaceId } from '@/components/layout/workspace';
 import { createBrowserSupabase } from '@/lib/supabase/browser';
 
 const DEBOUNCE_MS = 300;
@@ -17,6 +18,7 @@ const RETRY_MS = 3000;
  */
 export function useCrmRealtime(contactId: string | null) {
   const router = useRouter();
+  const workspaceId = useWorkspaceId();
   useEffect(() => {
     const supabase = createBrowserSupabase();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -38,7 +40,7 @@ export function useCrmRealtime(contactId: string | null) {
       channel = null;
       if (old) await supabase.removeChannel(old);
       if (stopped) return;
-      const ch = supabase.channel(`crm-${contactId ?? 'lista'}-${Date.now()}`).on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, refresh);
+      const ch = supabase.channel(`crm-${contactId ?? 'lista'}-${Date.now()}`).on('postgres_changes', { event: '*', schema: 'public', table: 'contacts', ...(workspaceId ? { filter: `workspace_id=eq.${workspaceId}` } : {}) }, refresh);
       if (contactId) ch.on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `contact_id=eq.${contactId}` }, refresh);
       channel = ch;
       ch.subscribe((status) => {
@@ -71,7 +73,7 @@ export function useCrmRealtime(contactId: string | null) {
       channel = null;
       if (ch) void supabase.removeChannel(ch);
     };
-  }, [contactId, router]);
+  }, [contactId, router, workspaceId]);
 }
 
 /** Componente sem tela, para a página de servidor ligar o Realtime. */

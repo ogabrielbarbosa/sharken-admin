@@ -1,7 +1,7 @@
 'use server';
 
 import { getEnv, whatsappWebhookUrl } from '@lps/config';
-import { enqueueJob, getActiveInstance, setConnection, updateContact } from '@lps/db';
+import { createAdminClient, enqueueJob, getActiveInstance, setConnection, updateContact, workspaceOf } from '@lps/db';
 import { getEvolutionAdmin, normalizeInstanceName, type EvolutionAdmin } from '@lps/integrations';
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
@@ -71,6 +71,8 @@ export async function addInstanceAction(rawName: string) {
     if (!name) throw new Error('Dê um nome à instância (letras, números e hífen).');
     const admin = getEvolutionAdmin(name);
     if (!admin) throw new Error(NOT_CONFIGURED);
+    const { data: taken } = await createAdminClient().from('whatsapp_connection').select('workspace_id').eq('instance', name).maybeSingle();
+    if (taken && taken.workspace_id !== workspaceOf(db)) throw new Error('Essa instância já está em uso em outro workspace. Escolha outro nome.');
     if (!(await admin.fetchInstance())) await admin.createInstance();
     await ensureWebhook(admin);
     const instance = await sync(admin, db);
@@ -147,7 +149,7 @@ export async function refreshAvatarsAction(contactIds: string[]): Promise<{ upda
     const db = await authedDb();
     const admin = getEvolutionAdmin(await getActiveInstance(db));
     if (!admin?.instanceName || !contactIds.length) return { updated: 0 };
-    const { data: conn } = await db.from('whatsapp_connection').select('state').eq('id', 1).maybeSingle();
+    const { data: conn } = await db.from('whatsapp_connection').select('state').maybeSingle();
     if (conn?.state !== 'conectado') return { updated: 0 };
     const cutoff = new Date(Date.now() - AVATAR_TTL_MS).toISOString();
     const { data } = await db

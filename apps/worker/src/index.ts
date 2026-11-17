@@ -1,6 +1,6 @@
 import './env';
 import { getEnv } from '@lps/config';
-import { claimNextJob, completeJob, createAdminClient, failJob, retryJob, type Job } from '@lps/db';
+import { claimNextJob, completeJob, createAdminClient, failJob, retryJob, scopeDb, type Job } from '@lps/db';
 import { pollPendingRuns, shouldPollRuns, syncSearchProgress } from '@lps/integrations';
 import { closeBrowser } from './browser';
 import { handlers, JobFailure, Reschedule } from './jobs';
@@ -10,7 +10,8 @@ const RUNS_POLL_MS = 10_000;
 const MAX_ATTEMPTS = 3;
 
 async function runJob(job: Job) {
-  const db = createAdminClient();
+  // A tarefa roda presa ao workspace de quem a criou (o lead, a mensagem e o resto são de lá).
+  const db = job.workspace_id ? scopeDb(createAdminClient(), job.workspace_id) : createAdminClient();
   const handler = handlers[job.type];
   if (!handler) {
     await failJob(db, job.id, `Tipo de tarefa desconhecido: ${job.type}`);

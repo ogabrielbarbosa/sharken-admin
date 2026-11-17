@@ -52,7 +52,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     listChats(db, { state: search ? null : tab, search }),
     countChats(db),
     firstContactsToday(db, now),
-    db.from('whatsapp_connection').select('state, phone, profile_pic_url').eq('id', 1).maybeSingle(),
+    db.from('whatsapp_connection').select('state, phone, profile_pic_url').maybeSingle(),
     params.contato ? getContact(db, params.contato) : Promise.resolve(null),
   ]);
   const connectionInfo: ConnectionInfo = {

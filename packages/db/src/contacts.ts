@@ -1,5 +1,6 @@
 import { canSetStatus, canTransition, phoneMatchCandidates, type ChatState, type Contact, type ContactStatus, type Lead } from '@lps/domain';
 import type { Db } from './client';
+import { workspaceOf } from './scope';
 import { getLead, logEvent, moveLead } from './leads';
 
 export const NO_PHONE_MESSAGE = 'Lead sem celular: não dá para levar ao CRM.';
@@ -63,7 +64,7 @@ const LIST_LIMIT = 500;
 export async function listContacts(db: Db, opts: { box: CrmBox; search?: string; batchId?: string }): Promise<Contact[]> {
   let query = db.from('contacts').select();
   if (opts.box === 'hoje') {
-    const { data, error } = await db.rpc('crm_hoje_ids');
+    const { data, error } = await db.rpc('crm_hoje_ids', { p_workspace: workspaceOf(db) });
     if (error) throw new Error(error.message);
     const ids = (data as string[] | null) ?? [];
     if (!ids.length) return [];
@@ -113,7 +114,7 @@ export async function listChats(db: Db, opts: { state: ChatState | null; search?
 }
 
 export async function countChats(db: Db): Promise<ChatCounts> {
-  const { data, error } = await db.rpc('crm_chat_counts');
+  const { data, error } = await db.rpc('crm_chat_counts', { p_workspace: workspaceOf(db) });
   if (error) throw new Error(error.message);
   return data as ChatCounts;
 }
@@ -128,7 +129,7 @@ export async function setChatState(db: Db, id: string, to: ChatState, from?: Cha
 }
 
 export async function countBoxes(db: Db): Promise<Record<CrmBox, number>> {
-  const { data, error } = await db.rpc('crm_box_counts');
+  const { data, error } = await db.rpc('crm_box_counts', { p_workspace: workspaceOf(db) });
   if (error) throw new Error(error.message);
   return data as Record<CrmBox, number>;
 }

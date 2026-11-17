@@ -3,7 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ingestEvent = vi.fn();
 let active: string | null = 'atual';
-vi.mock('@lps/db', () => ({ createAdminClient: () => ({}), getActiveInstance: async () => active, ingestEvent: (...a: unknown[]) => ingestEvent(...a) }));
+// Cada instância pertence a um workspace; só `active` está ligada a um.
+vi.mock('@lps/db', () => ({
+  createAdminClient: () => ({}),
+  scopeDb: (db: object) => db,
+  workspaceByInstance: async (_db: unknown, instance: string) => (active && instance === active ? 'ws-1' : null),
+  ingestEvent: (...a: unknown[]) => ingestEvent(...a),
+}));
 vi.mock('@lps/integrations', () => ({
   getWhatsAppProvider: () => ({ normalize: (raw: { events?: unknown[] }) => raw.events ?? [] }),
 }));
@@ -29,7 +35,7 @@ describe('webhook do WhatsApp', () => {
     ingestEvent.mockResolvedValue(undefined);
     expect((await call(JSON.stringify({ instance: 'atual', events: [{ kind: 'message' }, { kind: 'message' }] }))).status).toBe(200);
   });
-  it('ignora tudo quando nenhuma instância está em uso (banco sem conexão)', async () => {
+  it('ignora instância que não pertence a nenhum workspace', async () => {
     active = null;
     ingestEvent.mockResolvedValue(undefined);
     expect((await call(JSON.stringify({ instance: 'prospeccao', events: [{ kind: 'message' }, { kind: 'connection' }] }))).status).toBe(200);

@@ -11,6 +11,7 @@ import { Badge, Card, LinkButton, Status } from '@/components/ui';
 import { authedDb } from '@/lib/auth';
 import { batchLabel } from '@/lib/batch-context';
 import { STATUS_LABEL } from '@/lib/crm';
+import { LeadLinks } from '@/components/leads/lead-links';
 import { flowLabel, formatDateTime, leadMeta, siteLabel } from '@/lib/lead-labels';
 
 const Datum = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -51,6 +52,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               {leadMeta(lead)}
             </div>
             {lead.exit_reason && <p className="mt-2 text-sm text-warning">{lead.exit_reason}</p>}
+            <div className="mt-3"><LeadLinks lead={lead} /></div>
           </div>
           <div className="flex flex-wrap items-center gap-1">
             {actions.includes('descartar') && actions.includes('nao_contatar') && <ExitButtons leadId={id} />}
