@@ -1,14 +1,21 @@
 import { getEnv } from '@lps/config';
-import { createAdminClient, pendingInvites } from '@lps/db';
-import { Building2, Check, Clock, LogIn, Plus, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { createAdminClient, getWorkspaceBilling, listCatalog, pendingInvites, scopeDb } from '@lps/db';
+import { CYCLES, formatBRL, maskApiKey } from '@lps/domain';
+import { Archive, ArchiveRestore, Building2, Check, Clock, CreditCard, LogIn, Package, Plus, Trash2, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { WhatsAppConnection, whatsappIntro } from '@/components/connections/whatsapp-connection';
 import { Topbar } from '@/components/layout/topbar';
+import { WhatsAppIcon } from '@/components/ui/whatsapp-icon';
 import { Badge, Button, Card, Field, Input, Select } from '@/components/ui';
 import { getSession } from '@/lib/auth';
-import { addMemberAction, cancelInviteAction, createWorkspaceAction, removeMemberAction, saveWorkspaceAction, switchWorkspaceAction } from './actions';
+import { formatDate } from '@/lib/lead-labels';
+import {
+  addMemberAction, cancelInviteAction, createWorkspaceAction, removeBillingAction, removeMemberAction, saveBillingAction,
+  saveCatalogItemAction, saveWorkspaceAction, switchWorkspaceAction, toggleCatalogItemAction,
+} from './actions';
 
-type Tab = 'workspace' | 'membros' | 'workspaces';
+type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'servicos' | 'workspaces';
 const ROLE = { owner: 'Dono', member: 'Membro' } as const;
 const HERE = '/painel/configuracoes';
 
@@ -48,9 +55,12 @@ const initial = (name: string) => name.trim().slice(0, 1).toUpperCase() || 'W';
 export default async function ConfiguracoesPage({ searchParams }: { searchParams: Promise<{ aba?: string; erro?: string; ok?: string }> }) {
   const params = await searchParams;
   const { user, isAdmin, workspaces, workspace } = await getSession();
-  const tabs: { key: Tab; label: string; icon: typeof Users }[] = [
+  const tabs: { key: Tab; label: string; icon: (props: { className?: string }) => ReactNode }[] = [
     { key: 'workspace', label: 'Workspace', icon: Building2 },
     { key: 'membros', label: 'Membros', icon: Users },
+    { key: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon },
+    { key: 'servicos', label: 'Serviços', icon: Package },
+    { key: 'pagamentos', label: 'Pagamentos', icon: CreditCard },
     ...(isAdmin ? [{ key: 'workspaces' as const, label: 'Todos os workspaces', icon: LogIn }] : []),
   ];
   const tab = tabs.find((t) => t.key === params.aba)?.key ?? 'workspace';
@@ -104,16 +114,18 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
             </form>
           )}
 
-          {tab === 'workspace' && (
-            <Section title="WhatsApp" description="O número que conversa com os leads deste workspace.">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm text-muted-foreground">Conecte o celular lendo o QR na tela de conexões.</p>
-                <Link href="/painel/crm/conexoes" className="press inline-flex h-8 items-center rounded-md border border-input bg-input-bg px-3 text-sm font-medium hover:bg-white/5">Abrir conexões</Link>
-              </div>
-            </Section>
+          {tab === 'whatsapp' && (
+            <>
+              <p className="text-sm text-muted-foreground">{whatsappIntro}</p>
+              <WhatsAppConnection />
+            </>
           )}
 
           {tab === 'membros' && <MembersTab workspaceId={workspace.id} me={user.id} canEdit={canEdit} />}
+
+          {tab === 'servicos' && <CatalogTab workspaceId={workspace.id} canEdit={canEdit} />}
+
+          {tab === 'pagamentos' && <BillingTab workspaceId={workspace.id} canEdit={canEdit} />}
 
           {tab === 'workspaces' && isAdmin && <WorkspacesTab workspaces={workspaces} current={workspace.id} />}
         </div>
@@ -225,6 +237,127 @@ async function WorkspacesTab({ workspaces, current }: { workspaces: { id: string
           </div>
         </Section>
       </form>
+    </>
+  );
+}
+
+const PERMISSIONS = ['CUSTOMER:CREATE', 'PRODUCT:CREATE', 'CHECKOUT:CREATE', 'SUBSCRIPTION:CREATE', 'SUBSCRIPTION:DELETE', 'WEBHOOK:CREATE', 'WEBHOOK:DELETE'];
+
+async function BillingTab({ workspaceId, canEdit }: { workspaceId: string; canEdit: boolean }) {
+  const billing = await getWorkspaceBilling(createAdminClient(), workspaceId);
+  return (
+    <>
+      <Section title="AbacatePay" description="A conta onde este workspace recebe. Cada workspace usa a própria chave, e o dinheiro cai na conta dela.">
+        {billing ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="grid size-8 shrink-0 place-items-center rounded-md bg-success/15 text-success"><Check className="size-4" /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Conectada <span className="font-mono text-xs font-normal text-muted-foreground">{maskApiKey(billing.api_key)}</span></p>
+              <p className="text-xs text-muted-foreground">Desde {formatDate(billing.updated_at)} · confirmação de pagamento automática</p>
+            </div>
+            <Badge tone={billing.dev_mode ? 'warning' : 'success'}>{billing.dev_mode ? 'Modo Teste' : 'Produção'}</Badge>
+            {canEdit && (
+              <form action={removeBillingAction}>
+                <Button type="submit" variant="ghost">Desconectar</Button>
+              </form>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Ainda não conectada. Sem ela, o botão Gerar cobrança avisa que falta a chave.</p>
+        )}
+      </Section>
+      {canEdit && (
+        <form action={saveBillingAction}>
+          <Section
+            title={billing ? 'Trocar a chave' : 'Conectar'}
+            description="Cole a chave de API v2. O sistema registra sozinho o aviso de pagamento deste workspace na AbacatePay."
+            footer={<Button type="submit">{billing ? 'Salvar chave nova' : 'Conectar'}</Button>}
+          >
+            <Field label="Chave de API" hint="abc_prod_… recebe de verdade; abc_dev_… é o Modo Teste, com pagamento simulado">
+              <Input name="api_key" type="password" autoComplete="off" placeholder="abc_prod_…" required />
+            </Field>
+            <div className="mt-4 space-y-1.5 text-xs text-muted-foreground">
+              <p>No painel da AbacatePay: <span className="text-foreground">Integração › API › Nova chave</span>, versão v2, com estas permissões:</p>
+              <p className="flex flex-wrap gap-1">{PERMISSIONS.map((p) => <code key={p} className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[11px] text-foreground">{p}</code>)}</p>
+              <p>A chave aparece uma vez só lá. Aqui ela fica guardada no servidor e nunca volta para a tela.</p>
+            </div>
+          </Section>
+        </form>
+      )}
+    </>
+  );
+}
+
+const kindLabel = (item: { kind: 'unico' | 'recorrente'; cycle: string | null }) =>
+  item.kind === 'unico' ? 'Único' : (CYCLES.find((c) => c.value === item.cycle)?.label ?? 'Recorrente');
+
+function CatalogFields({ item }: { item?: { name: string; kind: 'unico' | 'recorrente'; amount_cents: number; cycle: string | null; description: string | null } }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Field label="Nome"><Input name="name" defaultValue={item?.name} placeholder="Ex.: Site institucional" required /></Field>
+      <Field label="Valor"><Input name="amount" defaultValue={item ? formatBRL(item.amount_cents) : ''} placeholder="R$ 1.200,00" inputMode="decimal" required /></Field>
+      <Field label="Tipo">
+        <Select name="kind" defaultValue={item?.kind ?? 'unico'}>
+          <option value="unico">Único (paga uma vez)</option>
+          <option value="recorrente">Recorrente (assinatura)</option>
+        </Select>
+      </Field>
+      <Field label="Periodicidade" hint="Só para recorrente">
+        <Select name="cycle" defaultValue={item?.cycle ?? 'mensal'}>
+          {CYCLES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+        </Select>
+      </Field>
+      <div className="sm:col-span-2">
+        <Field label="Descrição" hint="Opcional: escopo ou o que está incluso. Vai para as observações do serviço."><Input name="description" defaultValue={item?.description ?? ''} /></Field>
+      </div>
+    </div>
+  );
+}
+
+async function CatalogTab({ workspaceId, canEdit }: { workspaceId: string; canEdit: boolean }) {
+  const items = await listCatalog(scopeDb(createAdminClient(), workspaceId));
+  return (
+    <>
+      <Section title="Serviços" description="O que este workspace vende. Em Fechar negócio, escolher um serviço daqui já preenche nome, valor e periodicidade.">
+        <ul className="-my-2 divide-y divide-border">
+          {items.map((item) => (
+            <li key={item.id} className={`py-2.5 ${item.active ? '' : 'opacity-60'}`}>
+              <details className="group">
+                <summary className="flex cursor-pointer list-none items-center gap-3">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-md bg-brand-muted text-brand-soft"><Package className="size-3.5" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatBRL(item.amount_cents)} · {kindLabel(item)}{item.active ? '' : ' · arquivado'}</p>
+                  </div>
+                  {canEdit && <span className="text-xs text-muted-foreground group-open:hidden">Editar</span>}
+                </summary>
+                {canEdit && (
+                  <div className="mt-3 space-y-3 rounded-md border border-border p-4">
+                    <form action={saveCatalogItemAction} className="space-y-3">
+                      <input type="hidden" name="id" value={item.id} />
+                      <CatalogFields item={item} />
+                      <div className="flex justify-end"><Button type="submit">Salvar</Button></div>
+                    </form>
+                    <form action={toggleCatalogItemAction} className="flex justify-end border-t border-border pt-3">
+                      <input type="hidden" name="id" value={item.id} />
+                      <input type="hidden" name="active" value={String(!item.active)} />
+                      <Button type="submit" variant="ghost">{item.active ? <><Archive />Arquivar</> : <><ArchiveRestore />Reativar</>}</Button>
+                    </form>
+                  </div>
+                )}
+              </details>
+            </li>
+          ))}
+          {!items.length && <li className="py-2.5 text-sm text-muted-foreground">Nenhum serviço ainda. Cadastre abaixo o que você vende.</li>}
+        </ul>
+      </Section>
+      {canEdit && (
+        <form action={saveCatalogItemAction}>
+          <Section title="Novo serviço" footer={<Button type="submit"><Plus />Adicionar ao catálogo</Button>}>
+            <CatalogFields />
+          </Section>
+        </form>
+      )}
     </>
   );
 }

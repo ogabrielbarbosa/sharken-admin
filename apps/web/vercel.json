@@ -1,3 +1,6 @@
 {
-  "crons": [{ "path": "/api/cron/retention", "schedule": "0 6 * * *" }]
+  "crons": [
+    { "path": "/api/cron/retention", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/overdue", "schedule": "0 10 * * *" }
+  ]
 }

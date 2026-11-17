@@ -5,10 +5,11 @@ import {
   updateCharge, updateClient, updateContract, updateService,
 } from '@lps/db';
 import { normalizeDocument, parseBRLToCents, validateDocument, type ChargeMethod } from '@lps/domain';
-import { createCustomer, createPayment, createSubscription, deletePayment, deleteSubscription, getContractProvider, type AsaasCycle } from '@lps/integrations';
+import { createAbacateCharge, deletePayment, deleteSubscription, getContractProvider } from '@lps/integrations';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { authedDb } from '@/lib/auth';
+import { workspaceAbacate } from '@/lib/billing';
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? '').trim();
 const withError = (href: string, message: string) => `${href}${href.includes('?') ? '&' : '?'}erro=${encodeURIComponent(message)}`;
@@ -72,6 +73,7 @@ export async function createServiceAction(form: FormData) {
     amount_cents: amount,
     start_date: text(form, 'start_date'),
     notes: text(form, 'notes') || null,
+    cycle: text(form, 'kind') === 'recorrente' ? (text(form, 'cycle') || 'mensal') : null,
   });
   refresh();
   redirect(back);
@@ -83,14 +85,16 @@ export async function setServiceStatusAction(form: FormData) {
   if (!service) return;
   const status = text(form, 'status') as 'concluido' | 'cancelado';
   const back = `/painel/clientes/${service.client_id}`;
-  if (status === 'cancelado' && service.asaas_subscription_id) {
+  if (status === 'cancelado') {
     try {
-      await deleteSubscription(service.asaas_subscription_id);
+      // Assinatura antiga do Asaas e a da AbacatePay: param de cobrar junto com o serviço.
+      if (service.asaas_subscription_id) await deleteSubscription(service.asaas_subscription_id);
+      if (service.abacate_subscription_id) await (await workspaceAbacate(db)).cancelSubscription(service.abacate_subscription_id);
     } catch (err) {
       redirect(withError(back, (err as Error).message));
     }
   }
-  await updateService(db, service.id, { status, ...(status === 'cancelado' ? { asaas_subscription_id: null } : {}) });
+  await updateService(db, service.id, { status, ...(status === 'cancelado' ? { asaas_subscription_id: null, abacate_subscription_id: null } : {}) });
   refresh();
 }
 
@@ -144,19 +148,11 @@ export async function createChargeAction(form: FormData) {
     method: text(form, 'method') as ChargeMethod,
   };
   try {
-    let customerId = client.asaas_customer_id;
-    if (!customerId) {
-      customerId = (await createCustomer(client)).id;
-      await updateClient(db, client.id, { asaas_customer_id: customerId });
-    }
-    if (service.kind === 'recorrente') {
-      if (service.asaas_subscription_id) throw new Error('Este serviço já tem uma cobrança recorrente ativa.');
-      const subscription = await createSubscription(charge, customerId, (text(form, 'cycle') || 'MONTHLY') as AsaasCycle);
-      await updateService(db, service.id, { asaas_subscription_id: subscription.id });
-    } else {
-      const payment = await createPayment(charge, customerId);
-      await insertCharge(db, { ...charge, service_id: service.id, status: 'pendente', payment_url: payment.invoiceUrl, asaas_payment_id: payment.id });
-    }
+    if (service.kind === 'recorrente' && (service.asaas_subscription_id || service.abacate_subscription_id)) throw new Error('Este serviço já tem uma cobrança recorrente ativa.');
+    const api = await workspaceAbacate(db);
+    const checkout = await createAbacateCharge(api, { client, service: { ...service, cycle: text(form, 'cycle') || service.cycle }, charge });
+    if (service.kind === 'recorrente') await updateService(db, service.id, { abacate_checkout_id: checkout.id });
+    await insertCharge(db, { ...charge, service_id: service.id, status: 'pendente', payment_url: checkout.url, abacate_checkout_id: checkout.id });
   } catch (err) {
     redirect(withError(again, (err as Error).message));
   }
@@ -170,7 +166,13 @@ export async function cancelChargeAction(form: FormData) {
   if (!charge) return;
   const service = await getService(db, charge.service_id);
   try {
+    // Asaas apaga a cobrança. Na AbacatePay só o link de assinatura ainda não paga sai do ar; o link avulso
+    // continua aceitando pagamento, e se o cliente pagar mesmo assim o aviso traz a cobrança de volta como paga.
     if (charge.asaas_payment_id) await deletePayment(charge.asaas_payment_id);
+    if (charge.abacate_checkout_id && service?.abacate_checkout_id === charge.abacate_checkout_id && !service.abacate_subscription_id && !charge.abacate_payment_id) {
+      await (await workspaceAbacate(db)).deleteSubscriptionCheckout(charge.abacate_checkout_id);
+      await updateService(db, service.id, { abacate_checkout_id: null });
+    }
     await updateCharge(db, charge.id, { status: 'cancelado' });
   } catch (err) {
     redirect(withError(`/painel/clientes/${service?.client_id}`, (err as Error).message));

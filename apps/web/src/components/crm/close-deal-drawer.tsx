@@ -1,6 +1,6 @@
 'use client';
 
-import { CYCLES, formatDocument, formatPhone, parseBRLToCents, PAYMENT_METHODS, type ChargeMethod, type CloseDealInput, type Cycle } from '@lps/domain';
+import { CYCLES, formatBRL, formatDocument, formatPhone, parseBRLToCents, PAYMENT_METHODS, type ChargeMethod, type CloseDealInput, type Cycle } from '@lps/domain';
 import { FileSignature } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -32,8 +32,10 @@ function Labeled({ label, fromCrm, error, children }: { label: string; fromCrm?:
   );
 }
 
+export type CatalogOption = { id: string; name: string; kind: 'unico' | 'recorrente'; amount_cents: number; cycle: Cycle | null; description: string | null };
+
 /** Drawer de Fechar negócio. O servidor valida de novo e grava tudo numa transação. */
-export function CloseDealDrawer({ contactName, defaults, existingClient, closeHref }: { contactName: string; defaults: CloseDealInput; existingClient: boolean; closeHref: string }) {
+export function CloseDealDrawer({ contactName, defaults, existingClient, closeHref, catalog = [] }: { contactName: string; defaults: CloseDealInput; existingClient: boolean; closeHref: string; catalog?: CatalogOption[] }) {
   const router = useRouter();
   const requestId = useRef(crypto.randomUUID());
   const [client, setClient] = useState({ ...defaults.client, phone: formatPhone(defaults.client.phone), document: formatDocument(defaults.client.document) });
@@ -44,7 +46,17 @@ export function CloseDealDrawer({ contactName, defaults, existingClient, closeHr
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
+  const [catalogId, setCatalogId] = useState('');
   const crm = (value: string) => !existingClient && !!value;
+  /** Escolher do catálogo preenche nome, tipo, valor, periodicidade e observações; dá para ajustar depois. */
+  const pick = (id: string) => {
+    setCatalogId(id);
+    const item = catalog.find((c) => c.id === id);
+    if (!item) return;
+    setService((s) => ({ ...s, name: item.name, kind: item.kind, notes: item.description ?? s.notes }));
+    setAmount(formatBRL(item.amount_cents));
+    setPayment((p) => ({ ...p, cycle: item.kind === 'recorrente' ? (item.cycle ?? '') : '', method: item.kind === 'recorrente' && p.method === 'boleto' ? 'cartao' : p.method }));
+  };
   const setC = (k: keyof typeof client) => (e: { target: { value: string } }) => setClient((c) => ({ ...c, [k]: e.target.value }));
 
   const submit = (e: React.FormEvent) => {
@@ -83,6 +95,14 @@ export function CloseDealDrawer({ contactName, defaults, existingClient, closeHr
         </Block>
 
         <Block n={2} title="Serviço">
+          {catalog.length > 0 && (
+            <Labeled label="Do catálogo">
+              <Select value={catalogId} onChange={(e) => pick(e.target.value)}>
+                <option value="">Escolha um serviço ou preencha abaixo</option>
+                {catalog.map((c) => <option key={c.id} value={c.id}>{c.name} · {formatBRL(c.amount_cents)}{c.kind === 'recorrente' ? ` · ${CYCLES.find((x) => x.value === c.cycle)?.label.toLowerCase() ?? 'recorrente'}` : ''}</option>)}
+              </Select>
+            </Labeled>
+          )}
           <Labeled label="Serviço" error={fields.service_name}><Input value={service.name} onChange={(e) => setService((s) => ({ ...s, name: e.target.value }))} required /></Labeled>
           <div className="grid gap-3 sm:grid-cols-[auto_1fr_1fr]">
             <div className="space-y-1.5">
@@ -118,7 +138,7 @@ export function CloseDealDrawer({ contactName, defaults, existingClient, closeHr
               </Labeled>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">O combinado não gera cobrança agora. Ele preenche a cobrança em Pagamentos depois que o contrato for assinado.</p>
+          <p className="text-xs text-muted-foreground">O combinado não gera cobrança agora. Ele preenche a cobrança em Clientes depois que o contrato for assinado.{service.kind === 'recorrente' && ' Recorrente vira assinatura na AbacatePay: cartão ou Pix Automático.'}</p>
         </Block>
 
         {error && <ErrorNote>{error}</ErrorNote>}

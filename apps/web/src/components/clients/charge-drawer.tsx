@@ -1,4 +1,4 @@
-import type { ChargeMethod } from '@lps/domain';
+import { CYCLES, type ChargeMethod } from '@lps/domain';
 import { Button, Drawer, ErrorNote, Field, Input, Select } from '@/components/ui';
 import { createChargeAction } from '@/app/painel/clientes/actions';
 
@@ -20,16 +20,16 @@ export function ChargeDrawer({ clientId, clientName, services, closeHref, back, 
         </Field>
         <Field label="Descrição"><Input name="description" defaultValue={initial.description} required /></Field>
         <Field label="Valor"><Input name="amount" defaultValue={initial.amount} placeholder="R$ 89,00" required /></Field>
-        <Field label="Vencimento"><Input name="due_date" type="date" defaultValue={initial.dueDate} required /></Field>
+        <Field label="Vencimento" hint="No boleto, vai impresso. No Pix e no cartão, serve para o sistema marcar o atraso."><Input name="due_date" type="date" defaultValue={initial.dueDate} required /></Field>
         <Field label="Forma de pagamento"><Select name="method" defaultValue={initial.method ?? 'pix'}><option value="pix">Pix</option><option value="boleto">Boleto</option><option value="cartao">Cartão</option></Select></Field>
         {services.some((s) => s.kind === 'recorrente') && (
-          <Field label="Periodicidade" hint="Vale só para serviço recorrente. O Asaas gera uma cobrança a cada período.">
-            <Select name="cycle" defaultValue={initial.cycle ?? 'MONTHLY'}>
-              <option value="WEEKLY">Semanal</option><option value="MONTHLY">Mensal</option><option value="QUARTERLY">Trimestral</option><option value="SEMIANNUALLY">Semestral</option><option value="YEARLY">Anual</option>
+          <Field label="Periodicidade" hint="Vale só para serviço recorrente: vira uma assinatura na AbacatePay, no cartão ou no Pix Automático (boleto não tem assinatura).">
+            <Select name="cycle" defaultValue={initial.cycle ?? 'mensal'}>
+              {CYCLES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
             </Select>
           </Field>
         )}
-        <p className="text-xs text-muted-foreground">A cobrança é criada no Asaas. Depois, copie o link de pagamento e envie ao cliente.</p>
+        <p className="text-xs text-muted-foreground">A cobrança é criada na AbacatePay deste workspace. Depois, copie o link de pagamento e envie ao cliente. O pagamento confirma sozinho.</p>
         {error && <ErrorNote>{error}</ErrorNote>}
         <div className="mt-auto pt-4"><Button type="submit" className="w-full">Gerar cobrança</Button></div>
       </form>

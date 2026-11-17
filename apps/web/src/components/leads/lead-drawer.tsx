@@ -47,8 +47,8 @@ export function LeadDrawer({ lead, position, prevHref, nextHref, closeHref }: { 
   const Stat = ({ title, value, sub }: { title: string; value: string; sub?: string }) => (
     <div className="min-w-0 rounded-md border border-border p-2.5">
       <p className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">{title}</p>
-      <p className="mt-1 truncate text-sm font-medium">{value}</p>
-      {sub && <p className="truncate text-xs text-muted-foreground">{sub}</p>}
+      <p className="mt-1 text-sm font-medium [overflow-wrap:anywhere]">{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">{sub}</p>}
     </div>
   );
   const title = (t: string) => <h3 className="text-sm font-medium">{t}</h3>;

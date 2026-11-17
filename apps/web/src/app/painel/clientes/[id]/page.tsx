@@ -1,12 +1,13 @@
-import { getClient, getLead, listCharges, listContracts, listServices } from '@lps/db';
+import { getClient, getLead, listCatalog, listCharges, listContracts, listServices } from '@lps/db';
 import { clientStanding, formatBRL, formatDocument, summarizeCharges, type ChargeStatus, type ContractStatus } from '@lps/domain';
 import { ArrowLeft, Plus, Send } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChargeDrawer } from '@/components/clients/charge-drawer';
 import { ClientDrawer } from '@/components/clients/client-drawer';
+import { ServiceFields } from '@/components/clients/service-fields';
 import { Topbar } from '@/components/layout/topbar';
-import { Badge, Button, Card, Drawer, ErrorNote, Field, Input, LinkButton, Select, Status, Table, Textarea, type Tone } from '@/components/ui';
+import { Badge, Button, Card, Drawer, ErrorNote, LinkButton, Status, Table, type Tone } from '@/components/ui';
 import { CopyButton } from '@/components/ui/copy-button';
 import { MenuButton, RowMenu } from '@/components/ui/row-menu';
 import { authedDb } from '@/lib/auth';
@@ -170,7 +171,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
 
         <Card>
           <div className="flex items-center justify-between px-4 py-3">
-            <h2 className="flex items-center gap-2 font-medium">Cobranças <Badge tone="brand">{charges.length}</Badge><span className="text-xs font-normal text-muted-foreground">Cobrança pelo Asaas</span></h2>
+            <h2 className="flex items-center gap-2 font-medium">Cobranças <Badge tone="brand">{charges.length}</Badge><span className="text-xs font-normal text-muted-foreground">Cobrança pela AbacatePay</span></h2>
             {billable.length > 0 && <LinkButton href={`${here}?cobranca=1`} variant="outline"><Plus />Nova cobrança</LinkButton>}
           </div>
           {charges.length === 0 ? <p className="px-4 pb-4 text-sm text-muted-foreground">Nenhuma cobrança ainda.</p> : (
@@ -206,11 +207,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
         <Drawer title="Novo serviço" subtitle={client.legal_name} closeHref={here}>
           <form action={createServiceAction} className="flex flex-1 flex-col gap-4">
             <input type="hidden" name="clientId" value={id} />
-            <Field label="Nome do serviço"><Input name="name" required /></Field>
-            <Field label="Tipo"><Select name="kind" defaultValue="unico"><option value="unico">Único</option><option value="recorrente">Recorrente</option></Select></Field>
-            <Field label="Valor"><Input name="amount" placeholder="R$ 450,00" required /></Field>
-            <Field label="Data de início"><Input name="start_date" type="date" required /></Field>
-            <Field label="Observações"><Textarea name="notes" rows={3} placeholder="Escopo, prazos ou combinados com o cliente." /></Field>
+            <ServiceFields catalog={await listCatalog(db, { onlyActive: true })} />
             <p className="text-xs text-muted-foreground">O contrato do serviço é criado como rascunho. Você envia para assinatura pelo ZapSign quando quiser.</p>
             {erro && <ErrorNote>{erro}</ErrorNote>}
             <div className="mt-auto pt-4"><Button type="submit" className="w-full">Salvar serviço</Button></div>

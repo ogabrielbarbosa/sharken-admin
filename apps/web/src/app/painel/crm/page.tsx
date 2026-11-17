@@ -9,6 +9,7 @@ import {
   getLead,
   listChats,
   listEvents,
+  listCatalog,
   listMessages,
   markStalePending,
   outreachCount,
@@ -157,7 +158,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
 
   return shell(
     <>
-      {closeDefaults && <CloseDealDrawer contactName={selected.name} defaults={closeDefaults} existingClient={!!existingClient} closeHref={`${base}&contato=${selected.id}`} />}
+      {closeDefaults && <CloseDealDrawer contactName={selected.name} defaults={closeDefaults} existingClient={!!existingClient} closeHref={`${base}&contato=${selected.id}`} catalog={await listCatalog(db, { onlyActive: true })} />}
       {listCol(true)}
       <div className="flex min-h-0 flex-col [&>*]:min-h-0 [&>*]:flex-1">
         <Conversation

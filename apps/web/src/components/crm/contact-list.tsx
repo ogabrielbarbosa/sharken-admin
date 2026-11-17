@@ -18,7 +18,7 @@ function Disconnected({ connection }: { connection: ConnectionInfo }) {
   if (connection.state === 'conectado') return null;
   const connecting = connection.state === 'conectando';
   return (
-    <Link href="/painel/crm/conexoes" className={`mx-3 mt-3 flex items-center justify-between gap-2 rounded-md px-3 py-2 text-xs ${connecting ? 'bg-warning-subtle text-warning' : 'bg-destructive-subtle text-destructive'}`}>
+    <Link href="/painel/configuracoes?aba=whatsapp" className={`mx-3 mt-3 flex items-center justify-between gap-2 rounded-md px-3 py-2 text-xs ${connecting ? 'bg-warning-subtle text-warning' : 'bg-destructive-subtle text-destructive'}`}>
       <span className="flex items-center gap-2"><span className={`size-1.5 rounded-full ${connecting ? 'bg-warning' : 'bg-destructive'}`} />{connecting ? 'WhatsApp conectando…' : 'WhatsApp desconectado'}</span>
       <span className="font-medium underline-offset-2 hover:underline">{connecting ? 'Ver' : 'Conectar'}</span>
     </Link>

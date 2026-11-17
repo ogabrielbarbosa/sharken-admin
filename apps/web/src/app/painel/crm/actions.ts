@@ -38,7 +38,7 @@ const STATUSES: ContactStatus[] = ['novo', 'contatado', 'follow_up', 'em_convers
 const fail = (err: unknown): { ok: false; error: string } => ({ ok: false, error: err instanceof Error ? err.message : 'Algo deu errado. Tente de novo.' });
 const refresh = () => revalidatePath('/painel/crm');
 const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
-/** Provedor apontado para a instância escolhida em Atendimento › Conexões. */
+/** Provedor apontado para a instância escolhida em Configurações › WhatsApp. */
 const whatsapp = async (db: Awaited<ReturnType<typeof authedDb>>) => getWhatsAppProvider(process.env, await getActiveInstance(db));
 
 async function guarded<T>(fn: () => Promise<T>): Promise<Result<T extends object ? T : object>> {

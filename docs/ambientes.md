@@ -60,12 +60,12 @@ Para restaurar, fale com o Claude ou rode na VPS: `gunzip -c <arquivo>.sql.gz | 
 ## WhatsApp (Evolution API)
 
 1. `EVOLUTION_URL`, `EVOLUTION_API_KEY` e `WHATSAPP_WEBHOOK_SECRET` ficam no `.env`.
-2. Em **Atendimento › Conexões**, clique em **Nova instância** e dê um nome (ou escolha uma que já existe no servidor). O painel cria a instância, registra o webhook `/api/webhooks/whatsapp` da produção e passa a usá-la no CRM; a instância em uso fica salva no banco (`whatsapp_connection.instance`).
+2. Em **Configurações › WhatsApp**, clique em **Nova instância** e dê um nome (ou escolha uma que já existe no servidor). O painel cria a instância, registra o webhook `/api/webhooks/whatsapp` da produção e passa a usá-la no CRM; a instância em uso fica salva no banco (`whatsapp_connection.instance`).
 3. Leia o QR (ou use o código pelo número).
 
 Toda vez que a tela abre, o painel confere o webhook e corrige se ele mudou. Eventos de uma instância que não é a em uso são ignorados.
 
-**Importar últimos 2 dias** (em Conexões, com o celular conectado) pede ao worker para trazer as conversas individuais dos últimos 2 dias guardadas na Evolution (`DATABASE_SAVE_DATA_HISTORIC=true`). Tudo entra fechado e sem não lidas; o que já está no CRM é pulado. Conversas que o WhatsApp manda só com o LID (sem o número) ficam de fora até a pessoa mandar uma mensagem nova.
+**Importar últimos 2 dias** (em Configurações › WhatsApp, com o celular conectado) pede ao worker para trazer as conversas individuais dos últimos 2 dias guardadas na Evolution (`DATABASE_SAVE_DATA_HISTORIC=true`). Tudo entra fechado e sem não lidas; o que já está no CRM é pulado. Conversas que o WhatsApp manda só com o LID (sem o número) ficam de fora até a pessoa mandar uma mensagem nova.
 
 Para baixar fotos, áudios, vídeos e documentos recebidos, o worker baixa a mídia da Evolution, e isso exige `DATABASE_SAVE_DATA_NEW_MESSAGE=true` no servidor dela. O webhook é registrado sem base64, porque a Vercel limita o corpo a 4,5 MB.
 
@@ -83,7 +83,8 @@ Cadastre estas URLs nos painéis dos serviços, trocando `<segredo>` pelo `WEBHO
 |---|---|---|
 | Apify | registrado automaticamente a cada busca | segredo na URL |
 | ZapSign | `https://admin.sharkenapps.com/api/webhooks/zapsign?secret=<segredo>` | segredo na URL |
-| Asaas | `https://admin.sharkenapps.com/api/webhooks/asaas` | campo "Token de autenticação" igual ao `<segredo>` |
+| AbacatePay | `https://admin.sharkenapps.com/api/webhooks/abacatepay/<workspace>`, um por workspace, registrado pelo painel ao salvar a chave em Configurações › Pagamentos | segredo próprio do workspace (`webhookSecret`) |
+| Asaas (só cobranças antigas) | `https://admin.sharkenapps.com/api/webhooks/asaas` | campo "Token de autenticação" igual ao `<segredo>` |
 | Evolution | `https://admin.sharkenapps.com/api/webhooks/whatsapp?token=<WHATSAPP_WEBHOOK_SECRET>`, registrado pelo painel | segredo na URL |
 
-O cron de retenção roda sozinho na Vercel, pelo `vercel.json`.
+Os crons de retenção e de cobranças vencidas (`/api/cron/overdue`, 7h de Brasília) rodam sozinhos na Vercel, pelo `vercel.json`.

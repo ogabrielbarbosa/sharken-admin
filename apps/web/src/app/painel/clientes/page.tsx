@@ -1,5 +1,5 @@
 import { listCharges, listClients, listContracts, listReadyToCharge, listServices, type ChargeRecord, type ContractRecord, type ServiceRecord } from '@lps/db';
-import { CYCLES, clientStanding, formatBRL, normalizeDocument, summarizeCharges, toAsaasCycle } from '@lps/domain';
+import { CYCLES, clientStanding, formatBRL, normalizeDocument, summarizeCharges } from '@lps/domain';
 import { BadgeDollarSign, CircleDollarSign, Hourglass, Plus, Receipt, Search, Users, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { ChargeDrawer } from '@/components/clients/charge-drawer';
@@ -32,7 +32,7 @@ function serviceState(service: ServiceRecord, charges: ChargeRecord[], contract:
   if (charges.some((c) => c.status === 'vencido')) return { tone: 'danger', label: 'Em atraso' };
   if (ready) return { tone: 'warning', label: 'Pronto para cobrar' };
   if (charges.some((c) => c.status === 'pendente')) return { tone: 'warning', label: 'Aguardando pagamento' };
-  if (service.asaas_subscription_id) return { tone: 'success', label: 'Recorrente ativa' };
+  if (service.asaas_subscription_id || service.abacate_subscription_id) return { tone: 'success', label: 'Recorrente ativa' };
   if (charges.some((c) => c.status === 'pago')) return { tone: 'success', label: 'Pago' };
   return { tone: 'neutral', label: contract ? CONTRACT[contract.status] : 'Sem contrato' };
 }
@@ -166,7 +166,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
             amount: formatBRL(target.service.amount_cents),
             dueDate: target.service.first_due_date ?? undefined,
             method: target.service.payment_method ?? undefined,
-            cycle: target.service.kind === 'recorrente' ? toAsaasCycle(target.service.cycle) : undefined,
+            cycle: target.service.kind === 'recorrente' ? (target.service.cycle ?? undefined) : undefined,
           }}
         />
       )}

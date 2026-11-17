@@ -3,7 +3,7 @@ import type { Db } from './client';
 /** Tabelas da operação: cada linha pertence a um workspace. `do_not_contact` é global de propósito. */
 export const WORKSPACE_TABLES = new Set([
   'batches', 'leads', 'sites', 'videos', 'lead_assets', 'events', 'contacts', 'messages',
-  'clients', 'services', 'contracts', 'charges', 'jobs', 'whatsapp_connection',
+  'clients', 'services', 'contracts', 'charges', 'jobs', 'whatsapp_connection', 'service_catalog',
 ]);
 
 const WORKSPACE = Symbol('workspace');

@@ -1,9 +1,8 @@
 'use client';
 
-import { ChevronDown, FilePenLine, Layers, LayoutGrid, LogOut, MessageCircle, Settings, Users } from 'lucide-react';
+import { FilePenLine, Layers, LayoutGrid, LogOut, MessageCircle, Settings, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import { signOut } from '@/app/login/actions';
 import { Logo } from './logo';
 import { useShell } from './shell';
@@ -21,12 +20,10 @@ const after: Item[] = [
 ];
 
 const CRM = '/painel/crm';
-const CONEXOES = '/painel/crm/conexoes';
 
 export type SidebarWhatsApp = { tone: 'success' | 'warning' | 'danger' | 'neutral'; status: string };
 
 const DOT = { success: 'bg-success', warning: 'bg-warning', danger: 'bg-destructive', neutral: 'bg-neutral-600' } as const;
-const OPEN_KEY = 'sidebar:atendimento';
 const linkClass = (active: boolean) =>
   `group/link press relative flex h-9 items-center gap-2.5 rounded-md px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/60 ${active ? 'bg-accent font-medium' : 'text-foreground/90 hover:bg-accent'}`;
 
@@ -34,54 +31,23 @@ function Indicator() {
   return <span aria-hidden className="absolute inset-y-2 -left-3 w-[3px] animate-indicator-in rounded-r-full bg-brand-bright shadow-[0_0_12px_#1f88c0]" />;
 }
 
-/** Grupo "Atendimento": Conversas e Conexões. Abre e fecha e lembra a escolha. Recolhido, vira um link para as conversas. */
-function AtendimentoGroup({ whatsapp, pathname, collapsed, fade }: { whatsapp: SidebarWhatsApp; pathname: string; collapsed: boolean; fade: string }) {
-  const inside = pathname.startsWith(CRM);
-  const [open, setOpen] = useState(true);
-  useEffect(() => {
-    if (inside) { setOpen(true); return; }
-    try { setOpen(localStorage.getItem(OPEN_KEY) !== '0'); } catch { /* sem storage */ }
-  }, [inside]);
-  const toggle = () => {
-    setOpen((v) => {
-      try { localStorage.setItem(OPEN_KEY, v ? '0' : '1'); } catch { /* sem storage */ }
-      return !v;
-    });
-  };
+/** Atendimento: um link só, para as conversas. A bolinha avisa quando o WhatsApp não está conectado. */
+function AtendimentoLink({ whatsapp, pathname, collapsed, fade }: { whatsapp: SidebarWhatsApp; pathname: string; collapsed: boolean; fade: string }) {
+  const active = pathname.startsWith(CRM);
   const alert = whatsapp.tone !== 'success' ? whatsapp : null;
-  const onConexoes = pathname.startsWith(CONEXOES);
-  const sub = (active: boolean) => `flex h-7 items-center gap-2 rounded-md px-2 text-xs ${active ? 'bg-accent font-medium' : 'text-foreground/80 hover:bg-accent'}`;
-
-  if (collapsed) {
-    return (
-      <Link href={CRM} title="Atendimento" aria-current={inside ? 'page' : undefined} className={linkClass(inside)}>
-        {inside && <Indicator />}
-        <MessageCircle className="size-4 shrink-0" />
-        {alert && <span className={`absolute right-2 top-2 size-1.5 rounded-full ${DOT[alert.tone]}`} />}
-      </Link>
-    );
-  }
   return (
-    <div>
-      <button type="button" onClick={toggle} aria-expanded={open} className={`${linkClass(inside && !open)} w-full cursor-pointer`}>
-        {inside && !open && <Indicator />}
-        <MessageCircle className="size-4 shrink-0 transition-[scale] duration-200 ease-(--ease-spring) group-hover/link:scale-110" />
-        <span className={`flex-1 text-left ${fade}`}>Atendimento</span>
-        {!open && alert && <span className={`size-1.5 rounded-full ${DOT[alert.tone]}`} aria-label={`WhatsApp: ${alert.status}`} />}
-        <ChevronDown className={`size-3.5 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="ml-5 mt-1 animate-pop-in space-y-0.5 border-l border-border pl-2">
-          <Link href={CRM} aria-current={inside && !onConexoes ? 'page' : undefined} className={sub(inside && !onConexoes)}>
-            <span className="flex-1 truncate">Conversas</span>
-          </Link>
-          <Link href={CONEXOES} title={`WhatsApp: ${whatsapp.status}`} aria-current={onConexoes ? 'page' : undefined} className={sub(onConexoes)}>
-            <span className="flex-1 truncate">Conexões</span>
-            <span className={`size-1.5 shrink-0 rounded-full ${DOT[whatsapp.tone]}`} />
-          </Link>
-        </div>
+    <Link href={CRM} title={collapsed ? 'Atendimento' : undefined} aria-current={active ? 'page' : undefined} className={linkClass(active)}>
+      {active && <Indicator />}
+      <MessageCircle className="size-4 shrink-0 transition-[scale] duration-200 ease-(--ease-spring) group-hover/link:scale-110" />
+      <span className={`flex-1 ${fade}`}>Atendimento</span>
+      {alert && (
+        <span
+          className={`size-1.5 shrink-0 rounded-full ${DOT[alert.tone]} ${collapsed ? 'absolute right-2 top-2' : ''}`}
+          aria-label={`WhatsApp: ${alert.status}`}
+          title={`WhatsApp: ${alert.status}`}
+        />
       )}
-    </div>
+    </Link>
   );
 }
 
@@ -125,7 +91,7 @@ export function Sidebar({ email, whatsapp, workspaces, current, isAdmin }: { ema
         {/* -mx-3/px-3: a rolagem corta o que sai da caixa, e o indicador fica 12px à esquerda do link. */}
         <nav className="relative -mx-3 space-y-1 overflow-y-auto px-3">
           {renderItems(before)}
-          <AtendimentoGroup whatsapp={whatsapp} pathname={pathname} collapsed={collapsed} fade={fade} />
+          <AtendimentoLink whatsapp={whatsapp} pathname={pathname} collapsed={collapsed} fade={fade} />
           {renderItems(after)}
         </nav>
 
