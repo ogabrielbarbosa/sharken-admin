@@ -1,6 +1,7 @@
 import { assertTransition, classifyLink, dedupeLeads, mergeLeadOnReimport, type Lead, type LeadStage, type NewLead } from '@lps/domain';
 import type { Db } from './client';
 import { fetchAll } from './fetch-all';
+import { enqueueJob } from './jobs';
 
 export async function getLead(db: Db, id: string): Promise<Lead | null> {
   const { data } = await db.from('leads').select().eq('id', id).maybeSingle();
@@ -44,7 +45,11 @@ export async function moveLead(db: Db, lead: Pick<Lead, 'id' | 'stage'>, to: Lea
   assertTransition(lead.stage, to);
   await updateLead(db, lead.id, { ...patch, stage: to });
   await logEvent(db, lead.id, `etapa_${to}`, eventData);
+  // Qualificado: o worker salva no R2 a foto de perfil e os posts do Instagram (pula quem não tem ou já salvou).
+  if (to === 'completar') await enqueueJob(db, { type: INSTAGRAM_MEDIA_JOB, payload: { lead_id: lead.id }, dedupeKey: `${INSTAGRAM_MEDIA_JOB}:${lead.id}` });
 }
+
+export const INSTAGRAM_MEDIA_JOB = 'instagram_media';
 
 /** Insere os novos e atualiza os que já existem, sem mexer no andamento deles. */
 export async function importLeads(db: Db, leads: NewLead[]): Promise<{ inserted: number; updated: number }> {

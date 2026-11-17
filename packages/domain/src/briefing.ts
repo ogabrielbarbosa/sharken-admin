@@ -36,6 +36,15 @@ export function buildBriefing(lead: Lead, assets: LeadAsset[]): string {
   }
   if (material.length) out.push('', '## Material', ...material.slice(0, -1));
 
+  const instagram = lead.instagram_media ?? [];
+  if (instagram.length) {
+    out.push('', '## Instagram', ...instagram.map((m) => {
+      if (m.kind === 'perfil') return `- Foto de perfil: ${m.url}`;
+      const caption = m.caption ? ` · ${m.caption.replace(/\s+/g, ' ').slice(0, 200)}` : '';
+      return `- ${m.url}${m.post_url ? ` (post: ${m.post_url})` : ''}${caption}`;
+    }));
+  }
+
   const photos = [...new Set([...ready.flatMap((a) => a.extracted_images ?? []), ...lead.photos])];
   if (photos.length) out.push('', '## Fotos', ...photos.map((u) => `- ${u}`));
 

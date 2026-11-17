@@ -20,7 +20,7 @@ function lead(stage: LeadStage): Lead {
     business_type: 'Dentista', city: 'Taubaté', phone_raw: null, phone_e164: null, address: null,
     rating: 4.8, reviews_count: 12, score: 70, site_status: 'sem_site', flow: 'sem_site',
     categories: [], photos: [], reviews: [], site_checks: [], site_signals: null, score_reasons: null,
-    website_url: null, instagram_url: null, instagram_last_post_at: null, page_url: null, loom_url: null,
+    website_url: null, instagram_url: null, instagram_last_post_at: null, instagram_media: [], page_url: null, loom_url: null,
     stage_changed_at: '2026-11-11T10:00:00Z', exit_reason: null,
   } as unknown as Lead;
 }

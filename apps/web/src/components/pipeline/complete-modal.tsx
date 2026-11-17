@@ -43,7 +43,7 @@ export function CompleteModal({ lead, assets, position, prevHref, nextHref, clos
   const extracting = assets.some((a) => a.status === 'extraindo');
   const check = canCompleteInfo(lead, assets);
   const flow = flowLabel(lead);
-  const photos = [...new Set([...lead.photos, ...assets.filter((a) => a.status === 'pronto').flatMap((a) => a.extracted_images ?? [])])];
+  const photos = [...new Set([...(lead.instagram_media ?? []).map((m) => m.url), ...lead.photos, ...assets.filter((a) => a.status === 'pronto').flatMap((a) => a.extracted_images ?? [])])];
   const close = () => router.replace(closeHref, { scroll: false });
   const nav = (href: string | null, name: string, icon: ReactNode) =>
     href ? <Link href={href} replace scroll={false} aria-label={name} className="text-muted-foreground hover:text-foreground">{icon}</Link> : <span className="text-muted-foreground/30">{icon}</span>;

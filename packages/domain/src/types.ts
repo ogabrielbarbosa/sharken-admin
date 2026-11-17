@@ -1,3 +1,4 @@
+import type { InstagramMedia } from './instagram-media';
 import type { LeadReview } from './apify-mapper';
 import type { Criteria } from './criteria';
 import type { Enrichment } from './enrichment';
@@ -65,6 +66,7 @@ export type Lead = {
   website_url: string | null;
   instagram_url: string | null;
   instagram_last_post_at: string | null;
+  instagram_media: InstagramMedia[];
   site_status: SiteStatus | null;
   site_checks: unknown[];
   site_data: SiteData | null;

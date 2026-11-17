@@ -145,6 +145,9 @@ importers:
       '@lps/domain':
         specifier: workspace:*
         version: link:../domain
+      aws4fetch:
+        specifier: 1.0.20
+        version: 1.0.20
       unpdf:
         specifier: ^1.9.1
         version: 1.9.1
@@ -2063,6 +2066,9 @@ packages:
 
   async-sema@3.1.1:
     resolution: {integrity: sha512-tLRNUXati5MFePdAk8dw7Qt7DpxPB60ofAgn8WRhW6a2rcimZnYBP9oxHiv0OHy+Wz7kPMG+t4LGdt31+4EmGg==}
+
+  aws4fetch@1.0.20:
+    resolution: {integrity: sha512-/djoAN709iY65ETD6LKCtyyEI04XIBP5xVvfmNxsEP0uJB5tyaGBztSryRr4HqMStr9R06PisQE7m9zDTXKu6g==}
 
   b4a@1.9.0:
     resolution: {integrity: sha512-dpfcF9fDNR6++cthXR67iyhgqWy9CBouAvIWhIntzBG6cvK/cnIPiZQjBwi/ZqjjBEDGfoNDtmB0kTjroOJ3pQ==}
@@ -4894,6 +4900,8 @@ snapshots:
       retry: 0.13.1
 
   async-sema@3.1.1: {}
+
+  aws4fetch@1.0.20: {}
 
   b4a@1.9.0: {}
 

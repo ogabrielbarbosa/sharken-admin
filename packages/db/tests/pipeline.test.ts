@@ -48,6 +48,9 @@ describe('qualifyLeads', () => {
     const b = await lead('revisar');
     const c = await lead('completar');
     expect(await qualifyLeads(db(), [a, b, c])).toEqual({ moved: 2 });
+    const jobs = (await pg.query<{ lead: string }>(`select payload->>'lead_id' as lead from jobs where type = 'instagram_media'`)).rows.map((r) => r.lead);
+    expect(jobs).toEqual(expect.arrayContaining([a, b]));
+    expect(jobs).not.toContain(c);
     expect((await row(a)).stage).toBe('completar');
     expect((await row(c)).stage).toBe('completar');
   });

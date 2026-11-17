@@ -10,3 +10,4 @@ export * from './whatsapp';
 export * from './extract';
 export * from './enrichment';
 export * from './abacatepay';
+export * from './r2';

@@ -75,6 +75,14 @@ Conversas de exemplo: `pnpm crm:demo` cria 8 contatos com DDD 00 (o envio para e
 
 500 MB por arquivo (`UPLOAD_FILE_SIZE_LIMIT` do serviço supa-sharken no Coolify).
 
+## Imagens do Instagram (Cloudflare R2)
+
+Quando um lead vira Qualificado, `moveLead` coloca na fila o job `instagram_media`. O worker busca o perfil no
+Apify de novo (os links de imagem do Instagram expiram em poucos dias), baixa a foto de perfil em HD e as imagens
+dos últimos 12 posts (carrossel inteiro, capa do vídeo) e salva no bucket R2 `sharken-media`, em
+`leads/<lead>/instagram/`. Os links públicos ficam em `leads.instagram_media` e aparecem no Qualificado e no briefing.
+Lead sem Instagram ou que já tem imagens é pulado. Sem as variáveis `R2_*`, o job espera e tenta de novo a cada hora.
+
 ## Webhooks dos serviços
 
 Cadastre estas URLs nos painéis dos serviços, trocando `<segredo>` pelo `WEBHOOK_SECRET`:

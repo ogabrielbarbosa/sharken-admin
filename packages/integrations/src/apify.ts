@@ -119,6 +119,9 @@ export async function runActorSync<T>(actor: string, input: object, timeoutMs = 
     body: JSON.stringify(input),
     signal: AbortSignal.timeout(timeoutMs),
   });
-  if (!res.ok) throw new Error(`O Apify recusou a leitura (${res.status}).`);
+  if (!res.ok) {
+    const detail = ((await res.json().catch(() => null)) as { error?: { message?: string } } | null)?.error?.message;
+    throw new Error(`O Apify recusou a leitura (${res.status})${detail ? `: ${detail}` : '.'}`);
+  }
   return (await res.json()) as T[];
 }

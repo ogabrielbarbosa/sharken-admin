@@ -21,6 +21,15 @@ describe('buildBriefing', () => {
     expect(md.startsWith('# Pet Shop Patinhas')).toBe(true);
     for (const h of ['## Dados', '## Material', '## Fotos', '## Links']) expect(md).toContain(h);
   });
+  it('lista as imagens do Instagram salvas no R2, com o post e a legenda', () => {
+    const lead = { ...completeLead, instagram_media: [
+      { kind: 'perfil' as const, url: 'https://media/perfil.jpg', post_url: null, caption: null, taken_at: null },
+      { kind: 'post' as const, url: 'https://media/post-01.jpg', post_url: 'https://instagram.com/p/a', caption: 'Banho\ne tosa', taken_at: null },
+    ] };
+    const out = buildBriefing(lead, []);
+    expect(out).toContain('## Instagram\n- Foto de perfil: https://media/perfil.jpg\n- https://media/post-01.jpg (post: https://instagram.com/p/a) · Banho e tosa');
+    expect(md).not.toContain('\n## Instagram\n');
+  });
   it('só tem Motivo no fluxo melhorar_site', () => {
     expect(md).not.toContain('## Motivo');
     const improved = buildBriefing(improveLead, []);
