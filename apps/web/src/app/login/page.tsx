@@ -9,13 +9,14 @@ const messages: Record<string, string> = {
   config: 'Faltam as chaves do Supabase. Rode pnpm setup:local e reinicie o servidor.',
 };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
-  const { erro } = await searchParams;
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ erro?: string; next?: string }> }) {
+  const { erro, next } = await searchParams;
   return (
     <main className="flex min-h-full items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm animate-rise">
         <Logo className="mx-auto mb-8 h-7 w-auto text-[#f4f3f3]" />
         <form action={signIn} className="space-y-4 rounded-card border border-border bg-card p-6">
+          {next && <input type="hidden" name="next" value={next} />}
           <div>
             <h1 className="text-lg font-semibold">Entrar no painel</h1>
           </div>
@@ -23,7 +24,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <Field label="E-mail"><Input name="email" type="email" placeholder="voce@email.com" required /></Field>
           <Field label="Senha"><Input name="password" type="password" placeholder="••••••••••" required /></Field>
           <Button type="submit" className="w-full">Entrar</Button>
-          <p className="text-center text-sm text-muted-foreground">Primeiro acesso? <Link href="/cadastro" className="text-foreground underline">Criar conta</Link></p>
+          <p className="text-center text-sm text-muted-foreground">Primeiro acesso? <Link href={next ? `/cadastro?${new URLSearchParams({ next })}` : '/cadastro'} className="text-foreground underline">Criar conta</Link></p>
         </form>
       </div>
     </main>

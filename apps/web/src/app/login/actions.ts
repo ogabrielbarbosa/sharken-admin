@@ -3,6 +3,7 @@
 import { acceptInvites, createAdminClient, findUserByEmail, normalizeEmail, pendingInvites } from '@lps/db';
 import { redirect } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase/server';
+import { safeNext } from './safe-next';
 
 const configured = () => !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -16,7 +17,7 @@ export async function signIn(formData: FormData) {
   if (error || !data.user) redirect('/login?erro=credenciais');
   // Convidado para outro workspace depois de já ter conta: entra nele agora.
   await acceptInvites(createAdminClient(), { id: data.user.id, email: data.user.email ?? '' });
-  redirect('/painel');
+  redirect(safeNext(formData.get('next')));
 }
 
 /**
@@ -28,7 +29,10 @@ export async function signUp(formData: FormData) {
   const email = normalizeEmail(String(formData.get('email') ?? ''));
   const password = String(formData.get('password') ?? '');
   const confirm = String(formData.get('confirm') ?? '');
-  const back = (erro: string): never => redirect(`/cadastro?${new URLSearchParams({ erro, email })}`);
+  // Mesmo retorno do login (ex.: consentimento OAuth), só se for um destino interno válido.
+  const dest = safeNext(formData.get('next'));
+  const keep: Record<string, string> = formData.get('next') === dest ? { next: dest } : {};
+  const back = (erro: string): never => redirect(`/cadastro?${new URLSearchParams({ erro, email, ...keep })}`);
   if (!/^\S+@\S+\.\S+$/.test(email)) back('email');
   if (password.length < 8) back('senha-curta');
   if (password !== confirm) back('senha-diferente');
@@ -43,8 +47,8 @@ export async function signUp(formData: FormData) {
 
   const supabase = await createServerClient();
   const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-  if (loginError) redirect('/login');
-  redirect('/painel');
+  if (loginError) redirect(keep.next ? `/login?${new URLSearchParams(keep)}` : '/login');
+  redirect(dest);
 }
 
 export async function signOut() {

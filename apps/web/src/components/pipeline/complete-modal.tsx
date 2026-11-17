@@ -32,8 +32,18 @@ function Row({ title, children }: { title: string; children: ReactNode }) {
 const label = (t: string) => <p className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">{t}</p>;
 
 /** Modal de Qualificado: o que o sistema tem, o que o Gabriel acrescenta, briefing e "Informações completas". */
-export function CompleteModal({ lead, assets, position, prevHref, nextHref, closeHref, workerStale }: {
-  lead: Lead; assets: LeadAsset[]; position: string; prevHref: string | null; nextHref: string | null; closeHref: string; workerStale: boolean;
+/** Fotos do lead: Instagram e Maps já são URLs; as extraídas do material são caminhos no bucket privado e só entram com o link assinado. */
+export function leadPhotos(lead: Pick<Lead, 'instagram_media' | 'photos'>, assets: Pick<LeadAsset, 'status' | 'extracted_images'>[], materialLinks: Record<string, string>): string[] {
+  const extracted = assets.filter((a) => a.status === 'pronto').flatMap((a) => a.extracted_images ?? []);
+  return [...new Set([
+    ...(lead.instagram_media ?? []).map((m) => m.url),
+    ...lead.photos,
+    ...extracted.map((p) => materialLinks[p]).filter((u): u is string => !!u),
+  ])];
+}
+
+export function CompleteModal({ lead, assets, position, prevHref, nextHref, closeHref, workerStale, materialLinks }: {
+  lead: Lead; assets: LeadAsset[]; materialLinks: Record<string, string>; position: string; prevHref: string | null; nextHref: string | null; closeHref: string; workerStale: boolean;
 }) {
   const router = useRouter();
   const { pending, notice, run } = useStageAction(closeHref);
@@ -43,7 +53,7 @@ export function CompleteModal({ lead, assets, position, prevHref, nextHref, clos
   const extracting = assets.some((a) => a.status === 'extraindo');
   const check = canCompleteInfo(lead, assets);
   const flow = flowLabel(lead);
-  const photos = [...new Set([...(lead.instagram_media ?? []).map((m) => m.url), ...lead.photos, ...assets.filter((a) => a.status === 'pronto').flatMap((a) => a.extracted_images ?? [])])];
+  const photos = leadPhotos(lead, assets, materialLinks);
   const close = () => router.replace(closeHref, { scroll: false });
   const nav = (href: string | null, name: string, icon: ReactNode) =>
     href ? <Link href={href} replace scroll={false} aria-label={name} className="text-muted-foreground hover:text-foreground">{icon}</Link> : <span className="text-muted-foreground/30">{icon}</span>;
@@ -60,7 +70,7 @@ export function CompleteModal({ lead, assets, position, prevHref, nextHref, clos
           <Button variant="ghost" disabled={pending} onClick={() => run(() => discardAction([lead.id]), (r) => { if (r.ok) close(); })}><Trash2 />Descartar</Button>
           <div className="flex flex-wrap items-center gap-2">
             {!check.ok && <span className="text-xs text-muted-foreground">{check.reason}</span>}
-            <CopyButton text={buildBriefing(lead, assets)} label="Copiar briefing" />
+            <CopyButton text={buildBriefing(lead, assets, (p) => materialLinks[p] ?? null)} label="Copiar briefing" />
             <Button disabled={pending || !check.ok} onClick={() => run(() => completeInfoAction(lead.id), (r) => { if (r.ok) close(); })}><ArrowRight />Informações completas</Button>
           </div>
         </>

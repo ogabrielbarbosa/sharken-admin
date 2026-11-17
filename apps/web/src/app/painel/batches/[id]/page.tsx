@@ -90,6 +90,14 @@ async function contactsByLead(db: Db, leads: Lead[]): Promise<Record<string, Con
   return out;
 }
 
+/** Links temporários (1 h) das imagens extraídas do material, para o briefing. Os caminhos são do bucket privado. */
+async function materialLinksOf(db: Db, assets: LeadAsset[]): Promise<Record<string, string>> {
+  const paths = [...new Set(assets.filter((a) => a.status === 'pronto').flatMap((a) => a.extracted_images ?? []))];
+  if (!paths.length) return {};
+  const { data } = await db.storage.from('lead-assets').createSignedUrls(paths, 3600);
+  return Object.fromEntries((data ?? []).flatMap((d) => (d.path && d.signedUrl ? [[d.path, d.signedUrl]] : [])));
+}
+
 /** Há tarefa de extração pendente há mais de 2 minutos? Sinal de worker parado. */
 async function workerLooksStale(db: Db): Promise<boolean> {
   const { data } = await db.from('jobs').select('id').eq('type', 'extract_asset').eq('status', 'pendente')
@@ -136,7 +144,8 @@ export default async function PipelinePage({ params, searchParams }: { params: P
     modal = <LeadDrawer key={open.id} lead={open} closeHref={closeHref} {...siblings(list)} />;
   } else if (open?.stage === 'completar') {
     const stale = (assets[open.id] ?? []).some((a) => a.status === 'extraindo') && (await workerLooksStale(db));
-    modal = <CompleteModal key={open.id} lead={open} assets={assets[open.id] ?? []} closeHref={closeHref} workerStale={stale} {...siblings(qualified)} />;
+    const materialLinks = await materialLinksOf(db, assets[open.id] ?? []);
+    modal = <CompleteModal key={open.id} lead={open} assets={assets[open.id] ?? []} materialLinks={materialLinks} closeHref={closeHref} workerStale={stale} {...siblings(qualified)} />;
   } else if (open && (open.stage === 'pagina' || open.stage === 'video')) {
     modal = <LinkModal key={`${open.id}-${open.stage}`} kind={open.stage} lead={open} closeHref={closeHref} />;
    } else if (open && openColumn === 'pronto') {

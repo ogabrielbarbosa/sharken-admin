@@ -13,13 +13,14 @@ const messages: Record<string, string> = {
   config: 'Faltam as chaves do Supabase.',
 };
 
-export default async function CadastroPage({ searchParams }: { searchParams: Promise<{ erro?: string; email?: string }> }) {
-  const { erro, email } = await searchParams;
+export default async function CadastroPage({ searchParams }: { searchParams: Promise<{ erro?: string; email?: string; next?: string }> }) {
+  const { erro, email, next } = await searchParams;
   return (
     <main className="flex min-h-full items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm animate-rise">
         <Logo className="mx-auto mb-8 h-7 w-auto text-[#f4f3f3]" />
         <form action={signUp} className="space-y-4 rounded-card border border-border bg-card p-6">
+          {next && <input type="hidden" name="next" value={next} />}
           <div>
             <h1 className="text-lg font-semibold">Criar conta</h1>
             <p className="mt-1 text-sm text-muted-foreground">Use o e-mail em que você foi convidado. Você entra direto no seu workspace.</p>
@@ -29,7 +30,7 @@ export default async function CadastroPage({ searchParams }: { searchParams: Pro
           <Field label="Senha" hint="Mínimo de 8 caracteres"><Input name="password" type="password" minLength={8} required /></Field>
           <Field label="Repita a senha"><Input name="confirm" type="password" minLength={8} required /></Field>
           <Button type="submit" className="w-full">Criar conta</Button>
-          <p className="text-center text-sm text-muted-foreground">Já tem conta? <Link href="/login" className="text-foreground underline">Entrar</Link></p>
+          <p className="text-center text-sm text-muted-foreground">Já tem conta? <Link href={next ? `/login?${new URLSearchParams({ next })}` : '/login'} className="text-foreground underline">Entrar</Link></p>
         </form>
       </div>
     </main>

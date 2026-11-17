@@ -15,3 +15,5 @@ export * from './pipeline';
 export * from './scope';
 export * from './invites';
 export * from './billing';
+export * from './read-only';
+export * from './mcp-read';
