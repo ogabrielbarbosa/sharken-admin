@@ -48,8 +48,8 @@ const LIST_LIMIT = 50;
 const LIST_MAX = 200;
 const MESSAGES_LIMIT = 100;
 const MESSAGES_MAX = 500;
-/** Listas de ids no `in` vão em pedaços para a URL da REST não estourar. */
-const IN_CHUNK = 200;
+/** Listas de ids no `in` vão em pedaços para a URL da REST não estourar (uuid ~37 bytes; 100 ≈ 4 KB). */
+const IN_CHUNK = 100;
 
 const SUMMARY_COLUMNS =
   'id, workspace_id, batch_id, name, stage, flow, score, city, business_type, phone_e164, phone_raw, website_url, instagram_url, instagram_media, page_url, loom_url, stage_changed_at';

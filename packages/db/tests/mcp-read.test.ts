@@ -233,3 +233,34 @@ describe('cursor', () => {
     await expect(mcpListLeads(db, admin, { cursor: 'lixo' })).rejects.toThrow('Cursor inválido.');
   });
 });
+
+describe('listas de ids em pedaços', () => {
+  it('nenhum `in` passa de 100 ids, para a URL da REST não estourar', async () => {
+    const wsId = (await one<{ id: string }>(`insert into workspaces (name, slug) values ('Grande', 'grande') returning id`)).id;
+    const batch = (await one<{ id: string }>(
+      `insert into batches (location, location_key, business_type, quantity, criteria, status, workspace_id)
+       values ('Cidade grande', 'cidade grande', 'Padaria', 150, '{}', 'concluido', $1) returning id`,
+      [wsId],
+    )).id;
+    await pg.query(
+      `insert into leads (batch_id, place_id, name, stage, score, workspace_id)
+       select $1, 'grande-' || i, 'Lead ' || i, 'revisar', 50, $2 from generate_series(1, 150) i`,
+      [batch, wsId],
+    );
+    const sizes: number[] = [];
+    const base = fakeDb(pg);
+    const spy = {
+      ...base,
+      from: (table: string) => {
+        const q = base.from(table) as unknown as Record<string, (c: string, v: unknown[]) => unknown>;
+        const inner = q.in;
+        q.in = (c, v) => (sizes.push(v.length), inner(c, v));
+        return q;
+      },
+    } as unknown as Db;
+    const access: Access = { userId: 'u9', isAdmin: false, workspaces: [{ id: wsId, name: 'Grande', slug: 'grande', role: 'owner' }] };
+    const got = await mcpListLeads(spy, access, { limit: 200 });
+    expect(got.leads).toHaveLength(150);
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(100);
+  });
+});
