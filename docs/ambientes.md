@@ -1,6 +1,6 @@
 # Ambiente
 
-Existe **um ambiente só**. O painel no seu Mac (`pnpm dev`), o painel publicado (https://admin.sharkenapps.com) e o worker da VPS usam o **mesmo banco**, o Supabase da VPS. Tudo o que você faz no local é real: grava na produção, manda WhatsApp de verdade e gasta Apify e Claude de verdade.
+Existe **um ambiente só**. O painel no seu Mac (`pnpm dev`), o painel publicado (https://admin.sharkenapps.com) e o worker da VPS usam o **mesmo banco**, o Supabase da VPS. Tudo o que você faz no local é real: grava na produção, manda WhatsApp de verdade e gasta Apify (na conta do workspace) e Claude de verdade.
 
 ## Comandos
 
@@ -74,6 +74,14 @@ Conversas de exemplo: `pnpm crm:demo` cria 8 contatos com DDD 00 (o envio para e
 ## Limite de arquivo no Storage
 
 500 MB por arquivo (`UPLOAD_FILE_SIZE_LIMIT` do serviço supa-sharken no Coolify).
+
+## Apify (conta de cada workspace)
+
+Não existe token do Apify no `.env`. Cada workspace cola o próprio em **Configurações › Apify** (tabela `workspace_apify`,
+só o servidor lê); o sistema confere no Apify de quem é a conta antes de salvar. A busca do batch, o Instagram dos leads,
+as imagens dos qualificados e a leitura de link do Instagram usam o token do workspace. Sem token, o Novo batch avisa
+para conectar; com o crédito do mês esgotado, o batch mostra "Acabou o crédito do Apify deste mês". A conta gratuita
+traz US$ 5 por mês (uns 7 batches de 50 lugares).
 
 ## Imagens do Instagram (Cloudflare R2)
 
