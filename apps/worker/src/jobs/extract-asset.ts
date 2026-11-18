@@ -1,7 +1,8 @@
 import { getAsset, updateAsset, type Db } from '@lps/db';
-import { buildInstagramInput, extractHtmlText, extractPdfText, INSTAGRAM_ACTOR, instagramToExtract, runActorSync, truncateText, type InstagramExtractProfile } from '@lps/integrations';
+import { APIFY_NOT_CONNECTED, APIFY_OUT_OF_CREDIT, buildInstagramInput, extractHtmlText, extractPdfText, INSTAGRAM_ACTOR, instagramToExtract, runActorSync, truncateText, type InstagramExtractProfile } from '@lps/integrations';
 import type { LeadAsset } from '@lps/domain';
 import { newContext } from '../browser';
+import { apifyTokenFor, withApifyCredit } from './apify-token';
 import { JobFailure, type Handler } from './types';
 
 const BUCKET = 'lead-assets';
@@ -46,8 +47,8 @@ function isInstagram(url: string): boolean {
   }
 }
 
-async function extractInstagram(url: string) {
-  const [profile] = await runActorSync<InstagramExtractProfile>(INSTAGRAM_ACTOR, buildInstagramInput([url]));
+async function extractInstagram(url: string, token: string) {
+  const [profile] = await withApifyCredit(() => runActorSync<InstagramExtractProfile>(token, INSTAGRAM_ACTOR, buildInstagramInput([url])));
   if (!profile) throw new JobFailure('Não encontrei esse perfil do Instagram.');
   return instagramToExtract(profile);
 }
@@ -89,7 +90,7 @@ export const extractAssetJob: Handler = async (db, job) => {
   if (asset.kind === 'link') {
     if (!asset.url) throw new JobFailure('Link sem endereço.');
     if (!isHttpUrl(asset.url)) throw new JobFailure('Link inválido: use um endereço http ou https.');
-    const found = isInstagram(asset.url) ? await extractInstagram(asset.url) : await extractWebPage(asset.url);
+    const found = isInstagram(asset.url) ? await extractInstagram(asset.url, await apifyTokenFor(job)) : await extractWebPage(asset.url);
     text = found.text;
     images = await copyImages(db, asset.lead_id, asset.id, found.images);
   } else if (asset.kind === 'arquivo') {
@@ -107,7 +108,8 @@ export const extractAssetJob: Handler = async (db, job) => {
   });
 };
 
-function friendlyError(message: string): string {
+export function friendlyError(message: string): string {
+  if (message === APIFY_NOT_CONNECTED || message === APIFY_OUT_OF_CREDIT) return message;
   if (/timeout/i.test(message)) return 'Não consegui abrir o link (timeout).';
   if (/Apify/i.test(message)) return 'Não consegui ler o perfil do Instagram.';
   if (/ERR_NAME_NOT_RESOLVED|ERR_CONNECTION|ERR_CERT|net::/i.test(message)) return 'Não consegui abrir o link.';

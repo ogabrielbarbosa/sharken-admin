@@ -1,6 +1,7 @@
 import { getLead, updateLead } from '@lps/db';
 import { instagramMediaKey, pickInstagramMedia, type InstagramMedia, type InstagramMediaProfile, type InstagramMediaSource } from '@lps/domain';
 import { buildInstagramInput, INSTAGRAM_ACTOR, r2Config, runActorSync, uploadToR2, type R2Config } from '@lps/integrations';
+import { apifyTokenFor, withApifyCredit } from './apify-token';
 import { JobFailure, Reschedule, type Handler } from './types';
 
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -36,7 +37,8 @@ export const instagramMediaJob: Handler = async (db, job) => {
 
   const input = buildInstagramInput([lead.instagram_url]);
   if (!input.usernames.length) throw new JobFailure('O link do Instagram não é de um perfil.');
-  const [profile] = await runActorSync<InstagramMediaProfile>(INSTAGRAM_ACTOR, input);
+  const token = await apifyTokenFor(job);
+  const [profile] = await withApifyCredit(() => runActorSync<InstagramMediaProfile>(token, INSTAGRAM_ACTOR, input));
   if (!profile) throw new JobFailure('Não encontrei esse perfil do Instagram.');
 
   const items = pickInstagramMedia(profile);
