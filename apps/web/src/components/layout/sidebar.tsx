@@ -1,6 +1,6 @@
 'use client';
 
-import { FilePenLine, Layers, LayoutGrid, LogOut, MessageCircle, Settings, Users } from 'lucide-react';
+import { BookOpen, FilePenLine, Layers, LayoutGrid, LogOut, MessageCircle, Settings, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from '@/app/login/actions';
@@ -17,6 +17,7 @@ const after: Item[] = [
   { href: '/painel/contratos', label: 'Contratos', icon: FilePenLine },
   { href: '/painel/clientes', label: 'Clientes', icon: Users },
   { href: '/painel/configuracoes', label: 'Configurações', icon: Settings },
+  { href: '/painel/instrucoes', label: 'Instruções', icon: BookOpen },
 ];
 
 const CRM = '/painel/crm';
