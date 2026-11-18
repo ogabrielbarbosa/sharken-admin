@@ -30,4 +30,5 @@ export * from './pipeline-links';
 export * from './briefing';
 export * from './enrichment';
 export * from './abacatepay';
+export * from './apify-token';
 export * from './instagram-media';

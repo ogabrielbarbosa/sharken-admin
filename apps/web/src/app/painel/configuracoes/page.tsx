@@ -1,7 +1,7 @@
 import { getEnv } from '@lps/config';
-import { createAdminClient, getWorkspaceBilling, listCatalog, pendingInvites, scopeDb } from '@lps/db';
-import { CYCLES, formatBRL, maskApiKey } from '@lps/domain';
-import { Archive, ArchiveRestore, Building2, Check, Clock, CreditCard, LogIn, Package, Plug, Plus, Trash2, Unplug, UserPlus, Users, X } from 'lucide-react';
+import { createAdminClient, getWorkspaceApify, getWorkspaceBilling, listCatalog, pendingInvites, scopeDb } from '@lps/db';
+import { CYCLES, formatBRL, maskApiKey, maskApifyToken } from '@lps/domain';
+import { Archive, ArchiveRestore, Building2, Radar, Check, Clock, CreditCard, LogIn, Package, Plug, Plus, Trash2, Unplug, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { WhatsAppConnection, whatsappIntro } from '@/components/connections/whatsapp-connection';
@@ -13,11 +13,11 @@ import { getSession } from '@/lib/auth';
 import { formatDate } from '@/lib/lead-labels';
 import { listMcpConnections, mcpEndpoint } from '@/lib/mcp/connections';
 import {
-  addMemberAction, cancelInviteAction, createWorkspaceAction, removeBillingAction, removeMemberAction, revokeMcpConnectionAction, saveBillingAction,
+  addMemberAction, cancelInviteAction, createWorkspaceAction, removeApifyAction, removeBillingAction, removeMemberAction, revokeMcpConnectionAction, saveApifyAction, saveBillingAction,
   saveCatalogItemAction, saveWorkspaceAction, switchWorkspaceAction, toggleCatalogItemAction,
 } from './actions';
 
-type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'servicos' | 'mcp' | 'workspaces';
+type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'apify' | 'servicos' | 'mcp' | 'workspaces';
 const ROLE = { owner: 'Dono', member: 'Membro' } as const;
 const HERE = '/painel/configuracoes';
 
@@ -63,6 +63,7 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
     { key: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon },
     { key: 'servicos', label: 'Serviços', icon: Package },
     { key: 'pagamentos', label: 'Pagamentos', icon: CreditCard },
+    { key: 'apify', label: 'Apify', icon: Radar },
     { key: 'mcp', label: 'MCP (Claude)', icon: Plug },
     ...(isAdmin ? [{ key: 'workspaces' as const, label: 'Todos os workspaces', icon: LogIn }] : []),
   ];
@@ -129,6 +130,8 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
           {tab === 'servicos' && <CatalogTab workspaceId={workspace.id} canEdit={canEdit} />}
 
           {tab === 'pagamentos' && <BillingTab workspaceId={workspace.id} canEdit={canEdit} />}
+
+          {tab === 'apify' && <ApifyTab workspaceId={workspace.id} canEdit={canEdit} />}
 
           {tab === 'mcp' && <McpTab endpoint={mcpEndpoint(env.APP_URL)} />}
 
@@ -285,6 +288,51 @@ async function BillingTab({ workspaceId, canEdit }: { workspaceId: string; canEd
               <p>No painel da AbacatePay: <span className="text-foreground">Integração › API › Nova chave</span>, versão v2, com estas permissões:</p>
               <p className="flex flex-wrap gap-1">{PERMISSIONS.map((p) => <code key={p} className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[11px] text-foreground">{p}</code>)}</p>
               <p>A chave aparece uma vez só lá. Aqui ela fica guardada no servidor e nunca volta para a tela.</p>
+            </div>
+          </Section>
+        </form>
+      )}
+    </>
+  );
+}
+
+async function ApifyTab({ workspaceId, canEdit }: { workspaceId: string; canEdit: boolean }) {
+  const apify = await getWorkspaceApify(createAdminClient(), workspaceId);
+  return (
+    <>
+      <Section title="Apify" description="A conta que faz as buscas deste workspace: Google Maps, Instagram dos leads e as imagens dos qualificados. Cada workspace usa a própria conta, e o gasto sai dela.">
+        {apify ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="grid size-8 shrink-0 place-items-center rounded-md bg-success/15 text-success"><Check className="size-4" /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Conectado como {apify.username ?? 'conta do Apify'} <span className="font-mono text-xs font-normal text-muted-foreground">{maskApifyToken(apify.token)}</span></p>
+              <p className="text-xs text-muted-foreground">Desde {formatDate(apify.updated_at)}</p>
+            </div>
+            {apify.plan && <Badge tone={apify.plan === 'FREE' ? 'warning' : 'success'}>{apify.plan === 'FREE' ? 'Gratuito' : apify.plan}</Badge>}
+            {canEdit && (
+              <form action={removeApifyAction}>
+                <Button type="submit" variant="ghost">Desconectar</Button>
+              </form>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Ainda não conectado. Sem ele, não dá para criar batch nem baixar as imagens do Instagram.</p>
+        )}
+      </Section>
+      {canEdit && (
+        <form action={saveApifyAction}>
+          <Section
+            title={apify ? 'Trocar o token' : 'Conectar'}
+            description="Cole o token pessoal da sua conta do Apify. O sistema confere com o Apify antes de salvar."
+            footer={<Button type="submit">{apify ? 'Salvar token novo' : 'Conectar'}</Button>}
+          >
+            <Field label="Token da API" hint="Começa com apify_api_">
+              <Input name="token" type="password" autoComplete="off" placeholder="apify_api_…" required />
+            </Field>
+            <div className="mt-4 space-y-1.5 text-xs text-muted-foreground">
+              <p>No Apify: <span className="text-foreground">Settings › API &amp; Integrations › Personal API tokens</span> (<a className="underline hover:text-foreground" href="https://console.apify.com/settings/integrations" target="_blank" rel="noreferrer">abrir</a>).</p>
+              <p>A conta gratuita traz US$ 5 de crédito por mês, uns 7 batches de 50 lugares. Quando acaba, as buscas param até o mês seguinte, sem cobrança extra.</p>
+              <p>O token fica guardado no servidor e nunca volta para a tela.</p>
             </div>
           </Section>
         </form>

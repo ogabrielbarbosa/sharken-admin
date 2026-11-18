@@ -1,8 +1,8 @@
 'use server';
 
-import { createAdminClient, createCatalogItem, deleteWorkspaceBilling, getWorkspaceBilling, inviteToWorkspace, saveWorkspaceBilling, scopeDb, slugify, updateCatalogItem } from '@lps/db';
-import { abacateKeyMode, parseBRLToCents, CYCLES, type Cycle } from '@lps/domain';
-import { abacatePay } from '@lps/integrations';
+import { createAdminClient, createCatalogItem, deleteWorkspaceApify, deleteWorkspaceBilling, getWorkspaceBilling, inviteToWorkspace, saveWorkspaceApify, saveWorkspaceBilling, scopeDb, slugify, updateCatalogItem } from '@lps/db';
+import { abacateKeyMode, parseApifyToken, parseBRLToCents, CYCLES, type Cycle } from '@lps/domain';
+import { abacatePay, apifyAccount } from '@lps/integrations';
 import { randomBytes } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
@@ -12,7 +12,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { abacateWebhookUrl } from '@/lib/billing';
 
 const HERE = '/painel/configuracoes';
-type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'servicos' | 'mcp' | 'workspaces';
+type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'apify' | 'servicos' | 'mcp' | 'workspaces';
 const back = (aba: Tab, msg: { erro?: string; ok?: string }): never =>
   redirect(`${HERE}?${new URLSearchParams({ aba, ...(msg.erro ? { erro: msg.erro } : {}), ...(msg.ok ? { ok: msg.ok } : {}) })}`);
 
@@ -157,6 +157,29 @@ export async function removeBillingAction() {
   await deleteWorkspaceBilling(db, workspace.id);
   revalidatePath(HERE);
   back('pagamentos', { ok: 'AbacatePay desconectada. As cobranças já emitidas continuam registradas, mas os pagamentos delas não serão mais confirmados aqui.' });
+}
+
+/** Salva o token do Apify do workspace depois de conferir no Apify de quem é a conta. Token recusado não é salvo. */
+export async function saveApifyAction(formData: FormData) {
+  const { workspace } = await requireOwner('apify');
+  const token = parseApifyToken(text(formData, 'token'));
+  if (!token) back('apify', { erro: 'Cole o token do Apify.' });
+  let account: { username: string; plan: string };
+  try {
+    account = await apifyAccount(token!);
+  } catch (err) {
+    return back('apify', { erro: (err as Error).message });
+  }
+  await saveWorkspaceApify(createAdminClient(), { workspace_id: workspace.id, token: token!, username: account.username, plan: account.plan });
+  revalidatePath(HERE);
+  back('apify', { ok: `Apify conectado como ${account.username} (plano ${account.plan}).` });
+}
+
+export async function removeApifyAction() {
+  const { workspace } = await requireOwner('apify');
+  await deleteWorkspaceApify(createAdminClient(), workspace.id);
+  revalidatePath(HERE);
+  back('apify', { ok: 'Apify desconectado. Batches novos ficam bloqueados até conectar de novo.' });
 }
 
 function catalogFields(formData: FormData) {
