@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
+import { NavProgress } from '@/components/layout/nav-progress';
 import { ShellProvider, SIDEBAR_COOKIE } from '@/components/layout/shell';
 import { Sidebar } from '@/components/layout/sidebar';
 import { WorkspaceProvider } from '@/components/layout/workspace';
@@ -17,6 +18,7 @@ export default async function PainelLayout({ children }: { children: ReactNode }
   return (
     <ShellProvider initialCollapsed={collapsed}>
       <WorkspaceProvider id={workspace.id}>
+        <Suspense><NavProgress /></Suspense>
         {/* A página não rola: o corpo tem a altura da tela e a rolagem acontece dentro dele. */}
         <div className="flex h-dvh overflow-hidden">
           <Sidebar

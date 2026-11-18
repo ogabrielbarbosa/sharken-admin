@@ -1,6 +1,6 @@
 import type { ChatState, ContactStatus, Lead, LeadAsset } from '@lps/domain';
 import { Loader2, MessagesSquare } from 'lucide-react';
-import Link from 'next/link';
+import Link, { useLinkStatus } from 'next/link';
 import type { ReactNode } from 'react';
 import { Status } from '@/components/ui';
 import { crmHref, STATUS_LABEL } from '@/lib/crm';
@@ -72,12 +72,20 @@ function CardBody({ lead, children }: { lead: Lead; children?: ReactNode }) {
   );
 }
 
+/** Enquanto o lead clicado carrega, um brilho passa pelo cartão (com atraso, para não piscar nos rápidos). */
+function Pending() {
+  const { pending } = useLinkStatus();
+  if (!pending) return null;
+  return <span aria-hidden className="pointer-events-none absolute inset-0 rounded-md bg-[linear-gradient(90deg,transparent_30%,#ffffff12_50%,transparent_70%)] bg-[length:200%_100%] [animation:var(--animate-fade-in),var(--animate-shimmer)] [animation-delay:100ms,0ms]" />;
+}
+
 /** Cartão inteiro clicável: clicar abre o lead (ou a conversa). */
 function LinkCard({ lead, href, active, drag, children }: { lead: Lead; href: string; active?: boolean; drag?: CardDrag; children?: ReactNode }) {
   return (
     <Shell lead={lead} active={active} drag={drag}>
-      <Link href={href} scroll={false} draggable={false} className="-m-3 block rounded-md p-3 hover:bg-accent/40">
+      <Link href={href} scroll={false} draggable={false} className="relative -m-3 block rounded-md p-3 hover:bg-accent/40">
         <CardBody lead={lead}>{children}</CardBody>
+        <Pending />
       </Link>
     </Shell>
   );
