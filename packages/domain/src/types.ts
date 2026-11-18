@@ -36,6 +36,8 @@ export type SiteData = {
   /** E-mails e links de WhatsApp da página (mailto, texto, wa.me). Leads antigos não têm. */
   emails?: string[];
   whatsappLinks?: string[];
+  /** Links para o Instagram que aparecem na página. Leads antigos não têm. */
+  instagramLinks?: string[];
 };
 
 export type ScoreReason = { label: string; points: number; met: boolean };

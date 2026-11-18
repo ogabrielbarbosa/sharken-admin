@@ -114,6 +114,14 @@ export function latestPostDate(profile: InstagramProfile): string | null {
   return dates.at(-1) ?? null;
 }
 
+/** Data do último post de um perfil. Usado quando o Instagram aparece depois da busca do batch (no site do lead). */
+export async function instagramLastPostAt(token: string, instagramUrl: string): Promise<string | null> {
+  const input = buildInstagramInput([instagramUrl]);
+  if (!input.usernames.length) return null;
+  const [profile] = await runActorSync<InstagramProfile>(token, INSTAGRAM_ACTOR, input);
+  return profile ? latestPostDate(profile) : null;
+}
+
 /** Sem um endereço público, o webhook do Apify não chega: o worker consulta o resultado. */
 export function shouldPollRuns(env: { APP_URL: string; WEBHOOK_BASE_URL?: string }): boolean {
   if (env.WEBHOOK_BASE_URL) return false;

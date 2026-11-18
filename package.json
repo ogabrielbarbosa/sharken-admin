@@ -17,7 +17,8 @@
     "user:create": "pnpm --filter @lps/worker user:create",
     "whatsapp:webhook": "pnpm --filter @lps/worker whatsapp:webhook",
     "crm:demo": "pnpm --filter @lps/worker crm:demo --",
-    "leads:reprocess": "pnpm --filter @lps/worker leads:reprocess --"
+    "leads:reprocess": "pnpm --filter @lps/worker leads:reprocess --",
+    "leads:instagram-from-site": "pnpm --filter @lps/worker leads:instagram-from-site --"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

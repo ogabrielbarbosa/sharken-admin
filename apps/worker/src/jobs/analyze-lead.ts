@@ -1,6 +1,6 @@
-import { countOpenJobs, getBatch, getContactContext, getLead, logEvent, moveLead, updateBatch, updateLead, type Db, type Job } from '@lps/db';
-import { bestContacts, checkEliminatory, looksLikeFranchise, classifyLink, flowFromSiteStatus, nextCheckStep, scoreLead, DEFAULT_CRITERIA, type Lead, type SiteStatus } from '@lps/domain';
-import { analyzeLead, defaultEnrichDeps, enrichLead, RateLimited } from '@lps/integrations';
+import { countOpenJobs, createAdminClient, getApifyToken, getBatch, getContactContext, getLead, logEvent, moveLead, updateBatch, updateLead, type Db, type Job } from '@lps/db';
+import { bestContacts, checkEliminatory, looksLikeFranchise, classifyLink, instagramProfileFromLinks, flowFromSiteStatus, nextCheckStep, scoreLead, DEFAULT_CRITERIA, type Lead, type SiteStatus } from '@lps/domain';
+import { analyzeLead, defaultEnrichDeps, enrichLead, instagramLastPostAt, RateLimited } from '@lps/integrations';
 import { probeSite } from '../site-probe';
 import { Reschedule, type Handler } from './types';
 
@@ -31,6 +31,27 @@ async function resolveSite(db: Db, lead: Lead): Promise<Lead> {
   const full = { ...patch, site_status, flow: flowFromSiteStatus(site_status) };
   await updateLead(db, lead.id, full);
   return { ...lead, ...full };
+}
+
+/**
+ * O Google muitas vezes não traz o Instagram, mas o site do lead tem o link (rodapé, ícones).
+ * A busca do Instagram do batch já passou, então a data do último post é buscada só para esse perfil.
+ * Sem token do Apify ou com falha nele, o lead fica com o link e sem a data.
+ */
+export async function resolveSiteInstagram(db: Db, lead: Lead, workspaceId: string | null | undefined): Promise<Lead> {
+  if (lead.instagram_url) return lead;
+  const instagram_url = instagramProfileFromLinks(lead.site_data?.instagramLinks ?? []);
+  if (!instagram_url) return lead;
+  const patch: Partial<Lead> = { instagram_url };
+  try {
+    const token = workspaceId ? await getApifyToken(createAdminClient(), workspaceId) : null;
+    if (token) patch.instagram_last_post_at = await instagramLastPostAt(token, instagram_url);
+  } catch {
+    // Sem a data o lead só deixa de pontuar o critério do Instagram ativo.
+  }
+  await updateLead(db, lead.id, patch);
+  await logEvent(db, lead.id, 'instagram_do_site', { instagram_url });
+  return { ...lead, ...patch };
 }
 
 const MAX_RATE_LIMIT_WAITS = 5;
@@ -77,7 +98,7 @@ export const analyzeLeadJob: Handler = async (db, job: Job) => {
     return;
   }
 
-  const lead = await resolveEnrichment(db, await resolveSite(db, current));
+  const lead = await resolveEnrichment(db, await resolveSiteInstagram(db, await resolveSite(db, current), job.workspace_id));
 
   // Uma falha da IA é repetida pelo worker. Depois das tentativas, onFailure segue sem o resumo.
   const analysis = await analyzeLead(lead);

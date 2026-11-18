@@ -11,7 +11,8 @@
     "user:create": "tsx src/create-user.ts",
     "whatsapp:webhook": "tsx src/whatsapp-webhook.ts",
     "crm:demo": "tsx src/crm-demo.ts",
-    "leads:reprocess": "tsx src/reprocess-leads.ts"
+    "leads:reprocess": "tsx src/reprocess-leads.ts",
+    "leads:instagram-from-site": "tsx src/instagram-from-site.ts"
   },
   "dependencies": {
     "@lps/config": "workspace:*",

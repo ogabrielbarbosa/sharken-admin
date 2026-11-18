@@ -30,6 +30,10 @@ export async function extractSiteData(page: Page): Promise<SiteData> {
         ...(document.body?.innerText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi) ?? []),
       ].map((e) => e.trim().toLowerCase()).filter(Boolean))].slice(0, 10),
       whatsappLinks: [...new Set([...document.querySelectorAll('a[href*="wa.me"], a[href*="whatsapp.com"]')].map((a) => (a as HTMLAnchorElement).href))].slice(0, 10),
+      // Sem o crédito de quem fez o site ("desenvolvido por @agencia"), que costuma ficar no rodapé.
+      instagramLinks: [...new Set([...document.querySelectorAll('a[href*="instagram.com"]')]
+        .filter((a) => !/desenvolvid|criad[oa] por|feito por|site por|design|ag[eê]ncia|powered|made by/i.test(clean(`${a.textContent} ${a.parentElement?.textContent ?? ''}`).slice(0, 200)))
+        .map((a) => (a as HTMLAnchorElement).href))].slice(0, 10),
     };
   });
 }
