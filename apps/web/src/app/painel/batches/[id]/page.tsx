@@ -166,7 +166,7 @@ export default async function PipelinePage({ params, searchParams }: { params: P
         {running && <Arriving leads={analyzing} searching={batch.status === 'buscando'} quantity={batch.quantity} />}
         <ActiveFilters batchId={id} filter={filter} shown={reviewed.length} total={toReview.length} />
         {notice && <p role="status" className="mb-4 rounded-md bg-warning-subtle px-3 py-2 text-sm text-warning">{notice}</p>}
-        <Board batchId={id} leads={leads} assets={assets} contacts={contacts} query={filterQs} openId={open?.id} />
+        <Board batchId={id} leads={leads} contacts={contacts} query={filterQs} openId={open?.id} />
         {modal}
         <div className="h-20 md:hidden" />
       </main>

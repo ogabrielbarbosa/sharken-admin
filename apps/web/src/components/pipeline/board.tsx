@@ -1,7 +1,7 @@
 'use client';
 
 import type { PipelineResult } from '@lps/db';
-import { columnOf, dropMove, PIPELINE_COLUMNS, type Lead, type LeadAsset, type PipelineColumn } from '@lps/domain';
+import { columnOf, dropMove, PIPELINE_COLUMNS, type Lead, type PipelineColumn } from '@lps/domain';
 import { useRouter } from 'next/navigation';
 import { completeInfoAction, discardAction, qualifyAction, stepBackAction } from '@/app/painel/batches/[id]/actions';
 import { useState, useTransition } from 'react';
@@ -61,8 +61,8 @@ export function Notice({ notice }: { notice: { tone: 'error' | 'warning'; text: 
  * Quadro da pipeline. Recebe os leads já na ordem de cada coluna
  * (Novo lead filtrado e por pontuação, as outras por tempo na etapa).
  */
-export function Board({ batchId, leads, assets, contacts, query = '', openId }: {
-  batchId: string; leads: Lead[]; assets: Record<string, LeadAsset[]>; contacts: Record<string, CardContact[]>; query?: string; openId?: string;
+export function Board({ batchId, leads, contacts, query = '', openId }: {
+  batchId: string; leads: Lead[]; contacts: Record<string, CardContact[]>; query?: string; openId?: string;
 }) {
   const [tab, setTab] = useState<PipelineColumn>('novo');
   const [showDiscarded, setShowDiscarded] = useState(false);
@@ -131,7 +131,6 @@ export function Board({ batchId, leads, assets, contacts, query = '', openId }: 
                   lead={lead}
                   href={boardHref(batchId, query, lead.id)}
                   active={lead.id === openId}
-                  assets={assets[lead.id]}
                   contacts={contacts[lead.id]}
                   drag={PIPELINE_COLUMNS.some((col) => dropMove(lead.stage, col.key)) ? { onStart: () => setDragging(lead), onEnd: () => setDragging(null) } : undefined}
                 />

@@ -2,7 +2,7 @@ import { Globe, MapPin, PanelTop, Video } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Lead } from '@lps/domain';
 
-function InstagramIcon() {
+export function InstagramIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <rect x="2" y="2" width="20" height="20" rx="5" />
@@ -18,18 +18,24 @@ export function mapsUrl(lead: Pick<Lead, 'name' | 'place_id'>): string {
   return `https://www.google.com/maps/search/?${q}`;
 }
 
-const withProtocol = (url: string) => (/^https?:\/\//i.test(url) ? url : `https://${url}`);
+export const withProtocol = (url: string) => (/^https?:\/\//i.test(url) ? url : `https://${url}`);
+
+/** Site próprio do negócio, se houver. O "site" do Maps às vezes é só o Instagram ou outra rede: aí não há site para abrir. */
+export function siteUrl(lead: Pick<Lead, 'website_url'> & Partial<Pick<Lead, 'site_status'>>): string | null {
+  const hasSite = !!lead.website_url && lead.site_status !== 'somente_social' && !/instagram\.com|facebook\.com|wa\.me|linktr\.ee/i.test(lead.website_url);
+  return hasSite ? withProtocol(lead.website_url!) : null;
+}
+
+export const instagramUrl = (lead: Pick<Lead, 'instagram_url'>) => (lead.instagram_url ? withProtocol(lead.instagram_url) : null);
 
 type Item = { label: string; href: string | null; icon: ReactNode };
 
 /** Atalhos para ver o negócio por fora: Maps, site, Instagram e, quando já existem, a página e o vídeo. */
 export function LeadLinks({ lead }: { lead: Pick<Lead, 'name' | 'place_id' | 'website_url' | 'instagram_url'> & Partial<Pick<Lead, 'page_url' | 'loom_url' | 'site_status'>> }) {
-  // O "site" do Maps às vezes é só o Instagram ou outra rede: aí não há site para abrir.
-  const hasSite = !!lead.website_url && lead.site_status !== 'somente_social' && !/instagram\.com|facebook\.com|wa\.me|linktr\.ee/i.test(lead.website_url);
   const items: Item[] = [
     { label: 'Maps', href: mapsUrl(lead), icon: <MapPin /> },
-    { label: 'Site', href: hasSite ? withProtocol(lead.website_url!) : null, icon: <Globe /> },
-    { label: 'Instagram', href: lead.instagram_url ? withProtocol(lead.instagram_url) : null, icon: <InstagramIcon /> },
+    { label: 'Site', href: siteUrl(lead), icon: <Globe /> },
+    { label: 'Instagram', href: instagramUrl(lead), icon: <InstagramIcon /> },
   ];
   if (lead.page_url) items.push({ label: 'Página', href: withProtocol(lead.page_url), icon: <PanelTop /> });
   if (lead.loom_url) items.push({ label: 'Vídeo', href: withProtocol(lead.loom_url), icon: <Video /> });
