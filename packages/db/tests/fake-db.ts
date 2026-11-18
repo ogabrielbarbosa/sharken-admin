@@ -42,7 +42,8 @@ export function fakeDb(pg: PGlite): Db {
       if (s.op === 'insert' || s.op === 'upsert') {
         const onConflict = s.conflict ? (s.conflict.ignore || !keys.filter((k) => k !== s.conflict!.column).length ? ` on conflict (${s.conflict.column}) do nothing` : ` on conflict (${s.conflict.column}) do update set ${keys.filter((k) => k !== s.conflict!.column).map((k) => `${k} = excluded.${k}`).join(',')}`) : '';
         sql = `insert into ${table} (${keys.join(',')}) values (${keys.map((k) => p(enc(s.values[k]))).join(',')})${onConflict} returning *`;
-      } else if (s.op === 'update') sql = `update ${table} set ${keys.map((k) => `${k} = ${p(enc(s.values[k]))}`).join(',')}${where} returning *`;
+      } else if (s.op === 'delete') sql = `delete from ${table}${where} returning *`;
+      else if (s.op === 'update') sql = `update ${table} set ${keys.map((k) => `${k} = ${p(enc(s.values[k]))}`).join(',')}${where} returning *`;
       else sql = `select * from ${table}${where}${s.order.length ? ' order by ' + s.order.join(', ') : ''}${s.limit ? ` limit ${s.limit}` : ''}${s.offset ? ` offset ${s.offset}` : ''}`;
       try {
         const { rows } = await pg.query(sql, params);
@@ -60,6 +61,7 @@ export function fakeDb(pg: PGlite): Db {
         (s.op = 'upsert'), (s.values = v), (s.conflict = { column: o.onConflict, ignore: !!o.ignoreDuplicates }), b
       ),
       update: (v: Record<string, unknown>) => ((s.op = 'update'), (s.values = v), b),
+      delete: () => ((s.op = 'delete'), b),
       eq: filter('='),
       lt: filter('<'),
       lte: filter('<='),
