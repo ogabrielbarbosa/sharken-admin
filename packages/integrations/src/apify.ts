@@ -56,29 +56,53 @@ export function parseWebhookEvent(body: { eventType?: string; resource?: { defau
   };
 }
 
-function token(): string {
-  const value = process.env.APIFY_TOKEN;
-  if (!value) throw new Error('Configure a variável APIFY_TOKEN.');
-  return value;
+export const APIFY_NOT_CONNECTED = 'Conecte sua conta do Apify em Configurações › Apify.';
+export const APIFY_OUT_OF_CREDIT = 'Acabou o crédito do Apify deste mês. Veja em console.apify.com › Billing.';
+
+/** O workspace ainda não colou o token do Apify em Configurações. */
+export class ApifyNotConnected extends Error {
+  constructor() {
+    super(APIFY_NOT_CONNECTED);
+  }
 }
 
-export async function startActorRun(actor: string, input: object, webhookUrl: string | null): Promise<string> {
-  const res = await fetch(buildRunUrl(actor, token(), webhookUrl), {
+type ApifyErrorBody = { error?: { type?: string; message?: string } } | null;
+
+/** Falta de crédito vira uma mensagem clara; o resto mantém "<prefixo> (status): detalhe". */
+export function apifyErrorMessage(status: number, body: ApifyErrorBody, fallback: string): string {
+  const type = body?.error?.type ?? '';
+  const detail = body?.error?.message;
+  if (status === 402 || /usage|credit|payment|limit-exceeded/i.test(type) || /monthly usage|not enough|credit/i.test(detail ?? '')) return APIFY_OUT_OF_CREDIT;
+  return `${fallback} (${status})${detail ? `: ${detail}` : '.'}`;
+}
+
+async function failure(res: Response, fallback: string): Promise<Error> {
+  return new Error(apifyErrorMessage(res.status, (await res.json().catch(() => null)) as ApifyErrorBody, fallback));
+}
+
+/** Confere o token e diz de quem é a conta (usado ao conectar em Configurações). */
+export async function apifyAccount(token: string, fetcher: typeof fetch = fetch): Promise<{ username: string; plan: string }> {
+  const res = await fetcher(`${BASE}/users/me`, { headers: { authorization: `Bearer ${token}` } });
+  if (res.status === 401 || res.status === 403) throw new Error('O Apify recusou esse token.');
+  if (!res.ok) throw await failure(res, 'Não foi possível consultar a conta do Apify');
+  const { data } = (await res.json()) as { data: { username: string; plan?: { id?: string } } };
+  return { username: data.username, plan: data.plan?.id ?? 'desconhecido' };
+}
+
+export async function startActorRun(token: string, actor: string, input: object, webhookUrl: string | null): Promise<string> {
+  const res = await fetch(buildRunUrl(actor, token, webhookUrl), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    const detail = ((await res.json().catch(() => null)) as { error?: { message?: string } } | null)?.error?.message;
-    throw new Error(`O Apify recusou a busca (${res.status})${detail ? `: ${detail}` : '.'}`);
-  }
+  if (!res.ok) throw await failure(res, 'O Apify recusou a busca');
   const json = (await res.json()) as { data: { id: string } };
   return json.data.id;
 }
 
-export async function fetchDataset<T = ApifyPlace>(datasetId: string): Promise<T[]> {
-  const res = await fetch(`${BASE}/datasets/${datasetId}/items?clean=true&token=${token()}`);
-  if (!res.ok) throw new Error(`Não foi possível ler os resultados do Apify (${res.status}).`);
+export async function fetchDataset<T = ApifyPlace>(token: string, datasetId: string): Promise<T[]> {
+  const res = await fetch(`${BASE}/datasets/${datasetId}/items?clean=true&token=${token}`);
+  if (!res.ok) throw await failure(res, 'Não foi possível ler os resultados do Apify');
   return (await res.json()) as T[];
 }
 
@@ -101,27 +125,24 @@ export function runOutcome(status: string): 'pending' | 'succeeded' | 'failed' {
   return 'pending';
 }
 
-export async function getRun(runId: string): Promise<{ status: string; defaultDatasetId: string | null }> {
-  const res = await fetch(`${BASE}/actor-runs/${runId}?token=${token()}`);
-  if (!res.ok) throw new Error(`Não foi possível consultar a busca no Apify (${res.status}).`);
+export async function getRun(token: string, runId: string): Promise<{ status: string; defaultDatasetId: string | null }> {
+  const res = await fetch(`${BASE}/actor-runs/${runId}?token=${token}`);
+  if (!res.ok) throw await failure(res, 'Não foi possível consultar a busca no Apify');
   const { data } = (await res.json()) as { data: { status: string; defaultDatasetId?: string } };
   return { status: data.status, defaultDatasetId: data.defaultDatasetId ?? null };
 }
 
 /** Roda o ator e espera o resultado na mesma chamada (usado na extração de um link do Instagram). */
-export async function runActorSync<T>(actor: string, input: object, timeoutMs = 120_000): Promise<T[]> {
+export async function runActorSync<T>(token: string, actor: string, input: object, timeoutMs = 120_000): Promise<T[]> {
   const url = new URL(`${BASE}/acts/${actor.replace('/', '~')}/run-sync-get-dataset-items`);
   url.searchParams.set('clean', 'true');
   url.searchParams.set('timeout', String(Math.ceil(timeoutMs / 1000)));
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token()}` },
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
     body: JSON.stringify(input),
     signal: AbortSignal.timeout(timeoutMs),
   });
-  if (!res.ok) {
-    const detail = ((await res.json().catch(() => null)) as { error?: { message?: string } } | null)?.error?.message;
-    throw new Error(`O Apify recusou a leitura (${res.status})${detail ? `: ${detail}` : '.'}`);
-  }
+  if (!res.ok) throw await failure(res, 'O Apify recusou a leitura');
   return (await res.json()) as T[];
 }

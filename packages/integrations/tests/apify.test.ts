@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { buildInstagramInput, buildMapsInput, buildRunUrl, parseWebhookEvent, runOutcome, shouldPollRuns, usernameFromUrl } from '../src/apify';
+import { describe, expect, it, vi } from 'vitest';
+import { APIFY_OUT_OF_CREDIT, apifyAccount, apifyErrorMessage, buildInstagramInput, buildMapsInput, buildRunUrl, parseWebhookEvent, runOutcome, shouldPollRuns, usernameFromUrl } from '../src/apify';
 
 describe('buildMapsInput', () => {
   it('monta exatamente a entrada do ator', () => {
@@ -64,5 +64,32 @@ describe('consulta do resultado sem webhook', () => {
     expect(runOutcome('FAILED')).toBe('failed');
     expect(runOutcome('TIMED-OUT')).toBe('failed');
     expect(runOutcome('ABORTED')).toBe('failed');
+  });
+});
+
+describe('apifyErrorMessage', () => {
+  it('402 é crédito esgotado', () => {
+    expect(apifyErrorMessage(402, null, 'O Apify recusou a busca')).toBe(APIFY_OUT_OF_CREDIT);
+  });
+  it('tipo de erro de uso é crédito esgotado', () => {
+    expect(apifyErrorMessage(403, { error: { type: 'not-enough-usage-to-run-paid-actor', message: 'x' } }, 'O Apify recusou a busca')).toBe(APIFY_OUT_OF_CREDIT);
+  });
+  it('outros erros mantêm o formato', () => {
+    expect(apifyErrorMessage(400, { error: { type: 'invalid-input', message: 'campo errado' } }, 'O Apify recusou a busca')).toBe('O Apify recusou a busca (400): campo errado');
+    expect(apifyErrorMessage(500, null, 'O Apify recusou a busca')).toBe('O Apify recusou a busca (500).');
+  });
+});
+
+describe('apifyAccount', () => {
+  it('devolve usuário e plano usando o token', async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ data: { username: 'ana', plan: { id: 'FREE' } } })));
+    expect(await apifyAccount('tok', fetcher as unknown as typeof fetch)).toEqual({ username: 'ana', plan: 'FREE' });
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.apify.com/v2/users/me');
+    expect((init.headers as Record<string, string>).authorization).toBe('Bearer tok');
+  });
+  it('token recusado', async () => {
+    const fetcher = vi.fn(async () => new Response('{}', { status: 401 }));
+    await expect(apifyAccount('ruim', fetcher as unknown as typeof fetch)).rejects.toThrow('O Apify recusou esse token.');
   });
 });
