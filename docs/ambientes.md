@@ -111,7 +111,7 @@ Endpoint: `https://admin.sharkenapps.com/api/mcp` (Streamable HTTP, sem estado).
 tudo de um lead (com briefing e imagens) e atendimentos. Cada usuário vê os próprios workspaces; o administrador vê todos.
 A única escrita é a página do lead (abaixo).
 
-**Páginas publicadas (`publicar_pagina`, `alterar_expiracao_da_pagina`, `listar_paginas`)**
+**Páginas publicadas (`publicar_pagina`, `preparar_upload_da_pagina`, `alterar_expiracao_da_pagina`, `listar_paginas`)**
 - O agente manda o HTML completo de um lead; o servidor grava na tabela `pages` (id aleatório de 10 caracteres)
   e devolve `https://pages.sharkenapps.com/<id>`. O link vai para `leads.page_url`; lead em Página passa para Vídeo,
   como ao colar o link no quadro. Com `pagina_id`, troca o HTML e mantém o link.
@@ -122,6 +122,12 @@ A única escrita é a página do lead (abaixo).
   com `Content-Security-Policy: sandbox` sem `allow-same-origin` (origem opaca, sem cookies/armazenamento),
   `noindex` e `no-store`. Limite de 2 milhões de caracteres: imagens por link (Instagram no R2), não em base64.
 - O host vem de `PAGES_URL` (padrão `https://pages.sharkenapps.com`).
+- **Upload de arquivo (`preparar_upload_da_pagina`)**: para página grande, o agente não cola o HTML na chamada (ele
+  teria de redigitar tudo, e passa do limite de uma resposta). A ferramenta devolve um link assinado e o comando
+  `curl -X PUT --data-binary @arquivo.html "<link>"`, que publica e responde `url`. O token (HMAC com a
+  `SUPABASE_SERVICE_ROLE_KEY`, sem tabela) leva lead, workspace, usuário, id da página, título e expiração, e vale
+  30 minutos. O id da página nova já vem reservado, então reenviar com o mesmo link troca o HTML da mesma página.
+  Rota: `/api/pages/upload` (`apps/web/src/app/api/pages/upload/route.ts`).
 
 **Como conectar**
 - claude.ai e app do Claude: Configurações › Conectores › Adicionar conector personalizado › cole a URL. Ele abre o

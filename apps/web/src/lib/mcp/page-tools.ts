@@ -5,6 +5,7 @@ import {
   listPages,
   MAX_PAGE_HTML,
   mcpGetLead,
+  newPageId,
   PAGE_NOT_FOUND,
   pageUrl,
   publishPage,
@@ -15,10 +16,11 @@ import {
   type Db,
   type Page,
 } from '@lps/db';
+import { signUpload, UPLOAD_TTL_MS } from '@/lib/page-upload';
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
 /** `readDb` é o cliente só de leitura (para conferir acesso); `writeDb`, o admin, usado só preso a um workspace. */
-type Ctx = { readDb: Db; writeDb: Db; access: Access };
+type Ctx = { readDb: Db; writeDb: Db; access: Access; baseUrl: string };
 
 const KNOWN = new Set([LEAD_NOT_FOUND, PAGE_NOT_FOUND, 'O HTML está vazio.']);
 const ok = (value: unknown): ToolResult => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] });
@@ -58,14 +60,15 @@ async function pageWorkspace(db: Db, access: Access, id: string): Promise<string
 }
 
 /** As únicas ferramentas que gravam: publicar a página de um lead e mudar a expiração dela. */
-export function registerPageTools(server: McpServer, { readDb, writeDb, access }: Ctx): void {
+export function registerPageTools(server: McpServer, { readDb, writeDb, access, baseUrl }: Ctx): void {
   server.registerTool('publicar_pagina', {
     title: 'Publicar página do lead',
     description:
       'Publica um HTML completo (documento único, CSS/JS embutidos ou de CDN, imagens por link) como a página do lead em ' +
       'pages.sharkenapps.com/<id>, grava o link no lead (Página passa para Vídeo no quadro) e devolve o link. ' +
       'Para corrigir uma página já publicada, passe `pagina_id`: o link continua o mesmo. ' +
-      `Limite de ${MAX_PAGE_HTML.toLocaleString('pt-BR')} caracteres; não embuta imagens em base64, use os links permanentes de ver_imagens_do_lead.`,
+      `Limite de ${MAX_PAGE_HTML.toLocaleString('pt-BR')} caracteres; não embuta imagens em base64, use os links permanentes de ver_imagens_do_lead. ` +
+      'Página grande ou já salva em arquivo: use preparar_upload_da_pagina, que sobe o arquivo sem redigitar o HTML.',
     inputSchema: z.object({
       lead_id: z.string(),
       html: z.string().min(1),
@@ -87,6 +90,39 @@ export function registerPageTools(server: McpServer, { readDb, writeDb, access }
       pagina: pageView(page),
       lead: found.lead.name,
       aviso: page.expires_at ? `Expira em ${page.expires_at}.` : 'Não expira.',
+    });
+  }));
+
+  server.registerTool('preparar_upload_da_pagina', {
+    title: 'Preparar upload da página do lead',
+    description:
+      'Para páginas grandes (ou quando o HTML já está num arquivo): devolve um link de upload e o comando `curl` para ' +
+      'subir o arquivo HTML direto, sem colar o conteúdo numa chamada. O envio publica em pages.sharkenapps.com/<id>, ' +
+      'grava o link no lead (Página passa para Vídeo) e responde o endereço. O link de upload vale 30 minutos; reenviar ' +
+      'com ele troca o HTML da mesma página. Com `pagina_id`, troca o HTML de uma página já publicada mantendo o link.',
+    inputSchema: z.object({
+      lead_id: z.string(),
+      titulo: z.string().max(200).optional(),
+      expira_em_horas: hours,
+      pagina_id: pageId.optional().describe('id de uma página já publicada, para trocar o HTML mantendo o link'),
+    }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  }, safe(async ({ lead_id, titulo, expira_em_horas, pagina_id }) => {
+    if (!uuid.safeParse(lead_id).success) return fail(LEAD_NOT_FOUND);
+    const found = await mcpGetLead(readDb, access, lead_id);
+    if (!found) return fail(LEAD_NOT_FOUND);
+    const workspaceId = (found.lead as typeof found.lead & { workspace_id: string }).workspace_id;
+    if (pagina_id && (await pageWorkspace(readDb, access, pagina_id)) !== workspaceId) return fail(PAGE_NOT_FOUND);
+    const id = pagina_id ?? newPageId();
+    const token = signUpload({ l: lead_id, w: workspaceId, u: access.userId, p: id, n: !pagina_id, t: titulo ?? null, e: expira_em_horas });
+    const uploadUrl = `${baseUrl}/api/pages/upload?token=${token}`;
+    return ok({
+      upload_url: uploadUrl,
+      comando: `curl -sS -X PUT -H 'content-type: text/html; charset=utf-8' --data-binary @ARQUIVO.html '${uploadUrl}'`,
+      url_da_pagina: pageUrl(id),
+      lead: found.lead.name,
+      valido_por_minutos: UPLOAD_TTL_MS / 60_000,
+      instrucoes: 'Troque ARQUIVO.html pelo caminho do arquivo e rode o comando. A resposta traz `url` quando publicou ou `erro`.',
     });
   }));
 

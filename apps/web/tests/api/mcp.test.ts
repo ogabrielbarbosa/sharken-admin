@@ -93,10 +93,10 @@ describe('/api/mcp', () => {
     const { tools } = await result(await rpc('tools/list', {}));
     expect(tools.map((t: { name: string }) => t.name).sort()).toEqual([
       'alterar_expiracao_da_pagina', 'listar_atendimentos', 'listar_batches', 'listar_leads', 'listar_paginas', 'listar_workspaces',
-      'publicar_pagina', 'ver_atendimento', 'ver_batch', 'ver_imagens_do_lead', 'ver_lead',
+      'preparar_upload_da_pagina', 'publicar_pagina', 'ver_atendimento', 'ver_batch', 'ver_imagens_do_lead', 'ver_lead',
     ]);
     const writers = tools.filter((t: { annotations?: { readOnlyHint?: boolean } }) => !t.annotations?.readOnlyHint).map((t: { name: string }) => t.name).sort();
-    expect(writers).toEqual(['alterar_expiracao_da_pagina', 'publicar_pagina']);
+    expect(writers).toEqual(['alterar_expiracao_da_pagina', 'preparar_upload_da_pagina', 'publicar_pagina']);
   });
 
   it('publicar_pagina grava no workspace do lead e devolve o link', async () => {
@@ -111,6 +111,29 @@ describe('/api/mcp', () => {
     expect(mocks.scopeDb).toHaveBeenCalledWith(expect.anything(), 'w1');
     expect(mocks.publishPage).toHaveBeenCalledWith('scoped', expect.objectContaining({ leadId: LEAD_ID, html: '<h1>oi</h1>', expiresInHours: 24, userId: 'u1' }));
     expect(JSON.parse(r.content[0].text).url).toBe('https://pages.sharkenapps.com/abcDEF2345');
+  });
+
+  it('preparar_upload_da_pagina devolve link assinado para o lead e o endereço da página', async () => {
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'segredo');
+    mocks.mcpGetLead.mockResolvedValue({ lead: { id: LEAD_ID, name: 'Padaria', workspace_id: 'w1' }, workspace: 'Gabriel', assets: [], contacts: [] });
+    const r = await call('preparar_upload_da_pagina', { lead_id: LEAD_ID, titulo: 'Padaria' });
+    expect(r.isError).toBeFalsy();
+    const out = JSON.parse(r.content[0].text);
+    expect(out.upload_url).toMatch(/^https:\/\/admin\.test\/api\/pages\/upload\?token=/);
+    expect(out.comando).toContain('--data-binary @ARQUIVO.html');
+    const { verifyUpload } = await import('@/lib/page-upload');
+    const grant = verifyUpload(new URL(out.upload_url).searchParams.get('token'));
+    expect(grant).toMatchObject({ l: LEAD_ID, w: 'w1', u: 'u1', n: true, t: 'Padaria' });
+    expect(out.url_da_pagina).toBe(`https://pages.sharkenapps.com/${grant!.p}`);
+    expect(mocks.publishPage).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
+
+  it('preparar_upload_da_pagina em lead fora do acesso não gera link', async () => {
+    mocks.mcpGetLead.mockResolvedValue(null);
+    const r = await call('preparar_upload_da_pagina', { lead_id: LEAD_ID });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toBe('Lead não encontrado.');
   });
 
   it('publicar_pagina em lead fora do acesso não grava', async () => {

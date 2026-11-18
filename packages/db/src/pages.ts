@@ -58,11 +58,12 @@ async function linkToLead(db: Db, lead: Lead, url: string) {
 /**
  * Publica (ou, com `pageId`, troca o HTML de) uma página do lead e grava o link nele.
  * `db` precisa estar preso ao workspace (scopeDb). `expiresInHours` undefined mantém a expiração atual
- * ao republicar e, numa página nova, não expira.
+ * ao republicar e, numa página nova, não expira. `newId` dá o id da página nova (o upload por link já conhece o
+ * endereço antes de o arquivo chegar).
  */
 export async function publishPage(
   db: Db,
-  o: { leadId: string; html: string; title?: string | null; expiresInHours?: number | null; pageId?: string; userId?: string },
+  o: { leadId: string; html: string; title?: string | null; expiresInHours?: number | null; pageId?: string; newId?: string; userId?: string },
 ): Promise<{ page: Page; url: string }> {
   const workspaceId = requireWorkspace(db);
   if (!o.html.trim()) throw new Error('O HTML está vazio.');
@@ -80,7 +81,7 @@ export async function publishPage(
     page = check<Page>(await db.from('pages').update(patch).eq('id', o.pageId).select(PAGE_COLUMNS).single());
   } else {
     page = check<Page>(await db.from('pages').insert({
-      id: newPageId(),
+      id: o.newId ?? newPageId(),
       workspace_id: workspaceId,
       lead_id: lead.id,
       title: o.title ?? null,
