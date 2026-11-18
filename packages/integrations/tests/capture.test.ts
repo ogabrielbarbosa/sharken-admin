@@ -5,6 +5,8 @@ const db = vi.hoisted(() => ({
   tokens: {} as Record<string, string | null>,
   batches: [] as Partial<Batch>[],
   updateBatch: vi.fn(async () => undefined),
+  enqueueJob: vi.fn(async () => undefined),
+  pending: [] as { id: string; instagram_url: string | null }[],
 }));
 
 vi.mock('@lps/config', () => ({
@@ -20,10 +22,10 @@ vi.mock('@lps/db', () => ({
   listBatches: async () => db.batches,
   getApifyToken: async (_db: unknown, ws: string) => db.tokens[ws] ?? null,
   updateBatch: db.updateBatch,
-  listLeads: async () => [],
+  listLeads: async () => db.pending,
   importLeads: async () => undefined,
   listKnownPlaceIds: async () => new Set(),
-  enqueueJob: async () => undefined,
+  enqueueJob: db.enqueueJob,
   countJobs: async () => 0,
   updateLead: async () => undefined,
 }));
@@ -39,6 +41,8 @@ beforeEach(() => {
   db.tokens = {};
   db.batches = [];
   db.updateBatch.mockClear();
+  db.enqueueJob.mockClear();
+  db.pending = [];
   fetchMock = vi.fn(async (url: string) => {
     const u = String(url);
     const body = u.includes('/actor-runs/') ? { data: { status: 'RUNNING', defaultDatasetId: 'ds1' } } : u.includes('/acts/') ? { data: { id: 'run1' } } : [];
@@ -69,6 +73,20 @@ describe('captura com o token do workspace', () => {
     await expect(handleMapsResult('b1', { succeeded: true, datasetId: 'ds1' })).resolves.toBeUndefined();
     expect(db.updateBatch).toHaveBeenCalledWith(expect.anything(), 'b1', { status: 'erro', error: APIFY_NOT_CONNECTED });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('webhook repetido sem token não estraga batch que já seguiu', async () => {
+    db.batches = [batch('b1', 'wsA', { status: 'concluido', instagram_run_id: 'ri' }), batch('b2', 'wsA', { status: 'concluido' })];
+    await handleMapsResult('b1', { succeeded: true, datasetId: 'ds1' });
+    await handleMapsResult('b2', { succeeded: true, datasetId: 'ds1' });
+    expect(db.updateBatch).not.toHaveBeenCalled();
+  });
+
+  it('sem token: os leads já importados seguem para a análise', async () => {
+    db.batches = [batch('b1', 'wsA')];
+    db.pending = [{ id: 'l1', instagram_url: null }];
+    await handleMapsResult('b1', { succeeded: true, datasetId: 'ds1' });
+    expect(db.enqueueJob).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'analyze_lead', payload: { lead_id: 'l1', batch_id: 'b1' } }));
   });
 
   it('progresso: batch sem token é pulado e os outros seguem', async () => {

@@ -68,14 +68,9 @@ export async function handleMapsResult(batchId: string, event: { succeeded: bool
   const { db, token } = ctx;
   const batch = await getBatch(db, batchId);
   if (!batch) return;
-  if (!token) {
-    // O token foi removido depois de a busca começar: sem ele não dá para ler o resultado.
-    await updateBatch(db, batchId, { status: 'erro', error: APIFY_NOT_CONNECTED });
-    return;
-  }
 
   let importError: string | null = null;
-  if (event.datasetId) {
+  if (event.datasetId && token) {
     try {
       const items = await fetchDataset<ApifyPlace>(token, event.datasetId);
       await importLeads(db, items.filter((i) => i.placeId && i.title).map((i) => mapPlaceToLead(i, batchId)));
@@ -86,6 +81,17 @@ export async function handleMapsResult(batchId: string, event: { succeeded: bool
 
   // Webhook repetido: a busca do Instagram já foi iniciada e o retorno dela segue o fluxo.
   if (batch.instagram_run_id) return;
+
+  if (!token) {
+    // O token foi removido depois de a busca começar: sem ele não dá para ler o resultado. Os leads que já
+    // tinham entrado seguem para a análise (ela usa o Claude, não o Apify). Batch que já passou da busca fica como está.
+    if (batch.status !== 'buscando') return;
+    await updateBatch(db, batchId, { status: 'erro', error: APIFY_NOT_CONNECTED });
+    for (const lead of await listLeads(db, batchId, ['analisando'])) {
+      await enqueueJob(db, { type: 'analyze_lead', payload: { lead_id: lead.id, batch_id: batchId }, dedupeKey: `analyze_lead:${lead.id}` });
+    }
+    return;
+  }
 
   const pending = await listLeads(db, batchId, ['analisando']);
   const failure = importError ?? (event.succeeded ? null : 'A busca foi interrompida. Os leads encontrados até aqui foram salvos.');

@@ -72,7 +72,8 @@ type ApifyErrorBody = { error?: { type?: string; message?: string } } | null;
 export function apifyErrorMessage(status: number, body: ApifyErrorBody, fallback: string): string {
   const type = body?.error?.type ?? '';
   const detail = body?.error?.message;
-  if (status === 402 || /usage|credit|payment|limit-exceeded/i.test(type) || /monthly usage|not enough|credit/i.test(detail ?? '')) return APIFY_OUT_OF_CREDIT;
+  // 429 (rate-limit-exceeded) é excesso de requisições, não falta de crédito.
+  if (status !== 429 && (status === 402 || /usage|credit|payment/i.test(type) || /monthly usage|not enough|credit/i.test(detail ?? ''))) return APIFY_OUT_OF_CREDIT;
   return `${fallback} (${status})${detail ? `: ${detail}` : '.'}`;
 }
 

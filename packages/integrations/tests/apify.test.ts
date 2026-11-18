@@ -74,6 +74,9 @@ describe('apifyErrorMessage', () => {
   it('tipo de erro de uso é crédito esgotado', () => {
     expect(apifyErrorMessage(403, { error: { type: 'not-enough-usage-to-run-paid-actor', message: 'x' } }, 'O Apify recusou a busca')).toBe(APIFY_OUT_OF_CREDIT);
   });
+  it('limite de requisições (429) não é crédito esgotado', () => {
+    expect(apifyErrorMessage(429, { error: { type: 'rate-limit-exceeded', message: 'Too many requests' } }, 'O Apify recusou a leitura')).toBe('O Apify recusou a leitura (429): Too many requests');
+  });
   it('outros erros mantêm o formato', () => {
     expect(apifyErrorMessage(400, { error: { type: 'invalid-input', message: 'campo errado' } }, 'O Apify recusou a busca')).toBe('O Apify recusou a busca (400): campo errado');
     expect(apifyErrorMessage(500, null, 'O Apify recusou a busca')).toBe('O Apify recusou a busca (500).');
