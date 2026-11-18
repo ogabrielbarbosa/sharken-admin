@@ -7,7 +7,8 @@ import { Topbar } from '@/components/layout/topbar';
 import { Button, Card, EmptyState, LinkButton, Status, Table, type Tone } from '@/components/ui';
 import { AutoRefresh } from '@/components/ui/auto-refresh';
 import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
-import { authedDb } from '@/lib/auth';
+import { workspaceHasApify } from '@lps/integrations';
+import { authedDb, getSession } from '@/lib/auth';
 import { retryBatchAction } from './actions';
 
 const STATUS: Record<Batch['status'], { label: string; tone: Tone; detail: string }> = {
@@ -25,7 +26,8 @@ const columnFor = (etapa: string) => PIPELINE_COLUMNS.find((c) => c.key === etap
 export default async function BatchesPage({ searchParams }: { searchParams: Promise<{ novo?: string; local?: string; etapa?: string }> }) {
   const { novo, local, etapa } = await searchParams;
   const db = await authedDb();
-  const [batches, stages] = await Promise.all([listBatches(db), listBatchStages(db)]);
+  const { workspace } = await getSession();
+  const [batches, stages, apifyConnected] = await Promise.all([listBatches(db), listBatchStages(db), novo ? workspaceHasApify(workspace.id) : true]);
   const locations = [...new Map(batches.map((b) => [b.location_key, b.location])).entries()];
 
   const column = etapa ? columnFor(etapa) : undefined;
@@ -113,7 +115,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
           </Card>
         )}
       </main>
-      {novo && <NewBatchDrawer />}
+      {novo && <NewBatchDrawer apifyConnected={apifyConnected} />}
     </>
   );
 }

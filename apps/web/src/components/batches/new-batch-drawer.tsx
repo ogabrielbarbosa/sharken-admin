@@ -4,7 +4,7 @@ import { DEFAULT_CRITERIA, findMunicipio } from '@lps/domain';
 import { ArrowLeft, ArrowRight, Check, Search } from 'lucide-react';
 import { useState } from 'react';
 import { createBatchAction } from '@/app/painel/batches/actions';
-import { Button, Drawer, ErrorNote, Field, Input } from '@/components/ui';
+import { Button, Drawer, ErrorNote, Field, Input, LinkButton } from '@/components/ui';
 import { MunicipioPicker } from './municipio-picker';
 
 const STEPS = ['Onde buscar', 'Critérios', 'Confirmar'];
@@ -17,7 +17,7 @@ const criteriaFields = [
   { key: 'recontactDays', label: 'Não recontatar antes de', suffix: 'dias' },
 ] as const;
 
-export function NewBatchDrawer() {
+export function NewBatchDrawer({ apifyConnected }: { apifyConnected: boolean }) {
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [where, setWhere] = useState({ location: '', businessType: '', quantity: '50' });
@@ -36,6 +36,18 @@ export function NewBatchDrawer() {
     }
     setError(null);
     setStep(step + 1);
+  }
+
+  if (!apifyConnected) {
+    return (
+      <Drawer title="Novo batch" closeHref="/painel/batches">
+        <div className="flex flex-col gap-4">
+          <ErrorNote>Conecte sua conta do Apify em Configurações › Apify.</ErrorNote>
+          <p className="text-sm text-muted-foreground">A busca no Google Maps e no Instagram roda na conta do Apify deste workspace. A conta gratuita traz US$ 5 de crédito por mês, uns 7 batches de 50 lugares.</p>
+          <LinkButton href="/painel/configuracoes?aba=apify">Conectar o Apify</LinkButton>
+        </div>
+      </Drawer>
+    );
   }
 
   return (

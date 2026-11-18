@@ -4,14 +4,16 @@ import { createBatch, getBatch } from '@lps/db';
 import { findMunicipio, formatMunicipio } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { authedDb } from '@/lib/auth';
-import { startMapsSearch } from '@lps/integrations';
+import { APIFY_NOT_CONNECTED, startMapsSearch, workspaceHasApify } from '@lps/integrations';
+import { authedDb, getSession } from '@/lib/auth';
 
 const num = (form: FormData, key: string) => Number(String(form.get(key) ?? '').replace(',', '.'));
 
 export async function createBatchAction(form: FormData) {
   const municipio = findMunicipio(String(form.get('location') ?? ''));
   if (!municipio) throw new Error('Escolha a cidade na lista de municípios.');
+  const { workspace } = await getSession();
+  if (!(await workspaceHasApify(workspace.id))) throw new Error(APIFY_NOT_CONNECTED);
   const db = await authedDb();
   const batch = await createBatch(db, {
     location: formatMunicipio(municipio),
