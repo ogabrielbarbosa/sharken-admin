@@ -4,6 +4,7 @@ import {
   type Contact, type Lead, type LeadAsset, type PipelineColumn,
 } from '@lps/domain';
 import { ExternalLink, Loader2, Phone, Star } from 'lucide-react';
+import { BatchMenu } from '@/components/batches/batch-menu';
 import { ActiveFilters, ReviewFilters } from '@/components/batches/review-filters';
 import { LeadDrawer } from '@/components/leads/lead-drawer';
 import { Board } from '@/components/pipeline/board';
@@ -156,6 +157,7 @@ export default async function PipelinePage({ params, searchParams }: { params: P
     <>
       <Topbar
         crumbs={[{ label: 'Batches', href: '/painel/batches' }, { label: batchLabel(batch) }]}
+        menu={<BatchMenu batchId={id} label={batchLabel(batch)} />}
         actions={toReview.length > 0 && <ReviewFilters batchId={id} filter={filter} counts={countByOption(toReview, now)} shown={reviewed.length} total={toReview.length} />}
       />
       {/* No desktop o quadro ocupa o resto da tela e cada coluna rola por dentro. */}

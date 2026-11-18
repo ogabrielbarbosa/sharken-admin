@@ -5,8 +5,8 @@ import { SidebarToggle } from './shell';
 
 export type Crumb = { label: string; href?: string };
 
-/** Barra do topo: menu, trilha e, à direita, as ações da página (filtros, botão de criar). */
-export function Topbar({ crumbs, actions }: { crumbs: Crumb[]; actions?: ReactNode }) {
+/** Barra do topo: menu, trilha (com um menu opcional logo depois) e, à direita, as ações da página (filtros, botão de criar). */
+export function Topbar({ crumbs, menu, actions }: { crumbs: Crumb[]; menu?: ReactNode; actions?: ReactNode }) {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-background/70 px-3 backdrop-blur-xl lg:px-4">
       <SidebarToggle />
@@ -23,6 +23,7 @@ export function Topbar({ crumbs, actions }: { crumbs: Crumb[]; actions?: ReactNo
           </Fragment>
         ))}
       </nav>
+      {menu}
       {actions && <div className="ml-auto flex shrink-0 items-center gap-2 pl-2">{actions}</div>}
     </header>
   );

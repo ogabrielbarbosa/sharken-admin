@@ -1,11 +1,12 @@
 'use server';
 
 import {
-  addAsset, addContactToLead, completeInfo, deleteAsset, enqueueJob, getAsset, getLead, listAssets, moveLead, qualifyLeads,
+  addAsset, addContactToLead, completeInfo, deleteAsset, deleteBatch, enqueueJob, getAsset, getLead, listAssets, moveLead, qualifyLeads,
   savePageUrl, saveLoomUrl, STALE, stepBack, updateAsset, updateLead, type Db, type PipelineResult,
 } from '@lps/db';
 import { canTransition, isAcceptedMime, toMobileE164, MAX_ASSET_BYTES, normalizeLinkUrl, sanitizeFileName, type Lead } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { authedDb } from '@/lib/auth';
 
 const BUCKET = 'lead-assets';
@@ -19,6 +20,21 @@ async function completing(db: Db, leadId: string): Promise<Lead | null> {
 
 const gone = { error: 'Este lead não está mais em Qualificado.' };
 const refresh = () => revalidatePath('/painel', 'layout');
+
+// ── Batch ───────────────────────────────────────────────────────────────
+
+/** Apaga o batch e os leads dele que não chegaram ao CRM, e volta para a lista. */
+export async function deleteBatchAction(batchId: string): Promise<Result> {
+  const db = await authedDb();
+  try {
+    const { storagePaths } = await deleteBatch(db, batchId);
+    if (storagePaths.length) await db.storage.from(BUCKET).remove(storagePaths);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Não foi possível apagar o batch.' };
+  }
+  refresh();
+  redirect('/painel/batches');
+}
 
 // ── Etapas ──────────────────────────────────────────────────────────────
 
