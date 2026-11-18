@@ -4,7 +4,7 @@
  */
 
 /** Vídeo do topo. Aceita link do Loom, do YouTube ou de outro player embutível (https). */
-export const VIDEO_URL = '';
+export const VIDEO_URL = 'https://www.loom.com/share/0d2c3475ce5448dd92ff848158e9756b';
 
 /** Arquivo da skill, servido de apps/web/public/downloads. */
 export const SKILL_ZIP = '/downloads/create-page-sharken.zip';
@@ -27,6 +27,9 @@ export const APP_DOWNLOADS: { label: string; detail: string; href: string; hint:
     hint: 'Abra o instalador. Se o Windows mostrar “O Windows protegeu o computador”, clique em Mais informações › Executar assim mesmo.',
   },
 ];
+
+/** Painel web do Sharken Loom (biblioteca dos vídeos gravados). */
+export const LOOM_WEB_URL = 'https://loom.sharkenapps.com';
 
 /** Libera o app no Mac (ele ainda não é assinado pela Apple). */
 export const MAC_UNBLOCK = 'xattr -cr "/Applications/Sharken Loom.app"';

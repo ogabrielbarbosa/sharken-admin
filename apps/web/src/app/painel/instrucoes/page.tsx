@@ -1,9 +1,9 @@
-import { Download, PlayCircle, Plug } from 'lucide-react';
+import { Download, ExternalLink, PlayCircle, Plug } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Topbar } from '@/components/layout/topbar';
 import { Card, LinkButton } from '@/components/ui';
 import { CopyButton } from '@/components/ui/copy-button';
-import { APP_DOWNLOADS, embedUrl, MAC_UNBLOCK, SKILL_ZIP, VIDEO_URL } from './content';
+import { APP_DOWNLOADS, embedUrl, LOOM_WEB_URL, MAC_UNBLOCK, SKILL_ZIP, VIDEO_URL } from './content';
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
@@ -120,6 +120,16 @@ export default function InstrucoesPage() {
         </Section>
 
         <Section title="Aplicativo Sharken Loom" description="Grava os vídeos para os leads. Baixe a versão do seu computador.">
+          <div className="mb-5 space-y-3 rounded-card border border-border p-4">
+            <p className="text-sm font-medium">Login</p>
+            <p className="text-sm text-muted-foreground">
+              Entre com o mesmo e-mail e a mesma senha que você usa aqui no admin.sharkenapps.com, tanto no aplicativo quanto no
+              site. No site ficam os vídeos que você gravou, com o link de cada um.
+            </p>
+            <LinkButton href={LOOM_WEB_URL} external variant="outline">
+              <ExternalLink />Abrir loom.sharkenapps.com
+            </LinkButton>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {APP_DOWNLOADS.map((d, i) => (
               <div key={d.href} className="space-y-3 rounded-card border border-border p-4">
