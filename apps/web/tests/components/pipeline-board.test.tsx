@@ -157,10 +157,10 @@ describe('Board', () => {
     expect(completeInfoAction).not.toHaveBeenCalled();
   });
 
-  it('Página mostra "Falta a página" e Vídeo mostra "Falta o Loom"', () => {
+  it('Página e Vídeo não mostram aviso de "falta"', () => {
     render(<Board batchId="b1" leads={leads} contacts={contacts} />);
-    expect(within(screen.getByTestId('card-l-pagina')).getByText('Falta a página')).toBeTruthy();
-    expect(within(screen.getByTestId('card-l-video')).getByText('Falta o Loom')).toBeTruthy();
+    expect(within(screen.getByTestId('card-l-pagina')).queryByText(/falta/i)).toBeNull();
+    expect(within(screen.getByTestId('card-l-video')).queryByText(/falta/i)).toBeNull();
   });
 
   it('página e vídeo prontos viram botões azuis', () => {

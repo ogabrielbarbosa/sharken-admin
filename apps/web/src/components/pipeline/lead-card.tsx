@@ -147,15 +147,9 @@ export function LeadCard({ lead, href, active, contacts, drag }: {
       );
     case 'revisar':
     case 'completar':
-      return <LinkCard lead={lead} href={href} active={active} drag={drag} />;
     case 'pagina':
-      return <LinkCard lead={lead} href={href} active={active} drag={drag}><span className="text-warning">Falta a página</span></LinkCard>;
     case 'video':
-      return (
-        <LinkCard lead={lead} href={href} active={active} drag={drag}>
-          <span className="block text-warning">{lead.loom_url ? 'Loom salvo, falta levar ao CRM' : 'Falta o Loom'}</span>
-        </LinkCard>
-      );
+      return <LinkCard lead={lead} href={href} active={active} drag={drag} />;
     case 'crm':
     case 'vendido':
     case 'sem_interesse': {
