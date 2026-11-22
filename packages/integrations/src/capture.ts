@@ -1,9 +1,11 @@
 import { getEnv, webhookBaseUrl } from '@lps/config';
-import { countJobs, createAdminClient, enqueueJob, getApifyToken, getBatch, importLeads, listBatches, listKnownPlaceIds, listLeads, scopeDb, updateBatch, updateLead, workspaceOfRow, type Db } from '@lps/db';
-import { mapPlaceToLead, type ApifyPlace, type Batch } from '@lps/domain';
-import { APIFY_NOT_CONNECTED, buildInstagramInput, buildMapsInput, fetchDataset, getRun, INSTAGRAM_ACTOR, latestPostDate, MAPS_ACTOR, runOutcome, shouldPollRuns, startActorRun, usernameFromUrl, type InstagramProfile } from './apify';
+import { batchLocations, countJobs, createAdminClient, enqueueJob, getApifyToken, getBatch, importLeads, leadsByInstagramHandles, linkExistingLeads, listBatches, listKnownPlaceIds, listLeads, scopeDb, updateBatch, updateLead, workspaceOfRow, type Db } from '@lps/db';
+import { buildInstagramQueries, findMunicipio, handlesFromSearch, mapPlaceToLead, mapProfileToLead, searchPagesFor, type ApifyPlace, type Batch, type GoogleSearchPage, type InstagramProfileData } from '@lps/domain';
+import { APIFY_NOT_CONNECTED, buildGoogleInput, buildInstagramInput, buildMapsInput, fetchDataset, getRun, GOOGLE_ACTOR, INSTAGRAM_ACTOR, latestPostDate, MAPS_ACTOR, runOutcome, shouldPollRuns, startActorRun, usernameFromUrl, type InstagramProfile } from './apify';
 
-function webhookUrl(batchId: string, kind: 'maps' | 'instagram'): string | null {
+export type RunKind = 'maps' | 'instagram' | 'google' | 'profiles';
+
+function webhookUrl(batchId: string, kind: RunKind): string | null {
   const env = getEnv();
   // O Apify recusa localhost. No local o worker consulta o resultado no lugar do webhook.
   if (shouldPollRuns(env)) return null;
@@ -40,12 +42,104 @@ export async function startMapsSearch(batch: Batch) {
       await updateBatch(db, batch.id, { status: 'erro', error: APIFY_NOT_CONNECTED });
       return;
     }
-    const input = buildMapsInput({ location: batch.location, businessType: batch.business_type, quantity: batch.quantity });
+    const input = buildMapsInput({ locations: batchLocations(batch), businessType: batch.business_type, quantity: batch.quantity });
     const runId = await startActorRun(token, MAPS_ACTOR, input, webhookUrl(batch.id, 'maps'));
-    await updateBatch(db, batch.id, { apify_run_id: runId, instagram_run_id: null, status: 'buscando', error: null });
+    // Só uma busca por vez no batch: as execuções da outra fonte já terminaram.
+    await updateBatch(db, batch.id, { apify_run_id: runId, instagram_run_id: null, google_run_id: null, profiles_run_id: null, status: 'buscando', error: null });
   } catch (err) {
     await updateBatch(db, batch.id, { status: 'erro', error: (err as Error).message });
   }
+}
+
+/** Termos da busca do Instagram: as variações escolhidas, ou o nicho e os nomes das cidades. */
+export function instagramSearchTerms(batch: Pick<Batch, 'business_type' | 'location' | 'locations' | 'niche_terms' | 'location_terms'>) {
+  const cities = batchLocations(batch).map((l) => findMunicipio(l)?.nome ?? l.split(',')[0]);
+  return {
+    niches: batch.niche_terms?.length ? batch.niche_terms : [batch.business_type],
+    locations: batch.location_terms?.length ? batch.location_terms : cities.map((c) => c.toLowerCase()),
+  };
+}
+
+/** Busca no Google os perfis do Instagram do nicho na região (site:instagram.com ...). */
+export async function startInstagramSearch(batch: Batch) {
+  const db = scopeDb(createAdminClient(), batch.workspace_id);
+  try {
+    const token = await tokenOf(batch.workspace_id);
+    if (!token) {
+      await updateBatch(db, batch.id, { status: 'erro', error: APIFY_NOT_CONNECTED });
+      return;
+    }
+    const terms = instagramSearchTerms(batch);
+    const queries = buildInstagramQueries(terms.niches, terms.locations);
+    if (!queries.length) throw new Error('Informe o nicho para buscar no Instagram.');
+    const runId = await startActorRun(token, GOOGLE_ACTOR, buildGoogleInput(queries, searchPagesFor(batch.quantity, queries.length)), webhookUrl(batch.id, 'google'));
+    await updateBatch(db, batch.id, { google_run_id: runId, profiles_run_id: null, apify_run_id: null, instagram_run_id: null, status: 'buscando', error: null });
+  } catch (err) {
+    await updateBatch(db, batch.id, { status: 'erro', error: (err as Error).message });
+  }
+}
+
+/** Busca do batch pela fonte dele. */
+export const startBatchSearch = (batch: Batch) => (batch.source === 'instagram' ? startInstagramSearch(batch) : startMapsSearch(batch));
+
+/**
+ * Resultado da busca no Google: os perfis já conhecidos entram no batch na etapa em que estão; os novos vão
+ * para a leitura do perfil (bio, link, telefone, posts).
+ */
+export async function handleGoogleResult(batchId: string, event: { succeeded: boolean; datasetId: string | null }) {
+  const ctx = await batchContext(batchId);
+  if (!ctx) return;
+  const { db, token } = ctx;
+  const batch = await getBatch(db, batchId);
+  // Webhook repetido: a leitura dos perfis já começou.
+  if (!batch || batch.profiles_run_id) return;
+  if (!token) {
+    await updateBatch(db, batchId, { status: 'erro', error: APIFY_NOT_CONNECTED });
+    return;
+  }
+  try {
+    if (!event.datasetId) throw new Error('A busca no Google foi interrompida.');
+    const handles = handlesFromSearch(await fetchDataset<GoogleSearchPage>(token, event.datasetId)).slice(0, batch.quantity);
+    const known = await leadsByInstagramHandles(db, handles);
+    if (known.length) await linkExistingLeads(db, batchId, known);
+    const knownHandles = new Set(known.map((l) => l.instagram_handle));
+    const fresh = handles.filter((h) => !knownHandles.has(h));
+    if (!fresh.length) {
+      if (!handles.length && !event.succeeded) throw new Error('A busca no Google foi interrompida.');
+      await enqueueAnalysis(batchId);
+      return;
+    }
+    const runId = await startActorRun(token, INSTAGRAM_ACTOR, { usernames: fresh }, webhookUrl(batchId, 'profiles'));
+    await updateBatch(db, batchId, { profiles_run_id: runId, status: 'buscando' });
+  } catch (err) {
+    await updateBatch(db, batchId, { status: 'erro', error: (err as Error).message });
+  }
+}
+
+/** Perfis lidos: viram leads (cruzando com os que já existem) e seguem para a análise. */
+export async function handleProfilesResult(batchId: string, event: { datasetId: string | null }) {
+  const ctx = await batchContext(batchId);
+  if (!ctx) return;
+  const { db, token } = ctx;
+  const batch = await getBatch(db, batchId);
+  if (!batch) return;
+  if (event.datasetId && token) {
+    try {
+      const profiles = await fetchDataset<InstagramProfileData>(token, event.datasetId);
+      const cities = batchLocations(batch).map((l) => findMunicipio(l)?.nome ?? l.split(',')[0]);
+      const plain = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const leads = profiles.flatMap((p) => {
+        // A cidade é a que aparece na bio; sem nenhuma, a primeira do batch.
+        const city = cities.find((c) => plain(p.biography ?? '').includes(plain(c))) ?? cities[0] ?? null;
+        const lead = mapProfileToLead(p, batchId, { city, businessType: batch.business_type });
+        return lead ? [lead] : [];
+      });
+      await importLeads(db, leads);
+    } catch (err) {
+      await updateBatch(db, batchId, { status: 'erro', error: (err as Error).message });
+    }
+  }
+  await enqueueAnalysis(batchId);
 }
 
 async function enqueueAnalysis(batchId: string) {
@@ -148,8 +242,8 @@ export async function syncSearchProgress() {
       if (!run.defaultDatasetId) continue;
       const items = await fetchDataset<ApifyPlace>(token, run.defaultDatasetId);
       const leads = items.filter((i) => i.placeId && i.title).map((i) => mapPlaceToLead(i, batch.id));
-      const known = await listKnownPlaceIds(db, leads.map((l) => l.place_id));
-      const fresh = leads.filter((l) => !known.has(l.place_id));
+      const known = await listKnownPlaceIds(db, leads.map((l) => l.place_id!));
+      const fresh = leads.filter((l) => !known.has(l.place_id!));
       if (fresh.length) await importLeads(db, fresh);
     } catch (err) {
       console.error(`[apify] progresso do batch ${batch.id}: ${(err as Error).message}`);
@@ -162,7 +256,18 @@ export async function pollPendingRuns() {
   for (const batch of await listBatches(createAdminClient())) {
     const db = scopeDb(createAdminClient(), batch.workspace_id);
     try {
-      if (batch.status === 'buscando' && batch.apify_run_id) {
+      if (batch.status === 'buscando' && (batch.profiles_run_id || batch.google_run_id)) {
+        const token = await tokenOf(batch.workspace_id);
+        if (!token) {
+          await updateBatch(db, batch.id, { status: 'erro', error: APIFY_NOT_CONNECTED });
+          continue;
+        }
+        const run = await getRun(token, (batch.profiles_run_id ?? batch.google_run_id)!);
+        const outcome = runOutcome(run.status);
+        if (outcome === 'pending') continue;
+        if (batch.profiles_run_id) await handleProfilesResult(batch.id, { datasetId: run.defaultDatasetId });
+        else await handleGoogleResult(batch.id, { succeeded: outcome === 'succeeded', datasetId: run.defaultDatasetId });
+      } else if (batch.status === 'buscando' && batch.apify_run_id) {
         const token = await tokenOf(batch.workspace_id);
         if (!token) {
           await handleMapsResult(batch.id, { succeeded: false, datasetId: null });

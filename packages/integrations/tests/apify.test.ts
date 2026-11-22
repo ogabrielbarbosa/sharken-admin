@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { APIFY_OUT_OF_CREDIT, apifyAccount, apifyErrorMessage, buildInstagramInput, buildMapsInput, buildRunUrl, parseWebhookEvent, runOutcome, shouldPollRuns, usernameFromUrl } from '../src/apify';
+import { APIFY_OUT_OF_CREDIT, apifyAccount, apifyErrorMessage, buildGoogleInput, buildInstagramInput, buildMapsInput, buildRunUrl, parseWebhookEvent, runOutcome, shouldPollRuns, usernameFromUrl } from '../src/apify';
 
 describe('buildMapsInput', () => {
   it('monta exatamente a entrada do ator', () => {
@@ -10,7 +10,19 @@ describe('buildMapsInput', () => {
     });
   });
   it('mantém o texto livre dos batches antigos', () => {
-    expect(buildMapsInput({ location: 'Zona Sul, Rio', businessType: 'x', quantity: 1 }).locationQuery).toBe('Zona Sul, Rio, Brasil');
+    expect(buildMapsInput({ location: 'Zona Sul, Rio', businessType: 'x', quantity: 1 })).toMatchObject({ locationQuery: 'Zona Sul, Rio, Brasil' });
+  });
+  it('várias cidades: uma busca por cidade, dividindo a quantidade', () => {
+    expect(buildMapsInput({ locations: ['São José dos Campos, SP', 'Jacareí, SP'], businessType: 'dentista', quantity: 50 })).toMatchObject({
+      searchStringsArray: ['dentista em São José dos Campos, São Paulo, Brasil', 'dentista em Jacareí, São Paulo, Brasil'],
+      maxCrawledPlacesPerSearch: 25,
+    });
+  });
+});
+
+describe('buildGoogleInput', () => {
+  it('uma consulta por linha', () => {
+    expect(buildGoogleInput(['a', 'b'], 3)).toMatchObject({ queries: 'a\nb', maxPagesPerQuery: 3, countryCode: 'br' });
   });
 });
 

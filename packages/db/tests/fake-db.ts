@@ -6,6 +6,16 @@ type Filter = [string, string, unknown];
 
 /** Cliente mínimo com a forma do supabase-js, executando em PGlite. */
 export function fakeDb(pg: PGlite): Db {
+  // Colunas de array (text[]) vão como array; as demais, como JSON (jsonb).
+  const arrayCache = new Map<string, Set<string>>();
+  const arrayColumns = async (table: string) => {
+    if (!arrayCache.has(table)) {
+      const { rows } = await pg.query<{ column_name: string }>(
+        `select column_name from information_schema.columns where table_schema = 'public' and table_name = $1 and data_type = 'ARRAY'`, [table]);
+      arrayCache.set(table, new Set(rows.map((r) => r.column_name)));
+    }
+    return arrayCache.get(table)!;
+  };
   const builder = (table: string) => {
     const s = {
       op: 'select',
@@ -19,7 +29,21 @@ export function fakeDb(pg: PGlite): Db {
       head: false,
       conflict: null as { column: string; ignore: boolean } | null,
     };
-    const run = async () => {
+    const run = async (): Promise<{ data: unknown; error: unknown; count?: number }> => {
+      // Várias linhas de uma vez: uma inserção por linha.
+      if ((s.op === 'insert' || s.op === 'upsert') && Array.isArray(s.values)) {
+        const all = s.values as Record<string, unknown>[];
+        const out: unknown[] = [];
+        for (const row of all) {
+          s.values = row;
+          const r = await run();
+          if (r.error) return r;
+          out.push(...(r.data as unknown[]));
+        }
+        s.values = all as unknown as Record<string, unknown>;
+        return { data: out, error: null };
+      }
+      const arrayCols = await arrayColumns(table);
       // Sem scopeDb, grava no workspace padrão (o da operação do Gabriel), como o painel faria.
       if ((s.op === 'insert' || s.op === 'upsert') && WORKSPACE_TABLES.has(table) && table !== 'jobs' && !('workspace_id' in s.values)) {
         const { rows } = await pg.query(`select id from workspaces where slug = 'sharken'`);
@@ -27,7 +51,7 @@ export function fakeDb(pg: PGlite): Db {
       }
       const params: unknown[] = [];
       const p = (v: unknown) => (params.push(v), `$${params.length}`);
-      const conds = s.filters.map(([c, k, v]) => (k === 'in' ? `${c} = any(${p(v)})` : k === 'is' ? `${c} is ${v === null ? 'null' : String(v)}` : `${c} ${k} ${p(v)}`));
+      const conds = s.filters.map(([c, k, v]) => (k === 'in' ? `${c} = any(${p(v)})` : k === 'is' ? `${c} is ${v === null ? 'null' : String(v)}` : k === 'isnot' ? `${c} is not ${v === null ? 'null' : String(v)}` : `${c} ${k} ${p(v)}`));
       for (const expr of s.ors) {
         // Só o formato `coluna.ilike.valor,coluna.ilike.valor` usado pela busca.
         conds.push('(' + expr.split(',').map((part) => {
@@ -36,14 +60,14 @@ export function fakeDb(pg: PGlite): Db {
         }).join(' or ') + ')');
       }
       const where = conds.length ? ' where ' + conds.join(' and ') : '';
-      const enc = (v: unknown) => (v !== null && typeof v === 'object' ? JSON.stringify(v) : v);
+      const enc = (v: unknown, col?: string) => (col && arrayCols.has(col) ? v : v !== null && typeof v === 'object' ? JSON.stringify(v) : v);
       const keys = Object.keys(s.values);
       let sql: string;
       if (s.op === 'insert' || s.op === 'upsert') {
         const onConflict = s.conflict ? (s.conflict.ignore || !keys.filter((k) => k !== s.conflict!.column).length ? ` on conflict (${s.conflict.column}) do nothing` : ` on conflict (${s.conflict.column}) do update set ${keys.filter((k) => k !== s.conflict!.column).map((k) => `${k} = excluded.${k}`).join(',')}`) : '';
-        sql = `insert into ${table} (${keys.join(',')}) values (${keys.map((k) => p(enc(s.values[k]))).join(',')})${onConflict} returning *`;
+        sql = `insert into ${table} (${keys.join(',')}) values (${keys.map((k) => p(enc(s.values[k], k))).join(',')})${onConflict} returning *`;
       } else if (s.op === 'delete') sql = `delete from ${table}${where} returning *`;
-      else if (s.op === 'update') sql = `update ${table} set ${keys.map((k) => `${k} = ${p(enc(s.values[k]))}`).join(',')}${where} returning *`;
+      else if (s.op === 'update') sql = `update ${table} set ${keys.map((k) => `${k} = ${p(enc(s.values[k], k))}`).join(',')}${where} returning *`;
       else sql = `select * from ${table}${where}${s.order.length ? ' order by ' + s.order.join(', ') : ''}${s.limit ? ` limit ${s.limit}` : ''}${s.offset ? ` offset ${s.offset}` : ''}`;
       try {
         const { rows } = await pg.query(sql, params);
@@ -63,11 +87,13 @@ export function fakeDb(pg: PGlite): Db {
       update: (v: Record<string, unknown>) => ((s.op = 'update'), (s.values = v), b),
       delete: () => ((s.op = 'delete'), b),
       eq: filter('='),
+      neq: filter('<>'),
       lt: filter('<'),
       lte: filter('<='),
       gte: filter('>='),
       in: filter('in'),
       is: filter('is'),
+      not: (c: string, op: string, v: unknown) => (s.filters.push([c, op === 'is' ? 'isnot' : op, v]), b),
       or: (expr: string) => (s.ors.push(expr), b),
       order: (c: string, o: { ascending?: boolean; nullsFirst?: boolean } = {}) => (
         s.order.push(`${c} ${o.ascending === false ? 'desc' : 'asc'} nulls ${o.nullsFirst ? 'first' : 'last'}`), b

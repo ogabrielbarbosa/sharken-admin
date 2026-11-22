@@ -5,13 +5,17 @@ export const MAPS_ACTOR = 'compass/crawler-google-places';
 export const INSTAGRAM_ACTOR = 'apify/instagram-profile-scraper';
 const FINAL_EVENTS = ['ACTOR.RUN.SUCCEEDED', 'ACTOR.RUN.FAILED', 'ACTOR.RUN.TIMED_OUT', 'ACTOR.RUN.ABORTED'];
 
-export function buildMapsInput(b: { location: string; businessType: string; quantity: number }) {
-  // Batches novos guardam "Cidade, UF". O nome do estado por extenso evita que o Apify ache a cidade errada.
-  const m = findMunicipio(b.location);
-  return {
-    searchStringsArray: [b.businessType],
-    locationQuery: m ? `${m.nome}, ${m.estado}, Brasil` : `${b.location}, Brasil`,
-    maxCrawledPlacesPerSearch: b.quantity,
+export const GOOGLE_ACTOR = 'apify/google-search-scraper';
+
+/** "Cidade, UF" → "Cidade, Estado, Brasil": o nome do estado por extenso evita que o Apify ache a cidade errada. */
+const mapsPlace = (location: string) => {
+  const m = findMunicipio(location);
+  return m ? `${m.nome}, ${m.estado}, Brasil` : `${location}, Brasil`;
+};
+
+export function buildMapsInput(b: { location?: string; locations?: string[]; businessType: string; quantity: number }) {
+  const locations = b.locations?.length ? b.locations : [b.location ?? ''];
+  const common = {
     language: 'pt-BR',
     website: 'allPlaces',
     maxImages: 8,
@@ -20,6 +24,20 @@ export function buildMapsInput(b: { location: string; businessType: string; quan
     reviewsOrigin: 'google',
     scrapeReviewsPersonalData: false,
   };
+  if (locations.length === 1) {
+    return { searchStringsArray: [b.businessType], locationQuery: mapsPlace(locations[0]), maxCrawledPlacesPerSearch: b.quantity, ...common };
+  }
+  // Várias cidades: uma busca por cidade, dividindo a quantidade.
+  return {
+    searchStringsArray: locations.map((l) => `${b.businessType} em ${mapsPlace(l)}`),
+    maxCrawledPlacesPerSearch: Math.max(1, Math.ceil(b.quantity / locations.length)),
+    ...common,
+  };
+}
+
+/** Entrada do `apify/google-search-scraper`: uma consulta por linha, resultados do Brasil em português. */
+export function buildGoogleInput(queries: string[], pages: number) {
+  return { queries: queries.join('\n'), maxPagesPerQuery: pages, countryCode: 'br', languageCode: 'pt-BR', mobileResults: false, saveHtml: false, saveHtmlToKeyValueStore: false };
 }
 
 export function usernameFromUrl(url: string): string | null {

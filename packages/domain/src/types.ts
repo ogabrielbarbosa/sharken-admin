@@ -21,7 +21,19 @@ export type Batch = {
   apify_run_id: string | null;
   instagram_run_id: string | null;
   workspace_id: string;
+  /** Onde o batch começou a buscar. Depois dá para rodar a outra fonte em cima dele. */
+  source: BatchSource;
+  /** Cidades ("Cidade, UF"). Vazio nos batches antigos: vale `location`. */
+  locations: string[];
+  /** Variações do nicho e da localização usadas na busca do Instagram pelo Google. */
+  niche_terms: string[];
+  location_terms: string[];
+  /** Execuções no Apify da busca do Instagram: busca no Google e leitura dos perfis. */
+  google_run_id: string | null;
+  profiles_run_id: string | null;
 };
+
+export type BatchSource = 'instagram' | 'maps';
 
 export type SiteSignal = { key: string; label: string; ok: boolean };
 
@@ -47,7 +59,11 @@ export type Lead = {
   created_at: string;
   updated_at: string;
   batch_id: string | null;
-  place_id: string;
+  /** Null quando o lead veio só do Instagram. */
+  place_id: string | null;
+  /** Calculados pelo banco a partir de instagram_url e website_url (migração 0023). */
+  instagram_handle?: string | null;
+  site_domain?: string | null;
   name: string;
   business_type: string | null;
   phone_raw: string | null;

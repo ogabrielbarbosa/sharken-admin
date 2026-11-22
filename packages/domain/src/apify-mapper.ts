@@ -1,3 +1,4 @@
+import { instagramHandle } from './lead-keys';
 import { toMobileE164 } from './phone';
 
 export type ApifyPlace = {
@@ -25,7 +26,8 @@ export type LeadReview = { text: string; stars: number };
 
 export type NewLead = {
   batch_id: string;
-  place_id: string;
+  /** Null quando o lead veio do Instagram (sem lugar no Google Maps). */
+  place_id: string | null;
   name: string;
   business_type: string | null;
   phone_raw: string | null;
@@ -41,6 +43,9 @@ export type NewLead = {
   photos: string[];
   reviews: LeadReview[];
   website_url: string | null;
+  instagram_url?: string | null;
+  instagram_last_post_at?: string | null;
+  email?: string | null;
 };
 
 export function mapPlaceToLead(place: ApifyPlace, batchId: string): NewLead {
@@ -68,9 +73,12 @@ export function mapPlaceToLead(place: ApifyPlace, batchId: string): NewLead {
   };
 }
 
-export function dedupeLeads<T extends Pick<NewLead, 'place_id' | 'phone_e164' | 'reviews_count'>>(leads: T[]): T[] {
+export function dedupeLeads<T extends Pick<NewLead, 'place_id' | 'phone_e164' | 'reviews_count'> & { instagram_url?: string | null; name?: string }>(leads: T[]): T[] {
   const byPlace = new Map<string, T>();
-  for (const lead of leads) if (!byPlace.has(lead.place_id)) byPlace.set(lead.place_id, lead);
+  for (const lead of leads) {
+    const key = lead.place_id ?? `ig:${instagramHandle(lead.instagram_url) ?? lead.name}`;
+    if (!byPlace.has(key)) byPlace.set(key, lead);
+  }
   const byPhone = new Map<string, T>();
   const out: T[] = [];
   for (const lead of byPlace.values()) {

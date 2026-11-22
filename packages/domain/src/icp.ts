@@ -24,11 +24,12 @@ export function scoreLead(lead: ScoreInput, c: Criteria, now: Date): { score: nu
 }
 
 /**
- * O que tira o lead da pipeline logo na busca. Só sai quem não tem como ser contatado (sem celular e
- * sem e-mail), franquia ou rede, quem pediu para não ser contatado e quem foi contatado há pouco.
+ * O que tira o lead da pipeline logo na busca: quem não tem como ser contatado (sem celular e sem e-mail),
+ * franquia ou rede, quem pediu para não ser contatado, quem foi contatado há pouco e quem não atende
+ * aos critérios marcados no batch (Instagram ativo, celular, com ou sem site).
  */
 export function checkEliminatory(
-  lead: Pick<Lead, 'phone_e164' | 'email' | 'franchise'>,
+  lead: Pick<Lead, 'phone_e164' | 'email' | 'franchise'> & Partial<Pick<Lead, 'instagram_last_post_at' | 'site_status'>>,
   ctx: { blocked: boolean; lastContactAt: Date | null; now: Date },
   c: Criteria,
 ): { passed: boolean; reasons: string[] } {
@@ -37,5 +38,11 @@ export function checkEliminatory(
   if (lead.franchise) reasons.push('Franquia ou rede');
   if (ctx.blocked) reasons.push('Está em não contatar');
   if (ctx.lastContactAt && daysSince(ctx.lastContactAt, ctx.now) < c.recontactDays) reasons.push(`Contatado há menos de ${c.recontactDays} dias`);
+  if (c.requireInstagramActive && !(lead.instagram_last_post_at && daysSince(lead.instagram_last_post_at, ctx.now) <= c.instagramActiveDays)) {
+    reasons.push(`Sem post no Instagram nos últimos ${c.instagramActiveDays} dias`);
+  }
+  if (c.requirePhone && !lead.phone_e164) reasons.push('Sem celular');
+  if (c.site === 'sem_site' && lead.site_status === 'funcionando') reasons.push('Tem site');
+  if (c.site === 'com_site' && lead.site_status && lead.site_status !== 'funcionando') reasons.push('Sem site funcionando');
   return { passed: reasons.length === 0, reasons };
 }

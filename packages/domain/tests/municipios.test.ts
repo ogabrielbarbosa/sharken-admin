@@ -30,3 +30,15 @@ describe('findMunicipio', () => {
     expect(findMunicipio('Campinas')).toBeNull();
   });
 });
+
+describe('cidades em volta', () => {
+  it('São José dos Campos: as vizinhas, da mais perto para a mais longe', async () => {
+    const { municipiosNear } = await import('../src/municipios');
+    const near = municipiosNear('São José dos Campos, SP', 30).map((m) => m.nome);
+    expect(near.slice(0, 4)).toEqual(expect.arrayContaining(['Jacareí', 'Caçapava']));
+    expect(near).not.toContain('São José dos Campos');
+    expect(near).not.toContain('Taubaté');
+    expect(municipiosNear('São José dos Campos, SP', 50).map((m) => m.nome)).toContain('Taubaté');
+    expect(municipiosNear('Cidade Inexistente, SP', 30)).toEqual([]);
+  });
+});

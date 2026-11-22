@@ -151,12 +151,25 @@ export async function mcpListBatches(
 
   const columns = new Map(batches.map((b) => [b.id, emptyColumns(() => 0)]));
   for (const part of chunks(batches.map((b) => b.id))) {
-    const stages = await fetchAll<{ batch_id: string; stage: LeadStage }>((from, to) =>
-      db.from('leads').select('batch_id, stage').in('workspace_id', ids).in('batch_id', part).order('id').range(from, to),
+    const links = await fetchAll<{ batch_id: string; lead_id: string }>((from, to) =>
+      db.from('batch_leads').select('batch_id, lead_id').in('workspace_id', ids).in('batch_id', part).order('batch_id').order('lead_id').range(from, to),
     );
-    for (const s of stages) columns.get(s.batch_id)![columnOf(s.stage)] += 1;
+    const stageOf = new Map<string, LeadStage>();
+    for (const leadPart of chunks([...new Set(links.map((l) => l.lead_id))])) {
+      for (const l of check<{ id: string; stage: LeadStage }[]>(await db.from('leads').select('id, stage').in('workspace_id', ids).in('id', leadPart))) stageOf.set(l.id, l.stage);
+    }
+    for (const l of links) if (stageOf.has(l.lead_id)) columns.get(l.batch_id)![columnOf(stageOf.get(l.lead_id)!)] += 1;
   }
   return batches.map((b) => ({ ...b, workspace: nameOf(access, b.workspace_id), columns: columns.get(b.id)! }));
+}
+
+/** Leads de um batch (pela ligação lead–batch), por pontuação. */
+async function batchRows(db: Db, ids: string[], batchId: string): Promise<SummaryRow[]> {
+  const links = await fetchAll<{ lead_id: string }>((from, to) =>
+    db.from('batch_leads').select('lead_id').in('workspace_id', ids).eq('batch_id', batchId).order('lead_id').range(from, to));
+  const rows: SummaryRow[] = [];
+  for (const part of chunks(links.map((l) => l.lead_id))) rows.push(...check<SummaryRow[]>(await db.from('leads').select(SUMMARY_COLUMNS).in('workspace_id', ids).in('id', part)));
+  return rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1) || a.id.localeCompare(b.id));
 }
 
 export async function mcpGetBatch(
@@ -168,10 +181,7 @@ export async function mcpGetBatch(
   if (!ids.length) return null;
   const batch = check<Batch | null>(await db.from('batches').select('*').in('workspace_id', ids).eq('id', batchId).maybeSingle());
   if (!batch) return null;
-  const rows = await fetchAll<SummaryRow>((from, to) =>
-    db.from('leads').select(SUMMARY_COLUMNS).in('workspace_id', ids).eq('batch_id', batchId)
-      .order('score', { ascending: false, nullsFirst: false }).order('id').range(from, to),
-  );
+  const rows = await batchRows(db, ids, batchId);
   const columns = emptyColumns<LeadSummary[]>(() => []);
   for (const lead of await summarize(db, access, ids, rows)) columns[lead.column].push(lead);
   return { batch: { ...batch, workspace: nameOf(access, batch.workspace_id) }, columns };
@@ -186,10 +196,19 @@ export async function mcpListLeads(
   if (!ids.length) return { leads: [], next: null };
   const limit = clamp(o.limit, LIST_LIMIT, LIST_MAX);
   const offset = decodeCursor(o.cursor);
-  let query = db.from('leads').select(SUMMARY_COLUMNS).in('workspace_id', ids);
-  if (o.batchId) query = query.eq('batch_id', o.batchId);
-  if (o.column) query = query.in('stage', PIPELINE_COLUMNS.find((c) => c.key === o.column)?.stages ?? []);
   const term = cleanSearch(o.search);
+  if (o.batchId) {
+    // Os leads do batch vêm pela ligação lead–batch (um lead pode estar em vários); o resto é filtrado aqui.
+    const stages = o.column ? PIPELINE_COLUMNS.find((c) => c.key === o.column)?.stages ?? [] : null;
+    const plain = (v: string | null) => (v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const all = (await batchRows(db, ids, o.batchId))
+      .filter((r) => !stages || stages.includes(r.stage))
+      .filter((r) => !term || plain(r.name).includes(plain(term)) || plain(r.city).includes(plain(term)));
+    const { items, next } = page(all.slice(offset, offset + limit + 1), offset, limit);
+    return { leads: await summarize(db, access, ids, items), next };
+  }
+  let query = db.from('leads').select(SUMMARY_COLUMNS).in('workspace_id', ids);
+  if (o.column) query = query.in('stage', PIPELINE_COLUMNS.find((c) => c.key === o.column)?.stages ?? []);
   if (term) query = query.or(`name.ilike.%${term}%,city.ilike.%${term}%`);
   const rows = check<SummaryRow[]>(await query
     .order('score', { ascending: false, nullsFirst: false }).order('id').range(offset, offset + limit));

@@ -1,7 +1,7 @@
 import type { ChatState, ContactStatus, Lead } from '@lps/domain';
-import { Globe, Loader2, MapPin, MessagesSquare, PanelTop, Video } from 'lucide-react';
+import { Globe, History, Loader2, MapPin, MessagesSquare, PanelTop, Video } from 'lucide-react';
 import Link, { useLinkStatus } from 'next/link';
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { InstagramIcon, instagramUrl, mapsUrl, siteUrl, withProtocol } from '@/components/leads/lead-links';
 import { Status } from '@/components/ui';
 import { crmHref, STATUS_LABEL } from '@/lib/crm';
@@ -14,6 +14,9 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 const STAGE_LABEL: Partial<Record<Lead['stage'], string>> = { crm: 'No CRM', vendido: 'Vendido', sem_interesse: 'Sem interesse', nao_contatar: 'Não contatar', descartado: 'Descartado' };
 
 export type CardDrag = { onStart: () => void; onEnd: () => void };
+
+/** Batches anteriores em que o lead já tinha aparecido (só nos leads já conhecidos deste batch). */
+const KnownFrom = createContext<string[] | undefined>(undefined);
 
 /** `drag`: o cartão pode ser arrastado (até Descartados). */
 function Shell({ lead, active, drag, children }: { lead: Lead; active?: boolean; drag?: CardDrag; children: ReactNode }) {
@@ -105,7 +108,19 @@ function CardBody({ lead, children }: { lead: Lead; children?: ReactNode }) {
         <QuickLinks lead={lead} />
       </span>
       {children && <span className="mt-1.5 block text-xs">{children}</span>}
+      <Known />
     </>
+  );
+}
+
+function Known() {
+  const from = useContext(KnownFrom);
+  if (!from) return null;
+  return (
+    <span className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground" title={from.join('\n')}>
+      <History className="size-3 shrink-0" />
+      <span className="truncate">Já conhecido{from.length ? ` · ${from[0]}${from.length > 1 ? ` e mais ${from.length - 1}` : ''}` : ''}</span>
+    </span>
   );
 }
 
@@ -133,7 +148,13 @@ function LinkCard({ lead, href, active, drag, children }: { lead: Lead; href: st
   );
 }
 
-export function LeadCard({ lead, href, active, contacts, drag }: {
+export function LeadCard({ knownFrom, ...props }: {
+  lead: Lead; href: string; active?: boolean; contacts?: CardContact[]; drag?: CardDrag; knownFrom?: string[];
+}) {
+  return <KnownFrom.Provider value={knownFrom}><StageCard {...props} /></KnownFrom.Provider>;
+}
+
+function StageCard({ lead, href, active, contacts, drag }: {
   lead: Lead; href: string; active?: boolean; contacts?: CardContact[]; drag?: CardDrag;
 }) {
   switch (lead.stage) {

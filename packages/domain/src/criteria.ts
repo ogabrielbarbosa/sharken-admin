@@ -4,7 +4,13 @@ export type Criteria = {
   minPhotos: number;
   instagramActiveDays: number;
   recontactDays: number;
+  /** Marcados à mão no batch: quem não atende vai para descartado. Batches antigos não têm (não exige). */
+  requireInstagramActive?: boolean;
+  requirePhone?: boolean;
+  site?: SiteRequirement;
 };
+
+export type SiteRequirement = 'qualquer' | 'sem_site' | 'com_site';
 
 export const DEFAULT_CRITERIA: Criteria = {
   minReviews: 20,

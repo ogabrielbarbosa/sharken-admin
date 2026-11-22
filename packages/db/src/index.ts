@@ -19,3 +19,5 @@ export * from './read-only';
 export * from './mcp-read';
 export * from './pages';
 export * from './apify';
+export * from './duplicates';
+export * from './search-terms';

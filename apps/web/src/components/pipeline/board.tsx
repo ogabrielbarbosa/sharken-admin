@@ -61,8 +61,10 @@ export function Notice({ notice }: { notice: { tone: 'error' | 'warning'; text: 
  * Quadro da pipeline. Recebe os leads já na ordem de cada coluna
  * (Novo lead filtrado e por pontuação, as outras por tempo na etapa).
  */
-export function Board({ batchId, leads, contacts, query = '', openId }: {
+export function Board({ batchId, leads, contacts, query = '', openId, known = {} }: {
   batchId: string; leads: Lead[]; contacts: Record<string, CardContact[]>; query?: string; openId?: string;
+  /** Leads que já eram conhecidos, com os batches anteriores. */
+  known?: Record<string, string[]>;
 }) {
   const [tab, setTab] = useState<PipelineColumn>('novo');
   const [showDiscarded, setShowDiscarded] = useState(false);
@@ -132,6 +134,7 @@ export function Board({ batchId, leads, contacts, query = '', openId }: {
                   href={boardHref(batchId, query, lead.id)}
                   active={lead.id === openId}
                   contacts={contacts[lead.id]}
+                  knownFrom={known[lead.id]}
                   drag={PIPELINE_COLUMNS.some((col) => dropMove(lead.stage, col.key)) ? { onStart: () => setDragging(lead), onEnd: () => setDragging(null) } : undefined}
                 />
               ))}

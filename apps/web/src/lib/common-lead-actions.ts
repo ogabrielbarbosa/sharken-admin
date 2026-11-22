@@ -18,7 +18,7 @@ export async function blockLeadAction(form: FormData) {
   const lead = await getLead(db, id(form));
   if (!lead) return;
   const reason = String(form.get('reason') ?? 'Marcado como não contatar');
-  await addToDoNotContact(db, { phone_e164: lead.phone_e164, place_id: lead.place_id, reason });
+  await addToDoNotContact(db, { phone_e164: lead.phone_e164, place_id: lead.place_id, instagram_url: lead.instagram_url, reason });
   await moveLead(db, lead, 'nao_contatar', { exit_reason: reason });
   revalidatePath('/painel', 'layout');
 }

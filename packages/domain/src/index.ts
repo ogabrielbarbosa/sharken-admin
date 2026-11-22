@@ -32,3 +32,8 @@ export * from './enrichment';
 export * from './abacatepay';
 export * from './apify-token';
 export * from './instagram-media';
+export * from './lead-keys';
+export * from './lead-match';
+export * from './instagram-search';
+export * from './instagram-profile';
+export * from './prospect-map';

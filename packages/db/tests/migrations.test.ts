@@ -37,8 +37,8 @@ describe('migrações', () => {
        where n.nspname='public' and c.relkind='r' order by relname`,
     );
     expect(rows.map((r) => r.relname)).toEqual([
-      'batches', 'charges', 'clients', 'contacts', 'contracts', 'do_not_contact', 'events',
-      'jobs', 'lead_assets', 'leads', 'messages', 'pages', 'platform_admins', 'service_catalog', 'services', 'sites', 'videos', 'whatsapp_connection',
+      'batch_leads', 'batches', 'charges', 'clients', 'contacts', 'contracts', 'do_not_contact', 'events',
+      'jobs', 'lead_assets', 'lead_duplicate_dismissals', 'leads', 'messages', 'pages', 'platform_admins', 'search_terms', 'service_catalog', 'services', 'sites', 'videos', 'whatsapp_connection',
       'workspace_apify', 'workspace_billing', 'workspace_invites', 'workspace_members', 'workspaces',
     ]);
     expect(rows.every((r) => r.relrowsecurity)).toBe(true);

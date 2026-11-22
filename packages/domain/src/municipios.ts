@@ -1,16 +1,46 @@
 import { MUNICIPIOS_RAW, UF_NOMES } from './municipios-data';
 
 export type Municipio = { nome: string; uf: string; estado: string };
+/** Com o ponto central do município (latitude e longitude). */
+export type MunicipioGeo = Municipio & { lat: number; lng: number };
 
 const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
-let cache: (Municipio & { key: string })[] | null = null;
+let cache: (MunicipioGeo & { key: string })[] | null = null;
 function all() {
   cache ??= MUNICIPIOS_RAW.split('\n').map((line) => {
-    const [nome, uf] = line.split('|');
-    return { nome, uf, estado: UF_NOMES[uf], key: normalize(nome) };
+    const [nome, uf, lat, lng] = line.split('|');
+    return { nome, uf, estado: UF_NOMES[uf], key: normalize(nome), lat: Number(lat), lng: Number(lng) };
   });
   return cache;
+}
+
+/** Distância em linha reta, em km, entre dois pontos (fórmula de haversine). */
+export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+
+/** Coordenadas de um município salvo como "Cidade, UF". */
+export function municipioGeo(location: string): MunicipioGeo | null {
+  const m = findMunicipio(location);
+  const found = m && all().find((x) => x.uf === m.uf && x.nome === m.nome);
+  return found ? { nome: found.nome, uf: found.uf, estado: found.estado, lat: found.lat, lng: found.lng } : null;
+}
+
+/**
+ * Cidades em volta de outra, até `radiusKm` em linha reta, da mais perto para a mais longe (sem a própria).
+ * São José dos Campos com 30 km traz Jacareí, Caçapava, Monteiro Lobato...
+ */
+export function municipiosNear(location: string, radiusKm: number): (MunicipioGeo & { km: number })[] {
+  const center = municipioGeo(location);
+  if (!center || radiusKm <= 0) return [];
+  return all()
+    .filter((m) => !(m.nome === center.nome && m.uf === center.uf))
+    .map((m) => ({ nome: m.nome, uf: m.uf, estado: m.estado, lat: m.lat, lng: m.lng, km: distanceKm(center, m) }))
+    .filter((m) => m.km <= radiusKm)
+    .sort((a, b) => a.km - b.km);
 }
 
 /** Formato salvo no batch e mostrado na tela: "Campinas, SP". */

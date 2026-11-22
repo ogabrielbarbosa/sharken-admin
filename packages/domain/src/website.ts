@@ -1,4 +1,4 @@
-const SOCIAL_DOMAINS = [
+export const SOCIAL_DOMAINS = [
   'instagram.com', 'facebook.com', 'fb.com', 'linktr.ee', 'beacons.ai', 'bio.site',
   'wa.me', 'whatsapp.com', 'tiktok.com', 'youtube.com', 'ifood.com.br',
 ];
@@ -27,7 +27,7 @@ export function classifyLink(url: string | null | undefined): LinkClass {
 }
 
 /** Caminhos do Instagram que não são perfil (post, reels, páginas do próprio Instagram). */
-const INSTAGRAM_RESERVED = new Set([
+export const INSTAGRAM_RESERVED = new Set([
   'p', 'reel', 'reels', 'tv', 'stories', 'explore', 'accounts', 'direct', 'about', 'legal',
   'developer', 'share', 's', 'web', 'privacy', 'terms', 'instagram', 'oauth', 'challenge',
 ]);

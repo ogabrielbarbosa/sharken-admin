@@ -13,8 +13,11 @@ export function InstagramIcon() {
 }
 
 /** Link do negócio no Google Maps pelo place_id (abre a ficha certa, não uma busca solta). */
-export function mapsUrl(lead: Pick<Lead, 'name' | 'place_id'>): string {
-  const q = new URLSearchParams({ api: '1', query: lead.name, query_place_id: lead.place_id });
+export function mapsUrl(lead: Pick<Lead, 'name' | 'place_id'> & { city?: string | null }): string {
+  // Lead que veio só do Instagram não tem place_id: abre a busca pelo nome e pela cidade.
+  const q = new URLSearchParams(lead.place_id
+    ? { api: '1', query: lead.name, query_place_id: lead.place_id }
+    : { api: '1', query: [lead.name, lead.city].filter(Boolean).join(' ') });
   return `https://www.google.com/maps/search/?${q}`;
 }
 

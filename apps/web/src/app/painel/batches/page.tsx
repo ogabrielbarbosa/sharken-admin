@@ -1,6 +1,6 @@
 import { listBatches, listBatchStages } from '@lps/db';
 import { PIPELINE_COLUMNS, summarizeBatch, type Batch, type LeadStage, type PipelineColumn } from '@lps/domain';
-import { ChevronRight, Layers, Plus, RotateCcw } from 'lucide-react';
+import { ChevronRight, Copy, Layers, Map as MapIcon, Plus, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { NewBatchDrawer } from '@/components/batches/new-batch-drawer';
 import { Topbar } from '@/components/layout/topbar';
@@ -12,7 +12,7 @@ import { authedDb, getSession } from '@/lib/auth';
 import { retryBatchAction } from './actions';
 
 const STATUS: Record<Batch['status'], { label: string; tone: Tone; detail: string }> = {
-  buscando: { label: 'Buscando', tone: 'warning', detail: 'Consultando o Google Maps' },
+  buscando: { label: 'Buscando', tone: 'warning', detail: 'Buscando os negócios' },
   analisando: { label: 'Analisando', tone: 'warning', detail: 'Analisando os negócios' },
   concluido: { label: 'Concluído', tone: 'success', detail: '' },
   erro: { label: 'Erro', tone: 'danger', detail: '' },
@@ -52,6 +52,8 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                 {locations.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
               </AutoSubmitSelect>
             </form>
+            <LinkButton href="/painel/batches/mapa" variant="outline"><MapIcon /><span className="max-sm:sr-only">Mapa</span></LinkButton>
+            <LinkButton href="/painel/batches/duplicados" variant="outline"><Copy /><span className="max-sm:sr-only">Possíveis duplicados</span></LinkButton>
             <LinkButton href="/painel/batches?novo=1"><Plus /><span className="max-sm:sr-only">Novo batch</span></LinkButton>
           </>
         }
@@ -80,7 +82,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                 return (
                   <tr key={batch.id} className="group/row">
                     <td className="px-4 py-3 font-medium"><Link href={href}>{batch.location}</Link></td>
-                    <td className="px-4 py-3 text-muted-foreground">{batch.business_type}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{batch.business_type}<span className="block text-xs text-subtle-foreground">{batch.source === 'instagram' ? 'Instagram' : 'Google Maps'}</span></td>
                     <td className="px-4 py-3">{batch.quantity}</td>
                     <td className="px-4 py-3"><Status tone={status.tone} live={batch.status === 'buscando' || batch.status === 'analisando'}>{status.label}</Status></td>
                     <td className="px-4 py-3">
@@ -115,7 +117,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
           </Card>
         )}
       </main>
-      {novo && <NewBatchDrawer apifyConnected={apifyConnected} />}
+      {novo && <NewBatchDrawer apifyConnected={apifyConnected} prospected={batches.map((b) => ({ id: b.id, location: b.location, locations: b.locations, business_type: b.business_type, created_at: b.created_at, leads: stages.filter((s) => s.batch_id === b.id).length }))} />}
     </>
   );
 }

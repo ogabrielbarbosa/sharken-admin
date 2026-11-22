@@ -11,3 +11,4 @@ export * from './extract';
 export * from './enrichment';
 export * from './abacatepay';
 export * from './r2';
+export * from './search-variants';

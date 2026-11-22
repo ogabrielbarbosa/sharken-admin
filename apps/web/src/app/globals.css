@@ -163,3 +163,6 @@ body { background: var(--color-sidebar); color: var(--color-foreground); font-fa
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Mapa de prospecção (Leaflet): o OpenStreetMap claro, invertido para o tema escuro. */
+.map-dark { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6); }

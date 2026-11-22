@@ -1,12 +1,19 @@
 'use client';
 
-import { Loader2, MoreHorizontal, Trash2 } from 'lucide-react';
+import type { BatchSource } from '@lps/domain';
+import { Loader2, MoreHorizontal, Search, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { deleteBatchAction } from '@/app/painel/batches/[id]/actions';
+import { runSourceAction } from '@/app/painel/batches/actions';
 import { Button, ErrorNote } from '@/components/ui';
 
-/** Três pontinhos ao lado do nome do batch. Por ora, só Deletar, com confirmação. */
-export function BatchMenu({ batchId, label }: { batchId: string; label: string }) {
+const SOURCE_LABEL: Record<BatchSource, string> = { instagram: 'Instagram', maps: 'Google Maps' };
+
+/**
+ * Três pontinhos ao lado do nome do batch: buscar na outra fonte (cruza com os leads do batch) e deletar,
+ * com confirmação. `sources` vazio enquanto uma busca está rodando.
+ */
+export function BatchMenu({ batchId, label, sources = [] }: { batchId: string; label: string; sources?: BatchSource[] }) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +38,11 @@ export function BatchMenu({ batchId, label }: { batchId: string; label: string }
   }, [confirming]);
 
   const close = () => { if (!pending) { setConfirming(false); setError(null); } };
+  const run = (source: BatchSource) => startTransition(async () => {
+    setOpen(false);
+    const result = await runSourceAction(batchId, source);
+    setError(result.error ?? null);
+  });
   const confirm = () => startTransition(async () => {
     setError(null);
     // Quando dá certo, a ação redireciona para a lista de batches.
@@ -51,7 +63,19 @@ export function BatchMenu({ batchId, label }: { batchId: string; label: string }
         <MoreHorizontal className="size-4" />
       </button>
       {open && (
-        <div role="menu" className="absolute left-0 top-full z-40 mt-1 min-w-40 origin-top-left animate-pop-in rounded-md border border-border bg-card p-1 shadow-overlay">
+        <div role="menu" className="absolute left-0 top-full z-40 mt-1 min-w-56 origin-top-left animate-pop-in rounded-md border border-border bg-card p-1 shadow-overlay">
+          {sources.map((s) => (
+            <button
+              key={s}
+              type="button"
+              role="menuitem"
+              onClick={() => run(s)}
+              className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition-colors hover:bg-white/5"
+            >
+              <Search className="size-3.5" />
+              Buscar também no {SOURCE_LABEL[s]}
+            </button>
+          ))}
           <button
             type="button"
             role="menuitem"
@@ -63,6 +87,9 @@ export function BatchMenu({ batchId, label }: { batchId: string; label: string }
           </button>
         </div>
       )}
+
+      {error && !confirming && <p role="alert" className="absolute left-0 top-full z-30 mt-1 w-64 rounded-md bg-destructive-subtle px-2 py-1.5 text-xs text-destructive">{error}</p>}
+      {pending && !confirming && <Loader2 className="absolute -right-5 top-1.5 size-4 animate-spin text-muted-foreground" />}
 
       <dialog
         ref={dialogRef}
