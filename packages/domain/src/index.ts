@@ -37,3 +37,4 @@ export * from './lead-match';
 export * from './instagram-search';
 export * from './instagram-profile';
 export * from './prospect-map';
+export * from './manual-lead';

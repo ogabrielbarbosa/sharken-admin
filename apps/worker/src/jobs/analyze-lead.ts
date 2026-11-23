@@ -54,6 +54,22 @@ export async function resolveSiteInstagram(db: Db, lead: Lead, workspaceId: stri
   return { ...lead, ...patch };
 }
 
+/** Lead manual não passou pela leitura dos perfis: busca a data do último post do Instagram informado. */
+async function resolveManualInstagram(db: Db, lead: Lead, workspaceId: string | null | undefined): Promise<Lead> {
+  if (!lead.instagram_url || lead.instagram_last_post_at || !lead.batch_id || !workspaceId) return lead;
+  if ((await getBatch(db, lead.batch_id))?.source !== 'manual') return lead;
+  try {
+    const token = await getApifyToken(createAdminClient(), workspaceId);
+    const date = token ? await instagramLastPostAt(token, lead.instagram_url) : null;
+    if (!date) return lead;
+    await updateLead(db, lead.id, { instagram_last_post_at: date });
+    return { ...lead, instagram_last_post_at: date };
+  } catch {
+    // Sem token ou sem crédito no Apify, o lead só deixa de pontuar o Instagram ativo.
+    return lead;
+  }
+}
+
 const MAX_RATE_LIMIT_WAITS = 5;
 const rateLimitWaits = new Map<string, number>();
 
@@ -98,7 +114,8 @@ export const analyzeLeadJob: Handler = async (db, job: Job) => {
     return;
   }
 
-  const lead = await resolveEnrichment(db, await resolveSiteInstagram(db, await resolveSite(db, current), job.workspace_id));
+  const enriched = await resolveEnrichment(db, await resolveSiteInstagram(db, await resolveSite(db, current), job.workspace_id));
+  const lead = await resolveManualInstagram(db, enriched, job.workspace_id);
 
   // Uma falha da IA é repetida pelo worker. Depois das tentativas, onFailure segue sem o resumo.
   const analysis = await analyzeLead(lead);
@@ -113,7 +130,7 @@ async function qualify(db: Db, lead: Lead) {
   const criteria = batch?.criteria ?? DEFAULT_CRITERIA;
   const now = new Date();
   const ctx = await getContactContext(db, lead);
-  const eliminated = checkEliminatory(lead, { ...ctx, now }, criteria);
+  const eliminated = checkEliminatory(lead, { ...ctx, now }, criteria, batch?.source === 'manual');
   if (!eliminated.passed) {
     await moveLead(db, lead, 'descartado', { exit_reason: eliminated.reasons.join('; ') }, { reasons: eliminated.reasons });
     return;

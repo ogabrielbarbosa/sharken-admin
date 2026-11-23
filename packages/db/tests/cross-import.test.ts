@@ -4,8 +4,8 @@ import { PGlite } from '@electric-sql/pglite';
 import type { NewLead } from '@lps/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { dismissDuplicate, listPossibleDuplicates, mergeLeads } from '../src/duplicates';
-import { importLeads, listKnownLeads, listLeads } from '../src/leads';
-import { deleteBatch } from '../src/batches';
+import { addManualLead, importLeads, listKnownLeads, listLeads } from '../src/leads';
+import { createManualBatch, deleteBatch } from '../src/batches';
 import { scopeDb } from '../src/scope';
 import { findSearchTerm, saveSearchTerm } from '../src/search-terms';
 import type { Db } from '../src/client';
@@ -125,5 +125,19 @@ describe('apagar batch com lead que está em outro', () => {
     const { rows } = await pg.query<{ place_id: string; batch_id: string }>(`select place_id, batch_id from leads where place_id in ('D1', 'D2')`);
     expect(rows).toEqual([{ place_id: 'D1', batch_id: b2 }]);
     expect((await listLeads(db, b2)).map((l) => l.place_id)).toEqual(['D1']);
+  });
+});
+
+describe('batch manual', () => {
+  it('cadastra, põe na fila e não repete um negócio conhecido', async () => {
+    const b = await createManualBatch(db, 'Advocacia');
+    expect(b).toMatchObject({ source: 'manual', location: 'Leads manuais' });
+    const lead = base(b.id, { name: 'Silva Adv', instagram_url: 'https://www.instagram.com/silva.adv/' });
+    expect(await addManualLead(db, lead)).toEqual({ known: false });
+    expect(await addManualLead(db, lead)).toEqual({ known: true });
+    const [saved, ...rest] = await listLeads(db, b.id);
+    expect(rest).toHaveLength(0);
+    expect((await pg.query(`select 1 from jobs where type = 'analyze_lead' and payload->>'lead_id' = $1`, [saved.id])).rows).toHaveLength(1);
+    expect((await pg.query<{ status: string }>(`select status from batches where id = $1`, [b.id])).rows[0].status).toBe('analisando');
   });
 });

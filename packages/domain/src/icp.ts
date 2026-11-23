@@ -32,7 +32,10 @@ export function checkEliminatory(
   lead: Pick<Lead, 'phone_e164' | 'email' | 'franchise'> & Partial<Pick<Lead, 'instagram_last_post_at' | 'site_status'>>,
   ctx: { blocked: boolean; lastContactAt: Date | null; now: Date },
   c: Criteria,
+  /** Lead cadastrado à mão: quem cadastrou já decidiu, só a lista de não contatar tira. */
+  manual = false,
 ): { passed: boolean; reasons: string[] } {
+  if (manual) return { passed: !ctx.blocked, reasons: ctx.blocked ? ['Está em não contatar'] : [] };
   const reasons: string[] = [];
   if (!lead.phone_e164 && !lead.email) reasons.push('Sem celular e sem e-mail');
   if (lead.franchise) reasons.push('Franquia ou rede');

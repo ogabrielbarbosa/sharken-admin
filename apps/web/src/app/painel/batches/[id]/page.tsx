@@ -4,6 +4,7 @@ import {
   type Contact, type Lead, type LeadAsset, type PipelineColumn,
 } from '@lps/domain';
 import { ExternalLink, Loader2, Phone, Star } from 'lucide-react';
+import { AddLeadButton } from '@/components/batches/add-lead-button';
 import { BatchMenu } from '@/components/batches/batch-menu';
 import { ActiveFilters, ReviewFilters } from '@/components/batches/review-filters';
 import { LeadDrawer } from '@/components/leads/lead-drawer';
@@ -126,7 +127,8 @@ export default async function PipelinePage({ params, searchParams }: { params: P
   const [assets, contacts, knownBatches] = await Promise.all([assetsByLead(db, qualified.map((l) => l.id)), contactsByLead(db, ready), listKnownLeads(db, id)]);
   const known = Object.fromEntries(Object.entries(knownBatches).map(([leadId, list]) => [leadId, list.map(batchLabel)]));
   const phase = batch.profiles_run_id ? 'Lendo os perfis do Instagram' : batch.google_run_id ? 'Buscando perfis do Instagram no Google' : 'Buscando no Google Maps';
-  const otherSources = running ? [] : (['instagram', 'maps'] as const).filter((s) => s !== batch.source);
+  const manual = batch.source === 'manual';
+  const otherSources = running || manual ? [] : (['instagram', 'maps'] as const).filter((s) => s !== batch.source);
 
   const filterQs = serializeReviewFilter(filter);
   const href = (leadId: string | null) => boardHref(id, filterQs, leadId);
@@ -161,7 +163,12 @@ export default async function PipelinePage({ params, searchParams }: { params: P
       <Topbar
         crumbs={[{ label: 'Batches', href: '/painel/batches' }, { label: batchLabel(batch) }]}
         menu={<BatchMenu batchId={id} label={batchLabel(batch)} sources={[...otherSources]} />}
-        actions={toReview.length > 0 && <ReviewFilters batchId={id} filter={filter} counts={countByOption(toReview, now)} shown={reviewed.length} total={toReview.length} />}
+        actions={
+          <>
+            {toReview.length > 0 && <ReviewFilters batchId={id} filter={filter} counts={countByOption(toReview, now)} shown={reviewed.length} total={toReview.length} />}
+            {manual && <AddLeadButton batchId={id} businessType={batch.business_type} />}
+          </>
+        }
       />
       {/* No desktop o quadro ocupa o resto da tela e cada coluna rola por dentro. */}
       <main className="p-4 md:flex md:h-[calc(100dvh-4.5rem)] md:flex-col lg:p-6">

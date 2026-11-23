@@ -1,5 +1,5 @@
 import type { Batch, BatchSource, Criteria } from '@lps/domain';
-import { toLocationKey } from '@lps/domain';
+import { DEFAULT_CRITERIA, MANUAL_LOCATION, toLocationKey } from '@lps/domain';
 import type { Db } from './client';
 
 export type NewBatch = {
@@ -28,6 +28,25 @@ export async function createBatch(db: Db, b: NewBatch): Promise<Batch> {
       source: b.source ?? 'instagram',
       niche_terms: b.nicheTerms ?? [],
       location_terms: b.locationTerms ?? [],
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`Falha ao criar o batch: ${error.message}`);
+  return data as Batch;
+}
+
+/** Batch sem busca: os leads são cadastrados à mão. */
+export async function createManualBatch(db: Db, businessType: string): Promise<Batch> {
+  const { data, error } = await db
+    .from('batches')
+    .insert({
+      location: MANUAL_LOCATION,
+      location_key: toLocationKey(MANUAL_LOCATION),
+      business_type: businessType.trim(),
+      quantity: 1,
+      criteria: DEFAULT_CRITERIA,
+      source: 'manual',
+      status: 'concluido',
     })
     .select()
     .single();

@@ -82,8 +82,8 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                 return (
                   <tr key={batch.id} className="group/row">
                     <td className="px-4 py-3 font-medium"><Link href={href}>{batch.location}</Link></td>
-                    <td className="px-4 py-3 text-muted-foreground">{batch.business_type}<span className="block text-xs text-subtle-foreground">{batch.source === 'instagram' ? 'Instagram' : 'Google Maps'}</span></td>
-                    <td className="px-4 py-3">{batch.quantity}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{batch.business_type}<span className="block text-xs text-subtle-foreground">{{ instagram: 'Instagram', maps: 'Google Maps', manual: 'Manual' }[batch.source]}</span></td>
+                    <td className="px-4 py-3">{batch.source === 'manual' ? stages.filter((s) => s.batch_id === batch.id).length : batch.quantity}</td>
                     <td className="px-4 py-3"><Status tone={status.tone} live={batch.status === 'buscando' || batch.status === 'analisando'}>{status.label}</Status></td>
                     <td className="px-4 py-3">
                       {started ? (

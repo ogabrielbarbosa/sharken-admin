@@ -1,6 +1,6 @@
 'use server';
 
-import { createBatch, dismissDuplicate, findSearchTerm, getBatch, mergeLeads, saveSearchTerm } from '@lps/db';
+import { createBatch, createManualBatch, dismissDuplicate, findSearchTerm, getBatch, mergeLeads, saveSearchTerm } from '@lps/db';
 import { findMunicipio, formatMunicipio, type BatchSource, type SiteRequirement } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -51,6 +51,15 @@ export async function createBatchAction(form: FormData) {
   redirect('/painel/batches');
 }
 
+/** Batch manual: não usa o Apify. Abre já nele, para adicionar os leads. */
+export async function createManualBatchAction(form: FormData) {
+  const businessType = String(form.get('businessType') ?? '').trim();
+  if (!businessType) throw new Error('Preencha o nicho.');
+  const batch = await createManualBatch(await authedDb(), businessType);
+  revalidatePath('/painel/batches');
+  redirect(`/painel/batches/${batch.id}`);
+}
+
 /**
  * Variações de um nicho ou de uma cidade: as salvas antes (por texto parecido) ou, sem nenhuma, as do Claude.
  * Com o Claude fora do ar, devolve só o que foi digitado.
@@ -77,7 +86,7 @@ export async function suggestManyVariantsAction(items: { kind: 'nicho' | 'local'
 export async function retryBatchAction(form: FormData) {
   const db = await authedDb();
   const batch = await getBatch(db, String(form.get('id')));
-  if (batch) await startBatchSearch(batch);
+  if (batch && batch.source !== 'manual') await startBatchSearch(batch);
   revalidatePath('/painel/batches');
 }
 
@@ -88,6 +97,7 @@ export async function runSourceAction(batchId: string, source: BatchSource): Pro
   const db = await authedDb();
   const batch = await getBatch(db, batchId);
   if (!batch) return { error: 'Batch não encontrado.' };
+  if (batch.source === 'manual') return { error: 'Batch manual não tem busca.' };
   if (batch.status === 'buscando' || batch.status === 'analisando') return { error: 'Espere a busca atual terminar.' };
   await (source === 'maps' ? startMapsSearch(batch) : startInstagramSearch(batch));
   revalidatePath(`/painel/batches/${batchId}`);

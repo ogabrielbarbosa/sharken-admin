@@ -162,6 +162,21 @@ export async function importLeads(db: Db, leads: NewLead[]): Promise<{ inserted:
   return { inserted, updated, known };
 }
 
+/** Lead cadastrado à mão: grava (ou liga ao batch, se já existe) e põe na fila da análise. */
+export async function addManualLead(db: Db, lead: NewLead): Promise<{ known: boolean }> {
+  const { inserted } = await importLeads(db, [lead]);
+  const waiting = await listLeads(db, lead.batch_id, ['analisando']);
+  if (waiting.length) {
+    // Antes de enfileirar: o worker passa o batch para concluído quando a fila dele acaba.
+    const { error } = await db.from('batches').update({ status: 'analisando' }).eq('id', lead.batch_id);
+    if (error) throw new Error(error.message);
+  }
+  for (const l of waiting) {
+    await enqueueJob(db, { type: 'analyze_lead', payload: { lead_id: l.id, batch_id: lead.batch_id }, dedupeKey: `analyze_lead:${l.id}` });
+  }
+  return { known: inserted === 0 };
+}
+
 /** Leads que já existem e que uma busca deste batch achou de novo (pelo @, sem ler o perfil outra vez). */
 export async function linkExistingLeads(db: Db, batchId: string, leads: Pick<Lead, 'id' | 'batch_id'>[]) {
   const links = leads.map((l) => ({ batch_id: batchId, lead_id: l.id, already_known: l.batch_id !== batchId }));

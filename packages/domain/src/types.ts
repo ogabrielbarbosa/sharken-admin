@@ -22,7 +22,7 @@ export type Batch = {
   instagram_run_id: string | null;
   workspace_id: string;
   /** Onde o batch começou a buscar. Depois dá para rodar a outra fonte em cima dele. */
-  source: BatchSource;
+  source: BatchSource | 'manual';
   /** Cidades ("Cidade, UF"). Vazio nos batches antigos: vale `location`. */
   locations: string[];
   /** Variações do nicho e da localização usadas na busca do Instagram pelo Google. */

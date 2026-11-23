@@ -1,10 +1,10 @@
 'use server';
 
 import {
-  addAsset, addContactToLead, completeInfo, deleteAsset, deleteBatch, enqueueJob, getAsset, getLead, listAssets, moveLead, qualifyLeads,
+  addAsset, addContactToLead, addManualLead, completeInfo, deleteAsset, deleteBatch, enqueueJob, getAsset, getBatch, getLead, listAssets, moveLead, qualifyLeads,
   savePageUrl, saveLoomUrl, STALE, stepBack, updateAsset, updateLead, type Db, type PipelineResult,
 } from '@lps/db';
-import { canTransition, isAcceptedMime, toMobileE164, MAX_ASSET_BYTES, normalizeLinkUrl, sanitizeFileName, type Lead } from '@lps/domain';
+import { canTransition, isAcceptedMime, manualLead, toMobileE164, MAX_ASSET_BYTES, normalizeLinkUrl, sanitizeFileName, type Lead } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { authedDb } from '@/lib/auth';
@@ -34,6 +34,27 @@ export async function deleteBatchAction(batchId: string): Promise<Result> {
   }
   refresh();
   redirect('/painel/batches');
+}
+
+/** Batch manual: cadastra um lead e manda para a análise. `notice` quando o negócio já era conhecido. */
+export async function addManualLeadAction(batchId: string, form: FormData): Promise<Result & { notice?: string }> {
+  const db = await authedDb();
+  const batch = await getBatch(db, batchId);
+  if (batch?.source !== 'manual') return { error: 'Só batches manuais aceitam leads cadastrados à mão.' };
+  const field = (k: string) => String(form.get(k) ?? '');
+  const parsed = manualLead({
+    name: field('name'), businessType: field('businessType'), phone: field('phone'), email: field('email'), instagram: field('instagram'),
+    website: field('website'), city: field('city'), address: field('address'), description: field('description'),
+  }, batch);
+  if ('error' in parsed) return parsed;
+  let known: boolean;
+  try {
+    ({ known } = await addManualLead(db, parsed.lead));
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Não foi possível adicionar o lead.' };
+  }
+  refresh();
+  return known ? { notice: 'Esse negócio já existia. Ele aparece neste batch na etapa em que já estava, com os dados que faltavam.' } : {};
 }
 
 // ── Etapas ──────────────────────────────────────────────────────────────
