@@ -1,9 +1,9 @@
-import { Download, ExternalLink, PlayCircle, Plug } from 'lucide-react';
+import { Download, ExternalLink, Plug } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Topbar } from '@/components/layout/topbar';
 import { Card, LinkButton } from '@/components/ui';
 import { CopyButton } from '@/components/ui/copy-button';
-import { APP_DOWNLOADS, embedUrl, LOOM_WEB_URL, MAC_UNBLOCK, SKILL_ZIP, VIDEO_URL } from './content';
+import { APP_DOWNLOADS, LOOM_WEB_URL, MAC_UNBLOCK, SKILL_ZIP } from './content';
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
@@ -38,23 +38,6 @@ function CodeLine({ value }: { value: string }) {
   );
 }
 
-function Video() {
-  const src = VIDEO_URL ? embedUrl(VIDEO_URL) : null;
-  if (!src) {
-    return (
-      <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-card border border-dashed border-border bg-white/[0.015] text-muted-foreground">
-        <PlayCircle className="size-10" />
-        <p className="text-sm">Vídeo em breve</p>
-      </div>
-    );
-  }
-  return (
-    <div className="aspect-video w-full overflow-hidden rounded-card border border-border bg-black">
-      <iframe src={src} title="Como vender com o Sharken" className="size-full" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />
-    </div>
-  );
-}
-
 export default function InstrucoesPage() {
   const unzip = 'unzip ~/Downloads/create-page-sharken.zip -d ~/.claude/skills/';
   return (
@@ -63,10 +46,8 @@ export default function InstrucoesPage() {
       <main className="mx-auto max-w-4xl space-y-6 p-4 lg:p-6">
         <div className="space-y-1">
           <h1 className="text-xl font-semibold">Como vender com o Sharken</h1>
-          <p className="text-sm text-muted-foreground">Assista ao vídeo, instale a skill e baixe o projeto. Novas aulas entram aqui.</p>
+          <p className="text-sm text-muted-foreground">Instale a skill e baixe o aplicativo de gravação.</p>
         </div>
-
-        <Video />
 
         <Section
           title="Skill create-page-sharken"

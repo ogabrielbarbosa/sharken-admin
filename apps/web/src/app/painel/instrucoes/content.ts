@@ -1,10 +1,6 @@
 /**
- * Conteúdo da tela Instruções. Para trocar o vídeo ou os links, edite aqui.
- * Link vazio vira "em breve" na tela.
+ * Conteúdo da tela Instruções. Para trocar os links, edite aqui.
  */
-
-/** Vídeo do topo. Aceita link do Loom, do YouTube ou de outro player embutível (https). */
-export const VIDEO_URL = 'https://www.loom.com/share/0d2c3475ce5448dd92ff848158e9756b';
 
 /** Arquivo da skill, servido de apps/web/public/downloads. */
 export const SKILL_ZIP = '/downloads/create-page-sharken.zip';
@@ -33,13 +29,3 @@ export const LOOM_WEB_URL = 'https://loom.sharkenapps.com';
 
 /** Libera o app no Mac (ele ainda não é assinado pela Apple). */
 export const MAC_UNBLOCK = 'xattr -cr "/Applications/Sharken Loom.app"';
-
-/** Converte o link de compartilhamento num endereço que dá para embutir. */
-export function embedUrl(url: string): string | null {
-  const loom = url.match(/loom\.com\/(?:share|embed)\/([a-zA-Z0-9]+)/);
-  if (loom) return `https://www.loom.com/embed/${loom[1]}`;
-  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{6,})/);
-  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
-  // Outro player (ex.: o Loom da Sharken): usa o link como veio.
-  return /^https:\/\//.test(url) ? url : null;
-}
