@@ -7,7 +7,7 @@ export type OverviewEvent = { lead_id: string; type: string; created_at: string;
 
 export function listOverviewLeads(db: Db): Promise<OverviewLead[]> {
   return fetchAll((from, to) =>
-    db.from('leads').select('id, batch_id, stage, flow, business_type, batches(location_key)').order('id').range(from, to),
+    db.from('leads').select('id, batch_id, stage, flow, business_type, batches!leads_batch_id_fkey(location_key)').order('id').range(from, to),
   ) as unknown as Promise<OverviewLead[]>;
 }
 
