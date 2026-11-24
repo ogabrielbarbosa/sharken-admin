@@ -1,5 +1,5 @@
 import { countBoxes, listBatches, listCharges, listEventsSince, listOverviewLeads, rowsFromEvents } from '@lps/db';
-import { buildPendencies, formatBRL, pendencyHref, summarizeCharges, summarizeResults, type Summary } from '@lps/domain';
+import { batchName, buildPendencies, formatBRL, pendencyHref, summarizeCharges, summarizeResults, type Summary } from '@lps/domain';
 import { ArrowRight, BadgeDollarSign, Eye, Hourglass, MessageSquareReply, Send, Trophy, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Topbar } from '@/components/layout/topbar';
@@ -45,8 +45,8 @@ function ResultsTable({ rows, first, names }: { rows: Summary[]; first: string; 
   );
 }
 
-export default async function OverviewPage({ searchParams }: { searchParams: Promise<{ local?: string; dias?: string }> }) {
-  const { local, dias } = await searchParams;
+export default async function OverviewPage({ searchParams }: { searchParams: Promise<{ batch?: string; dias?: string }> }) {
+  const { batch, dias } = await searchParams;
   const period = PERIODS.includes(Number(dias)) ? Number(dias) : 30;
   const db = await authedDb();
   const now = new Date();
@@ -54,8 +54,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const previousSince = new Date(since.getTime() - period * DAY);
 
   const [batches, allLeads, allEvents, charges, boxes] = await Promise.all([listBatches(db), listOverviewLeads(db), listEventsSince(db, previousSince), listCharges(db), countBoxes(db)]);
-  const locations = [...new Map(batches.map((b) => [b.location_key, b.location])).entries()];
-  const leads = local ? allLeads.filter((l) => l.batches?.location_key === local) : allLeads;
+  const leads = batch ? allLeads.filter((l) => l.batch_id === batch) : allLeads;
   const leadIds = new Set(leads.map((l) => l.id));
   const events = allEvents.filter((e) => leadIds.has(e.lead_id));
   const current = events.filter((e) => new Date(e.created_at) >= since);
@@ -82,7 +81,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         crumbs={[{ label: 'Overview' }]}
         actions={
           <form className="flex gap-2">
-            <Select autoSubmit name="local" defaultValue={local ?? ''} aria-label="Localização" className="w-32 sm:w-48" options={[{ value: '', label: 'Todas as localizações' }, ...locations.map(([value, label]) => ({ value, label }))]} />
+            <Select autoSubmit name="batch" defaultValue={batch ?? ''} aria-label="Batch" className="w-32 sm:w-48" options={[{ value: '', label: 'Todos os batches' }, ...batches.map((b) => ({ value: b.id, label: batchName(b) }))]} />
             <Select autoSubmit name="dias" defaultValue={String(period)} aria-label="Período" className="w-32 sm:w-44" options={PERIODS.map((p) => ({ value: String(p), label: `Últimos ${p} dias` }))} />
           </form>
         }

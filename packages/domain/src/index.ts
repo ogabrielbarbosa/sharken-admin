@@ -36,6 +36,8 @@ export * from './instagram-media';
 export * from './lead-keys';
 export * from './lead-match';
 export * from './instagram-search';
+export * from './instagram-network';
+export * from './batch-name';
 export * from './instagram-profile';
 export * from './prospect-map';
 export * from './manual-lead';

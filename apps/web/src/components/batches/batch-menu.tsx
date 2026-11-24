@@ -1,13 +1,11 @@
 'use client';
 
-import type { BatchSource } from '@lps/domain';
-import { Loader2, MoreHorizontal, Search, Trash2 } from 'lucide-react';
+import { BATCH_SOURCE_LABEL, type BatchSource } from '@lps/domain';
+import { Loader2, MoreHorizontal, Pencil, Search, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { deleteBatchAction } from '@/app/painel/batches/[id]/actions';
-import { runSourceAction } from '@/app/painel/batches/actions';
-import { Button, ErrorNote } from '@/components/ui';
-
-const SOURCE_LABEL: Record<BatchSource, string> = { instagram: 'Instagram', maps: 'Google Maps' };
+import { renameBatchAction, runSourceAction } from '@/app/painel/batches/actions';
+import { Button, ErrorNote, Field, Input } from '@/components/ui';
 
 /**
  * Três pontinhos ao lado do nome do batch: buscar na outra fonte (cruza com os leads do batch) e deletar,
@@ -15,7 +13,9 @@ const SOURCE_LABEL: Record<BatchSource, string> = { instagram: 'Instagram', maps
  */
 export function BatchMenu({ batchId, label, sources = [] }: { batchId: string; label: string; sources?: BatchSource[] }) {
   const [open, setOpen] = useState(false);
-  const [confirming, setConfirming] = useState(false);
+  const [dialog, setDialog] = useState<'delete' | 'rename' | null>(null);
+  const confirming = dialog !== null;
+  const [draft, setDraft] = useState(label);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -31,13 +31,13 @@ export function BatchMenu({ batchId, label, sources = [] }: { batchId: string; l
   }, [open]);
 
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (confirming && !dialog.open) dialog.showModal?.();
-    if (!confirming && dialog.open) dialog.close();
+    const el = dialogRef.current;
+    if (!el) return;
+    if (confirming && !el.open) el.showModal?.();
+    if (!confirming && el.open) el.close();
   }, [confirming]);
 
-  const close = () => { if (!pending) { setConfirming(false); setError(null); } };
+  const close = () => { if (!pending) { setDialog(null); setError(null); } };
   const run = (source: BatchSource) => startTransition(async () => {
     setOpen(false);
     const result = await runSourceAction(batchId, source);
@@ -48,6 +48,13 @@ export function BatchMenu({ batchId, label, sources = [] }: { batchId: string; l
     // Quando dá certo, a ação redireciona para a lista de batches.
     const result = await deleteBatchAction(batchId);
     if (result?.error) setError(result.error);
+  });
+
+  const rename = () => startTransition(async () => {
+    if (draft.trim() === label) { setDialog(null); return; }
+    const result = await renameBatchAction(batchId, draft);
+    if (result.error) setError(result.error);
+    else setDialog(null);
   });
 
   return (
@@ -64,6 +71,15 @@ export function BatchMenu({ batchId, label, sources = [] }: { batchId: string; l
       </button>
       {open && (
         <div role="menu" className="absolute left-0 top-full z-40 mt-1 min-w-56 origin-top-left animate-pop-in rounded-md border border-border bg-card p-1 shadow-overlay">
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => { setOpen(false); setError(null); setDraft(label); setDialog('rename'); }}
+            className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition-colors hover:bg-white/5"
+          >
+            <Pencil className="size-3.5" />
+            Renomear
+          </button>
           {sources.map((s) => (
             <button
               key={s}
@@ -73,13 +89,13 @@ export function BatchMenu({ batchId, label, sources = [] }: { batchId: string; l
               className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition-colors hover:bg-white/5"
             >
               <Search className="size-3.5" />
-              Buscar também no {SOURCE_LABEL[s]}
+              Buscar também no {BATCH_SOURCE_LABEL[s]}
             </button>
           ))}
           <button
             type="button"
             role="menuitem"
-            onClick={() => { setOpen(false); setConfirming(true); }}
+            onClick={() => { setOpen(false); setError(null); setDialog('delete'); }}
             className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-destructive transition-colors hover:bg-destructive-subtle"
           >
             <Trash2 className="size-3.5" />
@@ -93,12 +109,25 @@ export function BatchMenu({ batchId, label, sources = [] }: { batchId: string; l
 
       <dialog
         ref={dialogRef}
-        aria-label="Deletar batch"
+        aria-label={dialog === 'rename' ? 'Renomear batch' : 'Deletar batch'}
         onCancel={(e) => { e.preventDefault(); close(); }}
         onClick={(e) => { if (e.target === dialogRef.current) close(); }}
         className="m-auto w-[calc(100%-2rem)] max-w-md rounded-card border border-border bg-card p-0 text-foreground backdrop:bg-black/60"
       >
-        {confirming && (
+        {dialog === 'rename' && (
+          <form className="flex flex-col gap-4 p-6" onSubmit={(e) => { e.preventDefault(); rename(); }}>
+            <h2 className="text-lg font-semibold">Renomear batch</h2>
+            <Field label="Nome do batch" hint="Vazio volta para o nome automático.">
+              <Input autoFocus maxLength={80} value={draft} onChange={(e) => setDraft(e.target.value)} />
+            </Field>
+            {error && <ErrorNote>{error}</ErrorNote>}
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={close} disabled={pending}>Cancelar</Button>
+              <Button type="submit" disabled={pending}>{pending && <Loader2 className="animate-spin" />}Salvar</Button>
+            </div>
+          </form>
+        )}
+        {dialog === 'delete' && (
           <div className="flex flex-col gap-4 p-6">
             <div>
               <h2 className="text-lg font-semibold">Deletar batch?</h2>

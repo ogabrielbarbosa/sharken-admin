@@ -11,7 +11,7 @@ import {
   type Db,
   type LeadSummary,
 } from '@lps/db';
-import { buildBriefing, describeEvent, PIPELINE_COLUMNS, type Contact, type Lead, type LeadAsset, type Message, type PipelineColumn } from '@lps/domain';
+import { batchName, buildBriefing, describeEvent, PIPELINE_COLUMNS, type Contact, type Lead, type LeadAsset, type Message, type PipelineColumn } from '@lps/domain';
 import { wrapExternal } from './external';
 import { imageBlocks, leadImageSources, type McpContent } from './images';
 
@@ -175,7 +175,7 @@ export function registerTools(server: McpServer, { db, access }: Ctx): void {
   }, safe(async ({ workspace, status, limite }) => {
     const batches = await mcpListBatches(db, access, { workspace, status, limit: limite });
     return json(batches.map((b) => ({
-      id: b.id, workspace: b.workspace, location: b.location, business_type: b.business_type,
+      id: b.id, workspace: b.workspace, name: batchName(b), source: b.source, location: b.location, business_type: b.business_type,
       quantity: b.quantity, status: b.status, error: b.error, created_at: b.created_at, columns: b.columns,
     })));
   }));
@@ -192,7 +192,7 @@ export function registerTools(server: McpServer, { db, access }: Ctx): void {
     const { batch, columns } = found;
     return json({
       batch: {
-        id: batch.id, workspace: batch.workspace, location: batch.location, business_type: batch.business_type,
+        id: batch.id, workspace: batch.workspace, name: batchName(batch), source: batch.source, location: batch.location, business_type: batch.business_type,
         quantity: batch.quantity, status: batch.status, error: batch.error, created_at: batch.created_at, criteria: batch.criteria,
       },
       columns,

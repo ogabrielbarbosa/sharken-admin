@@ -28,8 +28,8 @@ const NOTICES = [OTHER_LEAD_CONTACT, STALE];
 const WORKER_STALE_MS = 2 * 60_000;
 
 /** Negócios que já chegaram da busca e ainda não foram analisados. */
-function Arriving({ leads, searching, quantity, phase }: { leads: Lead[]; searching: boolean; quantity: number; phase: string }) {
-  const title = searching ? `${phase} · ${leads.length} de ${quantity} encontrados` : `Analisando · ${leads.length} na fila`;
+function Arriving({ leads, searching, quantity, phase }: { leads: Lead[]; searching: boolean; quantity: number | null; phase: string }) {
+  const title = searching ? `${phase} · ${leads.length}${quantity === null ? '' : ` de ${quantity}`} encontrados` : `Analisando · ${leads.length} na fila`;
   return (
     <Card className="mb-6">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3 text-sm font-medium">
@@ -130,9 +130,9 @@ export default async function PipelinePage({ params, searchParams }: { params: P
   const ready = rest.filter((l) => columnOf(l.stage) === 'pronto');
   const [assets, contacts, knownBatches] = await Promise.all([assetsByLead(db, qualified.map((l) => l.id)), contactsByLead(db, ready), loose ? ({} as Awaited<ReturnType<typeof listKnownLeads>>) : listKnownLeads(db, id)]);
   const known = Object.fromEntries(Object.entries(knownBatches).map(([leadId, list]) => [leadId, list.map(batchLabel)]));
-  const phase = batch.profiles_run_id ? 'Lendo os perfis do Instagram' : batch.google_run_id ? 'Buscando perfis do Instagram no Google' : 'Buscando no Google Maps';
+  const phase = batch.profiles_run_id ? 'Lendo os perfis do Instagram' : batch.source === 'instagram_profile' ? `Listando os perfis de @${batch.source_profile}` : batch.google_run_id ? 'Buscando perfis do Instagram no Google' : 'Buscando no Google Maps';
   const manual = batch.source === 'manual';
-  const otherSources = running || manual ? [] : (['instagram', 'maps'] as const).filter((s) => s !== batch.source);
+  const otherSources = running || manual || batch.source === 'instagram_profile' ? [] : (['instagram', 'maps'] as const).filter((s) => s !== batch.source);
 
   const filterQs = serializeReviewFilter(filter);
   const href = (leadId: string | null) => boardHref(id, filterQs, leadId);
@@ -178,7 +178,7 @@ export default async function PipelinePage({ params, searchParams }: { params: P
       {/* No desktop o quadro ocupa o resto da tela e cada coluna rola por dentro. */}
       <main className="p-4 md:flex md:h-[calc(100dvh-4.5rem)] md:flex-col lg:p-6">
         {(running || (loose && analyzing.length > 0)) && <AutoRefresh />}
-        {running && <Arriving leads={analyzing} searching={batch.status === 'buscando'} quantity={batch.quantity} phase={phase} />}
+        {running && <Arriving leads={analyzing} searching={batch.status === 'buscando'} quantity={batch.source === 'instagram_profile' ? null : batch.quantity} phase={phase} />}
         <ActiveFilters batchId={id} filter={filter} shown={reviewed.length} total={toReview.length} />
         {notice && <p role="status" className="mb-4 rounded-md bg-warning-subtle px-3 py-2 text-sm text-warning">{notice}</p>}
         <Board batchId={id} leads={leads} contacts={contacts} query={filterQs} openId={open?.id} known={known} members={members} />

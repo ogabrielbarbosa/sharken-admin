@@ -1,4 +1,4 @@
-import { batchCountry, editLeadField, instagramHandle, newLeadFromInput, type Lead, type LeadChange, type LeadField, type NewLeadInput } from '@lps/domain';
+import { batchCountry, batchName, editLeadField, instagramHandle, newLeadFromInput, type Batch, type Lead, type LeadChange, type LeadField, type NewLeadInput } from '@lps/domain';
 import { getBatch } from './batches';
 import type { Db } from './client';
 import { enqueueJob } from './jobs';
@@ -93,7 +93,7 @@ export async function setLeadBatch(db: Db, leadId: string, batchId: string | nul
   }
   await updateLead(db, leadId, { batch_id: batchId });
   if (lead.batch_id) await unlinkBatch(db, leadId, lead.batch_id, batchId);
-  const label = (b: { location: string; business_type: string } | null) => (b ? `${b.location} · ${b.business_type}` : null);
+  const label = (b: Batch | null) => (b ? batchName(b) : null);
   await logChange(db, leadId, { campo: 'batch', de: label(from), para: label(to) }, by);
   return {};
 }
@@ -105,7 +105,7 @@ export async function removeLeadFromBatch(db: Db, leadId: string, batchId: strin
   if (lead.batch_id === batchId) return setLeadBatch(db, leadId, null, by);
   const batch = await getBatch(db, batchId);
   await unlinkBatch(db, leadId, batchId, lead.batch_id);
-  await logChange(db, leadId, { campo: 'batch', de: batch ? `${batch.location} · ${batch.business_type}` : null, para: null }, by);
+  await logChange(db, leadId, { campo: 'batch', de: batch ? batchName(batch) : null, para: null }, by);
   return {};
 }
 

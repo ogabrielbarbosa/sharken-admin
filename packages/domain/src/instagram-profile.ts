@@ -48,7 +48,7 @@ export function latestPostAt(p: { latestPosts?: { timestamp?: string }[] }): str
  * Perfil do Instagram como lead (sem lugar no Maps). O site é o primeiro link que não é rede social; sem ele,
  * fica o link da bio (linktree etc.), que a análise trata como "só rede social".
  */
-export function mapProfileToLead(p: InstagramProfileData, batchId: string, ctx: { city: string | null; businessType: string; country?: string }): NewLead | null {
+export function mapProfileToLead(p: InstagramProfileData, batchId: string, ctx: { city: string | null; businessType: string | null; country?: string }): NewLead | null {
   const username = p.username?.toLowerCase();
   if (!username) return null;
   const links = [p.externalUrl, ...(p.externalUrls ?? []).map((u) => u.url)].filter((u): u is string => !!u && !/wa\.me|whatsapp\.com/i.test(u));

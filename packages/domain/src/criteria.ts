@@ -7,6 +7,8 @@ export type Criteria = {
   /** Marcados à mão no batch: quem não atende vai para descartado. Batches antigos não têm (não exige). */
   requireInstagramActive?: boolean;
   requirePhone?: boolean;
+  /** Batch a partir de um perfil: lead sem celular e sem e-mail fica. Nos outros, é descartado. */
+  allowNoContact?: boolean;
   site?: SiteRequirement;
 };
 

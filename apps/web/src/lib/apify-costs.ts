@@ -1,5 +1,5 @@
 import { createAdminClient, getApifyToken, listApifyRuns, type WorkspaceApify } from '@lps/db';
-import { summarizeApifyCosts } from '@lps/domain';
+import { batchName, summarizeApifyCosts } from '@lps/domain';
 import { fetchApifyUsage, SHARKEN_ACTORS } from '@lps/integrations';
 import { unstable_cache } from 'next/cache';
 
@@ -19,9 +19,9 @@ export async function apifyCosts(apify: WorkspaceApify) {
   const [usage, tracked] = await Promise.all([cachedUsage(apify.workspace_id, apify.updated_at), listApifyRuns(db, apify.workspace_id)]);
   const summary = summarizeApifyCosts(usage.runs, tracked, SHARKEN_ACTORS);
   const ids = summary.byBatch.map((b) => b.batchId);
-  const { data, error } = await db.from('batches').select('id, business_type, location').eq('workspace_id', apify.workspace_id).in('id', ids);
+  const { data, error } = await db.from('batches').select('id, name, business_type, location').eq('workspace_id', apify.workspace_id).in('id', ids);
   if (error) throw new Error(error.message);
-  const names = new Map((data as { id: string; business_type: string; location: string }[]).map((b) => [b.id, `${b.business_type} · ${b.location}`]));
+  const names = new Map((data as { id: string; name: string | null; business_type: string; location: string }[]).map((b) => [b.id, batchName(b)]));
   return { usage, summary, batchName: (id: string) => names.get(id) ?? 'Batch excluído' };
 }
 

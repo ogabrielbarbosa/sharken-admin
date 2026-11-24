@@ -67,7 +67,7 @@ export async function listBatchStages(db: Db): Promise<{ batch_id: string; stage
   return links.flatMap((l) => (stageOf.has(l.lead_id) ? [{ batch_id: l.batch_id, stage: stageOf.get(l.lead_id)! }] : []));
 }
 
-export type KnownFrom = { id: string; location: string; business_type: string };
+export type KnownFrom = { id: string; name?: string | null; location: string; business_type: string };
 
 /** Leads deste batch que já eram conhecidos, com os outros batches em que aparecem. */
 export async function listKnownLeads(db: Db, batchId: string): Promise<Record<string, KnownFrom[]>> {
@@ -82,7 +82,7 @@ export async function listKnownLeads(db: Db, batchId: string): Promise<Record<st
     others.push(...(res.data as { batch_id: string; lead_id: string }[]).filter((r) => r.batch_id !== batchId));
   }
   const batchIds = [...new Set(others.map((o) => o.batch_id))];
-  const { data: batches } = batchIds.length ? await db.from('batches').select('id, location, business_type').in('id', batchIds) : { data: [] };
+  const { data: batches } = batchIds.length ? await db.from('batches').select('id, name, location, business_type').in('id', batchIds) : { data: [] };
   const byId = new Map(((batches ?? []) as KnownFrom[]).map((b) => [b.id, b]));
   const out: Record<string, KnownFrom[]> = {};
   for (const id of ids) out[id] = others.filter((o) => o.lead_id === id).flatMap((o) => (byId.has(o.batch_id) ? [byId.get(o.batch_id)!] : []));

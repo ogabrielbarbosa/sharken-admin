@@ -1,8 +1,9 @@
-import type { Batch, BatchSource, Criteria, Place } from '@lps/domain';
-import { DEFAULT_CRITERIA, MANUAL_LOCATION, toLocationKey } from '@lps/domain';
+import type { Batch, BatchSource, Criteria, Place, ProfileRelation } from '@lps/domain';
+import { DEFAULT_CRITERIA, MANUAL_LOCATION, PROFILE_BATCH_NICHE, toLocationKey } from '@lps/domain';
 import type { Db } from './client';
 
 export type NewBatch = {
+  name?: string;
   /** Cidades no formato "Cidade, UF" ou, fora do Brasil, "Cidade, Região, País". A primeira dá nome ao batch no filtro de localização. */
   locations: string[];
   /** Cidades fora do Brasil, com país e coordenadas. */
@@ -21,6 +22,7 @@ export async function createBatch(db: Db, b: NewBatch): Promise<Batch> {
   const { data, error } = await db
     .from('batches')
     .insert({
+      name: b.name?.trim() || null,
       location: locations.join(' + '),
       location_key: toLocationKey(locations[0]),
       locations,
@@ -31,6 +33,30 @@ export async function createBatch(db: Db, b: NewBatch): Promise<Batch> {
       source: b.source ?? 'instagram',
       niche_terms: b.nicheTerms ?? [],
       location_terms: b.locationTerms ?? [],
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`Falha ao criar o batch: ${error.message}`);
+  return data as Batch;
+}
+
+export type NewProfileBatch = { name?: string; profile: string; relations: ProfileRelation[]; businessType: string; country: string; quantity: number; criteria: Criteria };
+
+/** Batch a partir de um perfil do Instagram: não tem cidade. `quantity` é o máximo de cada lista. */
+export async function createProfileBatch(db: Db, b: NewProfileBatch): Promise<Batch> {
+  const { data, error } = await db
+    .from('batches')
+    .insert({
+      name: b.name?.trim() || null,
+      location: `@${b.profile}`,
+      location_key: toLocationKey(`@${b.profile}`),
+      business_type: b.businessType.trim() || PROFILE_BATCH_NICHE,
+      quantity: b.quantity,
+      criteria: b.criteria,
+      source: 'instagram_profile',
+      source_profile: b.profile,
+      source_relations: b.relations,
+      country: b.country,
     })
     .select()
     .single();

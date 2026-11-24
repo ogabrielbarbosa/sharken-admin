@@ -1,7 +1,7 @@
 'use server';
 
-import { createBatch, dismissDuplicate, findSearchTerm, getBatch, mergeLeads, saveSearchTerm } from '@lps/db';
-import { cityName, findMunicipio, findWorldCity, formatMunicipio, searchWorldCities, worldCitiesNear, type BatchSource, type Place, type SiteRequirement, type WorldCity } from '@lps/domain';
+import { createBatch, createProfileBatch, dismissDuplicate, findSearchTerm, getBatch, mergeLeads, saveSearchTerm, updateBatch } from '@lps/db';
+import { cityName, findMunicipio, findWorldCity, formatMunicipio, MAX_NETWORK_PROFILES, profileHandle, searchWorldCities, worldCitiesNear, type BatchSource, type Place, type ProfileRelation, type SiteRequirement, type WorldCity } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { APIFY_NOT_CONNECTED, startBatchSearch, startInstagramSearch, startMapsSearch, suggestSearchVariants, workspaceHasApify } from '@lps/integrations';
@@ -38,10 +38,51 @@ export async function worldCitiesNearAction(location: string, radiusKm: number):
   return worldCitiesNear(await worldCities(), location, Math.min(radiusKm, 100));
 }
 
+const batchNameFrom = (form: FormData) => String(form.get('name') ?? '').trim().slice(0, 80);
+
+const criteriaFrom = (form: FormData, site: SiteRequirement) => ({
+  minReviews: num(form, 'minReviews'),
+  minRating: num(form, 'minRating'),
+  minPhotos: num(form, 'minPhotos'),
+  instagramActiveDays: num(form, 'instagramActiveDays'),
+  recontactDays: num(form, 'recontactDays'),
+  requireInstagramActive: form.get('requireInstagramActive') === 'true',
+  requirePhone: form.get('requirePhone') === 'true',
+  site: ['sem_site', 'com_site'].includes(site) ? site : ('qualquer' as const),
+});
+
+/** Batch a partir de um perfil do Instagram: quem ele segue, os seguidores dele ou os dois. */
+async function createFromProfile(form: FormData) {
+  const profile = profileHandle(String(form.get('profile') ?? ''));
+  if (!profile) throw new Error('Cole o link de um perfil do Instagram.');
+  const asked = strings(form, 'relation');
+  const relations = (['following', 'followers'] as ProfileRelation[]).filter((r) => asked.includes(r));
+  if (!relations.length) throw new Error('Escolha seguindo, seguidores ou os dois.');
+  const country = String(form.get('country') ?? 'BR');
+  const site = String(form.get('site') ?? 'qualquer') as SiteRequirement;
+  return createProfileBatch(await authedDb(), {
+    name: batchNameFrom(form),
+    profile,
+    relations,
+    country: /^[A-Z]{2}$/.test(country) ? country : 'BR',
+    businessType: String(form.get('businessType') ?? ''),
+    quantity: Math.min(Math.max(1, Math.floor(num(form, 'quantity')) || 1), Math.floor(MAX_NETWORK_PROFILES / relations.length)),
+    criteria: { ...criteriaFrom(form, site), allowNoContact: form.get('requireContact') !== 'true' },
+  });
+}
+
 export async function createBatchAction(form: FormData) {
-  const { locations, places, country } = await resolveCities(strings(form, 'location'));
   const { workspace } = await getSession();
   if (!(await workspaceHasApify(workspace.id))) throw new Error(APIFY_NOT_CONNECTED);
+  const batch = form.get('source') === 'instagram_profile' ? await createFromProfile(form) : await createFromSearch(form);
+  await startBatchSearch(batch);
+  revalidatePath('/painel/batches');
+  revalidatePath('/painel/leads');
+  redirect('/painel/batches');
+}
+
+async function createFromSearch(form: FormData) {
+  const { locations, places, country } = await resolveCities(strings(form, 'location'));
   const db = await authedDb();
   const source: BatchSource = form.get('source') === 'maps' ? 'maps' : 'instagram';
   const businessType = String(form.get('businessType') ?? '').trim();
@@ -55,7 +96,8 @@ export async function createBatchAction(form: FormData) {
     for (const [city, variants] of Object.entries(placeTerms)) await saveSearchTerm(db, 'local', city, variants, country);
   }
 
-  const batch = await createBatch(db, {
+  return createBatch(db, {
+    name: batchNameFrom(form),
     locations,
     places,
     businessType,
@@ -63,21 +105,8 @@ export async function createBatchAction(form: FormData) {
     source,
     nicheTerms,
     locationTerms: [...new Set(Object.values(placeTerms).flat())],
-    criteria: {
-      minReviews: num(form, 'minReviews'),
-      minRating: num(form, 'minRating'),
-      minPhotos: num(form, 'minPhotos'),
-      instagramActiveDays: num(form, 'instagramActiveDays'),
-      recontactDays: num(form, 'recontactDays'),
-      requireInstagramActive: form.get('requireInstagramActive') === 'true',
-      requirePhone: form.get('requirePhone') === 'true',
-      site: ['sem_site', 'com_site'].includes(site) ? site : 'qualquer',
-    },
+    criteria: criteriaFrom(form, site),
   });
-  await startBatchSearch(batch);
-  revalidatePath('/painel/batches');
-  revalidatePath('/painel/leads');
-  redirect('/painel/batches');
 }
 
 /**
@@ -120,10 +149,22 @@ export async function runSourceAction(batchId: string, source: BatchSource): Pro
   const batch = await getBatch(db, batchId);
   if (!batch) return { error: 'Batch não encontrado.' };
   if (batch.source === 'manual') return { error: 'Batch manual não tem busca.' };
+  if (batch.source === 'instagram_profile' || source === 'instagram_profile') return { error: 'Batch de perfil não tem busca por cidade.' };
   if (batch.status === 'buscando' || batch.status === 'analisando') return { error: 'Espere a busca atual terminar.' };
   await (source === 'maps' ? startMapsSearch(batch) : startInstagramSearch(batch));
   revalidatePath(`/painel/batches/${batchId}`);
   revalidatePath('/painel/batches');
+  return {};
+}
+
+/** Vazio volta para o nome montado pela fonte e pelo tipo de negócio. */
+export async function renameBatchAction(batchId: string, name: string): Promise<{ error?: string }> {
+  try {
+    await updateBatch(await authedDb(), batchId, { name: name.trim().slice(0, 80) || null });
+  } catch {
+    return { error: 'Não foi possível mudar o nome.' };
+  }
+  revalidatePath('/painel', 'layout');
   return {};
 }
 

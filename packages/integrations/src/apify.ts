@@ -5,9 +5,11 @@ export const MAPS_ACTOR = 'compass/crawler-google-places';
 export const INSTAGRAM_ACTOR = 'apify/instagram-profile-scraper';
 const FINAL_EVENTS = ['ACTOR.RUN.SUCCEEDED', 'ACTOR.RUN.FAILED', 'ACTOR.RUN.TIMED_OUT', 'ACTOR.RUN.ABORTED'];
 
+/** Seguidores ou seguindo de um perfil público: só os nomes, uma lista por execução. No plano gratuito do Apify traz só a primeira página. */
+export const NETWORK_ACTOR = 'apify/instagram-followers-following-scraper';
 export const GOOGLE_ACTOR = 'apify/google-search-scraper';
 /** Atores que o Sharken usa; os outros da conta são de outros projetos. */
-export const SHARKEN_ACTORS = [MAPS_ACTOR, INSTAGRAM_ACTOR, GOOGLE_ACTOR] as const;
+export const SHARKEN_ACTORS = [MAPS_ACTOR, INSTAGRAM_ACTOR, GOOGLE_ACTOR, NETWORK_ACTOR] as const;
 
 /** Fora do Brasil: "Cidade, Região, País" com o país em inglês. No Brasil, "Cidade, UF" → "Cidade, Estado, Brasil": o nome do estado por extenso evita que o Apify ache a cidade errada. */
 const mapsPlace = (location: string, country: string) => {

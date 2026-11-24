@@ -1,3 +1,4 @@
+import type { NetworkRun, ProfileRelation } from './instagram-network';
 import type { InstagramMedia } from './instagram-media';
 import type { LeadReview } from './apify-mapper';
 import type { Criteria } from './criteria';
@@ -12,6 +13,8 @@ export type BatchStatus = 'buscando' | 'analisando' | 'concluido' | 'erro';
 export type Batch = {
   id: string;
   created_at: string;
+  /** Nome escolhido (migração 0036). Sem ele, `batchName` monta um. */
+  name?: string | null;
   location: string;
   location_key: string;
   business_type: string;
@@ -34,9 +37,14 @@ export type Batch = {
   /** Execuções no Apify da busca do Instagram: busca no Google e leitura dos perfis. */
   google_run_id: string | null;
   profiles_run_id: string | null;
+  /** Batch a partir de um perfil (migração 0035): @, listas pedidas, país dos perfis e execuções no Apify. */
+  source_profile?: string | null;
+  source_relations?: ProfileRelation[];
+  country?: string | null;
+  network_runs?: NetworkRun[];
 };
 
-export type BatchSource = 'instagram' | 'maps';
+export type BatchSource = 'instagram' | 'maps' | 'instagram_profile';
 
 export type SiteSignal = { key: string; label: string; ok: boolean };
 

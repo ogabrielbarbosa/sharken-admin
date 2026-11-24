@@ -1,5 +1,5 @@
 import { getBatch, NO_BATCH } from '@lps/db';
-import { DEFAULT_CRITERIA, type Batch } from '@lps/domain';
+import { batchName, DEFAULT_CRITERIA, type Batch } from '@lps/domain';
 import { notFound } from 'next/navigation';
 import { authedDb } from './auth';
 
@@ -18,4 +18,4 @@ export async function loadBatchContext(id: string) {
   return { db, batch };
 }
 
-export const batchLabel = (b: { location: string; business_type: string }) => [b.location, b.business_type].filter(Boolean).join(' · ');
+export const batchLabel = batchName;

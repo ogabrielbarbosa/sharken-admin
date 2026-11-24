@@ -7,8 +7,8 @@ export type WorldCity = Place & { name: string; region: string; countryName: str
 
 const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[,\s]+/g, ' ').trim();
 
-/** País do batch (código ISO). Todas as cidades de um batch são do mesmo país; sem lugar gravado, é o Brasil. */
-export const batchCountry = (b: { places?: Place[] | null }): string => b.places?.[0]?.country ?? 'BR';
+/** País do batch (código ISO): o escolhido (batch de perfil) ou o das cidades. Todas as cidades de um batch são do mesmo país; sem lugar gravado, é o Brasil. */
+export const batchCountry = (b: { country?: string | null; places?: Place[] | null }): string => b.country ?? b.places?.[0]?.country ?? 'BR';
 
 /** Nome da cidade, sem região nem país: "Austin, Texas, Estados Unidos" → "Austin". */
 export const cityName = (location: string) => findMunicipio(location)?.nome ?? location.split(',')[0];

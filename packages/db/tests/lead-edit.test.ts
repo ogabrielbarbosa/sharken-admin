@@ -72,7 +72,7 @@ describe('batch do lead', () => {
     expect(await batchIdsOfLead(db, id)).toEqual([]);
     expect(await getLead(db, id)).toMatchObject({ batch_id: null, stage: 'video' });
     const edits = (await listEvents(db, id)).filter((e) => e.type === 'dados_editados');
-    expect(edits.map((e) => e.data)).toEqual(expect.arrayContaining([expect.objectContaining({ campo: 'batch', de: 'SJC · um', para: 'SJC · dois', por: by })]));
+    expect(edits.map((e) => e.data)).toEqual(expect.arrayContaining([expect.objectContaining({ campo: 'batch', de: 'um · SJC', para: 'dois · SJC', por: by })]));
   });
   it('sair de um batch em que foi reencontrado não mexe no de origem', async () => {
     const [b1, b2] = [await batch('origem'), await batch('outro')];

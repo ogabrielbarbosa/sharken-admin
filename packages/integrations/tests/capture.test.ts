@@ -39,7 +39,7 @@ vi.mock('@lps/db', () => ({
 }));
 
 import { APIFY_NOT_CONNECTED } from '../src/apify';
-import { handleGoogleResult, handleMapsResult, handleProfilesResult, startInstagramSearch, startMapsSearch, syncSearchProgress } from '../src/capture';
+import { handleGoogleResult, handleMapsResult, handleNetworkResult, handleProfilesResult, startInstagramSearch, startBatchSearch, startMapsSearch, syncSearchProgress } from '../src/capture';
 
 const batch = (id: string, ws: string, extra: Partial<Batch> = {}) =>
   ({ id, workspace_id: ws, location: 'Campinas, SP', business_type: 'pet shop', quantity: 5, status: 'buscando', apify_run_id: null, instagram_run_id: null, ...extra }) as Batch;
@@ -148,5 +148,61 @@ describe('busca do Instagram pelo Google', () => {
     fetchMock.mockImplementation(async () => new Response(JSON.stringify([{ username: 'clinica.b', fullName: 'Clínica B', biography: 'Lentes em Jacareí · (12) 99876-5432' }])));
     await handleProfilesResult('b2', { datasetId: 'ds' });
     expect(db.importLeads).toHaveBeenCalledWith(expect.anything(), [expect.objectContaining({ name: 'Clínica B', city: 'Jacareí', phone_e164: '5512998765432', place_id: null })]);
+  });
+});
+
+describe('seguidores e seguindo de um perfil', () => {
+  const net = (extra: Partial<Batch> = {}) => batch('b3', 'wsA', {
+    location: '@sharken', business_type: 'Perfis do Instagram', source: 'instagram_profile', source_profile: 'sharken', source_relations: ['following', 'followers'],
+    country: 'US', network_runs: [], google_run_id: null, profiles_run_id: null, ...extra,
+  });
+  const following = { relation: 'following' as const, run_id: 'n1', dataset_id: null };
+  const followers = { relation: 'followers' as const, run_id: 'n2', dataset_id: null };
+
+  it('começa pela primeira lista', async () => {
+    db.tokens.wsA = 't1';
+    await startBatchSearch(net());
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain('apify~instagram-followers-following-scraper');
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ usernames: ['sharken'], dataToScrape: 'following', resultsLimit: 5 });
+    expect(db.updateBatch).toHaveBeenCalledWith(expect.anything(), 'b3', expect.objectContaining({ network_runs: [{ relation: 'following', run_id: 'run1', dataset_id: null }], status: 'buscando' }));
+  });
+
+  it('lista pronta: começa a outra; webhook repetido é ignorado', async () => {
+    db.tokens.wsA = 't1';
+    db.batches = [net({ network_runs: [following] })];
+    await handleNetworkResult('b3', { succeeded: true, datasetId: 'd1', runId: 'n1' });
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string).dataToScrape).toBe('followers');
+    fetchMock.mockClear();
+    db.batches = [net({ network_runs: [{ ...following, dataset_id: 'd1' }, followers] })];
+    await handleNetworkResult('b3', { succeeded: true, datasetId: 'd1', runId: 'n1' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('todas prontas: lê os perfis novos, sem repetir e sem o próprio', async () => {
+    db.tokens.wsA = 't1';
+    db.known = [{ id: 'L1', batch_id: 'b0', instagram_handle: 'a' }];
+    db.batches = [net({ network_runs: [{ ...following, dataset_id: 'd1' }, followers] })];
+    fetchMock.mockImplementation(async (url: string) => new Response(JSON.stringify(
+      String(url).includes('/datasets/d1') ? [{ username: 'a' }, { username: 'b' }] : String(url).includes('/datasets/d2') ? [{ username: 'b' }, { username: 'sharken' }, { username: 'c' }] : { data: { id: 'run9' } })));
+    await handleNetworkResult('b3', { succeeded: true, datasetId: 'd2', runId: 'n2' });
+    const run = fetchMock.mock.calls.find((c) => String(c[0]).includes('instagram-profile-scraper'))!;
+    expect(JSON.parse((run[1] as RequestInit).body as string)).toEqual({ usernames: ['b', 'c'] });
+    expect(db.linkExistingLeads).toHaveBeenCalledWith(expect.anything(), 'b3', [db.known[0]]);
+  });
+
+  it('lista vazia: erro no batch', async () => {
+    db.tokens.wsA = 't1';
+    db.batches = [net({ source_relations: ['following'], network_runs: [following] })];
+    await handleNetworkResult('b3', { succeeded: true, datasetId: 'd1', runId: 'n1' });
+    expect(db.updateBatch).toHaveBeenCalledWith(expect.anything(), 'b3', expect.objectContaining({ status: 'erro' }));
+  });
+
+  it('perfil vira lead sem cidade e com o telefone do país', async () => {
+    db.tokens.wsA = 't1';
+    db.batches = [net({ profiles_run_id: 'p1' })];
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify([{ username: 'b', fullName: 'B', businessPhoneNumber: '(512) 555-0123', biography: '' }, { username: 'c', biography: 'Call 512-478-9999' }])));
+    await handleProfilesResult('b3', { datasetId: 'ds' });
+    expect(db.importLeads).toHaveBeenCalledWith(expect.anything(), [expect.objectContaining({ city: null, business_type: null }), expect.objectContaining({ phone_e164: '15124789999' })]);
   });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { buildInstagramQueries, cityName, DEFAULT_CRITERIA, formatMunicipio, municipioGeo, municipiosNear, prospectedCities, type BatchSource, type Place, type SiteRequirement, type WorldCity } from '@lps/domain';
+import { BATCH_SOURCE_LABEL, buildInstagramQueries, cityName, DEFAULT_CRITERIA, formatMunicipio, municipioGeo, MAX_NETWORK_PROFILES, municipiosNear, profileHandle, prospectedCities, RELATION_LABEL, relationsLabel, type BatchSource, type Place, type ProfileRelation, type SiteRequirement, type WorldCity } from '@lps/domain';
 import { ArrowLeft, ArrowRight, Check, Loader2, MapPin, Plus, Search, Sparkles, X } from 'lucide-react';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { ProspectMap } from '@/components/map/prospect-map';
@@ -17,7 +17,9 @@ const criteriaFields = [
 ] as const;
 
 const SITE_LABEL: Record<SiteRequirement, string> = { qualquer: 'Tanto faz', sem_site: 'Só quem não tem site', com_site: 'Só quem tem site' };
-const SOURCE_LABEL: Record<BatchSource, string> = { instagram: 'Instagram', maps: 'Google Maps' };
+const SOURCE_HINT: Record<BatchSource, string> = { instagram: 'Perfis achados pela busca do Google', maps: 'Lugares do Google Maps', instagram_profile: 'Seguidores e seguindo de um perfil' };
+const RELATIONS: ProfileRelation[] = ['following', 'followers'];
+const COUNTRIES = ['BR', 'US', 'PT', 'CA', 'GB', 'ES', 'FR', 'IT', 'DE', 'AR', 'MX', 'AU'].map((value) => ({ value, label: new Intl.DisplayNames('pt-BR', { type: 'region' }).of(value) ?? value }));
 
 type Variants = { options: string[]; chosen: string[]; saved: boolean };
 export type ProspectedRow = { id: string; location: string; locations: string[]; places?: Place[]; business_type: string; created_at: string; leads: number };
@@ -34,17 +36,21 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
   const [cityPlaces, setCityPlaces] = useState<Record<string, Place>>({});
   const [worldNear, setWorldNear] = useState<{ key: string; cities: (WorldCity & { km: number })[] }>({ key: '', cities: [] });
   const [pickerKey, setPickerKey] = useState(0);
-  const [where, setWhere] = useState({ businessType: '', quantity: '50' });
+  const [where, setWhere] = useState({ name: '', businessType: '', quantity: '50' });
   const [criteria, setCriteria] = useState<Record<string, string>>(
     Object.fromEntries(Object.entries(DEFAULT_CRITERIA).map(([k, v]) => [k, String(v)])),
   );
-  const [marks, setMarks] = useState({ requireInstagramActive: true, requirePhone: false, site: 'qualquer' as SiteRequirement });
+  const [network, setNetwork] = useState({ profile: '', relations: ['following'] as ProfileRelation[], country: 'BR' });
+  const [marks, setMarks] = useState({ requireInstagramActive: true, requirePhone: false, requireContact: false, site: 'qualquer' as SiteRequirement });
   const [niche, setNiche] = useState<Variants | null>(null);
   const [places, setPlaces] = useState<Record<string, Variants>>({});
   const [loading, startLoading] = useTransition();
 
   const center = picked[0] ?? null;
   // País do batch: o da primeira cidade. Sem lugar conhecido, é município do Brasil.
+  const byProfile = source === 'instagram_profile';
+  const handle = profileHandle(network.profile);
+  const perList = Math.floor(MAX_NETWORK_PROFILES / Math.max(network.relations.length, 1));
   const country = (center && cityPlaces[center]?.country) || 'BR';
   const abroad = country !== 'BR';
   const nearKey = `${center}:${radius}`;
@@ -72,7 +78,7 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
   const selection = centerGeo ? { center: centerGeo, radiusKm: radius, cities: locations.flatMap((l) => { const g = geoOf(l); return g ? [{ location: l, lat: g.lat, lng: g.lng }] : []; }) } : undefined;
 
   // No Maps fora do Brasil também há variações: o nicho vai no idioma de lá.
-  const steps = source === 'instagram' || abroad ? ['Onde buscar', 'Variações', 'Critérios', 'Confirmar'] : ['Onde buscar', 'Critérios', 'Confirmar'];
+  const steps = byProfile ? ['Onde buscar', 'Critérios', 'Confirmar'] : source === 'instagram' || abroad ? ['Onde buscar', 'Variações', 'Critérios', 'Confirmar'] : ['Onde buscar', 'Critérios', 'Confirmar'];
   const current = steps[step];
   const last = step === steps.length - 1;
   const nicheTerms = steps.includes('Variações') ? niche?.chosen ?? [] : [];
@@ -103,9 +109,13 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
   }
 
   function next() {
-    if (current === 'Onde buscar') {
+    if (current === 'Onde buscar' && byProfile) {
+      if (!handle) return setError('Cole o link de um perfil do Instagram.');
+      if (!network.relations.length) return setError('Escolha seguindo, seguidores ou os dois.');
+      if (!(Number(where.quantity) > 0 && Number(where.quantity) <= perList)) return setError(`Informe uma quantidade entre 1 e ${perList}.`);
+    } else if (current === 'Onde buscar') {
       if (!locations.length) return setError('Escolha pelo menos uma cidade na lista.');
-      if (!where.businessType.trim()) return setError('Preencha o nicho.');
+      if (!where.businessType.trim()) return setError('Preencha o tipo de negócio.');
       if (!(Number(where.quantity) > 0)) return setError('Informe uma quantidade maior que zero.');
       if (loadingNear) return setError('Espere as cidades em volta carregarem.');
       if (source === 'instagram' || abroad) loadVariants();
@@ -147,23 +157,48 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
       <form action={createBatchAction} className="flex flex-1 flex-col gap-4">
         {current === 'Onde buscar' && (
           <div key="where" className="stagger flex flex-col gap-4">
+            <Field label="Nome do batch (opcional)" hint="Sem nome, vale o tipo de negócio e o lugar, ou o @ do perfil.">
+              <Input value={where.name} maxLength={80} onChange={(e) => setWhere({ ...where, name: e.target.value })} />
+            </Field>
             <Field label="Fonte">
-              <div role="radiogroup" className="grid grid-cols-2 gap-2">
-                {(['instagram', 'maps'] as const).map((s) => (
+              <div role="radiogroup" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {(['instagram', 'maps', 'instagram_profile'] as const).map((s) => (
                   <button
                     key={s}
                     type="button"
                     role="radio"
                     aria-checked={source === s}
-                    onClick={() => { setSource(s); setStep(0); }}
+                    onClick={() => { setSource(s); setStep(0); setError(null); setMarks({ ...marks, requireInstagramActive: s !== 'instagram_profile' }); setWhere({ ...where, quantity: s === 'instagram_profile' ? '250' : '50' }); }}
                     className={`press cursor-pointer rounded-md border px-3 py-2 text-left text-sm transition-colors ${source === s ? 'border-brand bg-brand-muted/40 font-medium' : 'border-border text-muted-foreground hover:text-foreground'}`}
                   >
-                    {SOURCE_LABEL[s]}
-                    <span className="block text-xs font-normal text-muted-foreground">{s === 'instagram' ? 'Perfis achados pela busca do Google' : 'Lugares do Google Maps'}</span>
+                    {BATCH_SOURCE_LABEL[s]}
+                    <span className="block text-xs font-normal text-muted-foreground">{SOURCE_HINT[s]}</span>
                   </button>
                 ))}
               </div>
             </Field>
+            {byProfile ? (
+              <>
+                <Field label="Perfil do Instagram" hint="O link ou o @. O perfil precisa ser público.">
+                  <Input value={network.profile} placeholder="https://www.instagram.com/perfil/" onChange={(e) => setNetwork({ ...network, profile: e.target.value })} />
+                </Field>
+                <fieldset className="flex flex-col gap-2">
+                  <legend className="mb-2 text-sm font-medium">O que puxar</legend>
+                  {RELATIONS.map((r) => (
+                    <Check2 key={r} label={RELATION_LABEL[r]} checked={network.relations.includes(r)} onChange={(v) => setNetwork({ ...network, relations: RELATIONS.filter((x) => (x === r ? v : network.relations.includes(x))) })} />
+                  ))}
+                </fieldset>
+                <Field label="Máximo de perfis por lista" hint={`Até ${perList}. Custa uns US$ 5 no Apify a cada 1.000 perfis (a lista e a leitura de cada um).`}>
+                  <Input type="number" min={1} max={perList} value={where.quantity} onChange={(e) => setWhere({ ...where, quantity: e.target.value })} />
+                </Field>
+                <Field label="País dos perfis" hint="Para ler os telefones da bio.">
+                  <Select value={network.country} onValueChange={(c) => setNetwork({ ...network, country: c })} options={COUNTRIES} />
+                </Field>
+                <Field label="Tipo de negócio (opcional)" hint="Vale para quem não informa a categoria no perfil.">
+                  <Input value={where.businessType} onChange={(e) => setWhere({ ...where, businessType: e.target.value })} />
+                </Field>
+              </>
+            ) : (<>
             <p className="text-xs text-muted-foreground">Depois dá para rodar a outra fonte em cima do mesmo batch: os resultados cruzam com os leads que já estão nele.</p>
             <Field label="Cidades" hint="Do Brasil ou de qualquer país (um país por batch). Com raio, as cidades em volta da primeira entram junto.">
               <div className="flex flex-col gap-2">
@@ -204,10 +239,11 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
                 <p className="text-xs text-muted-foreground">Os círculos claros são cidades onde {where.businessType.trim() ? `"${where.businessType.trim()}"` : 'algum nicho'} já foi buscado. Clique num para acrescentar. Cidades de fora do Brasil: GeoNames (CC BY 4.0).</p>
               </div>
             </Field>
-            <Field label="Nicho" hint={source === 'instagram' ? 'Do jeito que vier à cabeça: no próximo passo aparecem as variações que os negócios usam.' : 'Como alguém buscaria no Google Maps.'}>
+            <Field label="Tipo de negócio" hint={source === 'instagram' ? 'Do jeito que vier à cabeça: no próximo passo aparecem as variações que os negócios usam.' : 'Como alguém buscaria no Google Maps.'}>
               <Input value={where.businessType} placeholder={source === 'instagram' ? 'lente dental' : 'dentista'} onChange={(e) => setWhere({ ...where, businessType: e.target.value })} />
             </Field>
             <Field label="Quantidade de leads" hint="Padrão: 50 leads por batch."><Input type="number" min={1} value={where.quantity} onChange={(e) => setWhere({ ...where, quantity: e.target.value })} /></Field>
+            </>)}
           </div>
         )}
         {current === 'Variações' && (
@@ -245,6 +281,7 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
             <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
               <Check2 label={`Postou no Instagram nos últimos ${criteria.instagramActiveDays || '…'} dias`} checked={marks.requireInstagramActive} onChange={(v) => setMarks({ ...marks, requireInstagramActive: v })} />
               <Check2 label="Tem celular" checked={marks.requirePhone} onChange={(v) => setMarks({ ...marks, requirePhone: v })} />
+              {byProfile && <Check2 label="Tem celular ou e-mail" checked={marks.requireContact} onChange={(v) => setMarks({ ...marks, requireContact: v })} />}
               <Field label="Site">
                 <Select value={marks.site} onValueChange={(site) => setMarks({ ...marks, site: site as SiteRequirement })} options={(Object.keys(SITE_LABEL) as SiteRequirement[]).map((s) => ({ value: s, label: SITE_LABEL[s] }))} />
               </Field>
@@ -260,20 +297,30 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
           <div key="confirm" className="stagger space-y-4 text-sm">
             <p className="text-muted-foreground">Revise o batch antes de iniciar a busca.</p>
             <dl className="space-y-2 rounded-lg border border-brand-border bg-brand-muted/40 p-4">
-              <Row label="Fonte" value={SOURCE_LABEL[source]} />
-              <Row label="Cidades" value={locations.join(' + ')} />
-              <Row label="Nicho" value={where.businessType} />
-              <Row label="Quantidade de leads" value={where.quantity} />
+              {where.name.trim() && <Row label="Nome" value={where.name.trim()} />}
+              <Row label="Fonte" value={BATCH_SOURCE_LABEL[source]} />
+              {byProfile ? (
+                <>
+                  <Row label="Perfil" value={`@${handle}`} />
+                  <Row label="Puxar" value={relationsLabel(network.relations)} />
+                  <Row label="País" value={COUNTRIES.find((c) => c.value === network.country)!.label} />
+                </>
+              ) : <Row label="Cidades" value={locations.join(' + ')} />}
+              {(!byProfile || where.businessType.trim()) && <Row label="Tipo de negócio" value={where.businessType} />}
+              <Row label={byProfile ? 'Máximo por lista' : 'Quantidade de leads'} value={where.quantity} />
               {source === 'instagram' && <Row label="Variações" value={`${nicheTerms.length} do nicho, ${locationTerms.length} da localização`} />}
             </dl>
             <dl className="space-y-2 rounded-lg border border-border p-4">
               <Row label="Instagram ativo" value={marks.requireInstagramActive ? 'Exige' : 'Não exige'} />
               <Row label="Celular" value={marks.requirePhone ? 'Exige' : 'Não exige'} />
+              {byProfile && <Row label="Celular ou e-mail" value={marks.requireContact ? 'Exige' : 'Não exige'} />}
               <Row label="Site" value={SITE_LABEL[marks.site]} />
               {criteriaFields.map((f) => <Row key={f.key} label={f.label} value={`${criteria[f.key]}${'suffix' in f ? ` ${f.suffix}` : ''}`} />)}
             </dl>
             <p className="text-xs text-muted-foreground">A busca roda em segundo plano. Você acompanha o andamento na lista de batches.</p>
+            <input type="hidden" name="name" value={where.name} />
             <input type="hidden" name="source" value={source} />
+            {byProfile && <><input type="hidden" name="profile" value={handle ?? ''} /><input type="hidden" name="country" value={network.country} /><input type="hidden" name="requireContact" value={String(marks.requireContact)} />{network.relations.map((r) => <input key={r} type="hidden" name="relation" value={r} />)}</>}
             {locations.map((l) => <input key={l} type="hidden" name="location" value={l} />)}
             <input type="hidden" name="businessType" value={where.businessType} />
             <input type="hidden" name="quantity" value={where.quantity} />

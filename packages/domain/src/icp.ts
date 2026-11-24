@@ -37,7 +37,7 @@ export function checkEliminatory(
 ): { passed: boolean; reasons: string[] } {
   if (manual) return { passed: !ctx.blocked, reasons: ctx.blocked ? ['Está em não contatar'] : [] };
   const reasons: string[] = [];
-  if (!lead.phone_e164 && !lead.email) reasons.push('Sem celular e sem e-mail');
+  if (!c.allowNoContact && !lead.phone_e164 && !lead.email) reasons.push('Sem celular e sem e-mail');
   if (lead.franchise) reasons.push('Franquia ou rede');
   if (ctx.blocked) reasons.push('Está em não contatar');
   if (ctx.lastContactAt && daysSince(ctx.lastContactAt, ctx.now) < c.recontactDays) reasons.push(`Contatado há menos de ${c.recontactDays} dias`);

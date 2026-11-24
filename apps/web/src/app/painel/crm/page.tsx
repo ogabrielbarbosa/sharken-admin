@@ -17,7 +17,7 @@ import {
   markStalePending,
   outreachCount,
 } from '@lps/db';
-import { closeDealDefaults, firstContactText, followUpText, outreachKind, phoneMatchCandidates, sendBlockReason, type ChatState, type Contact, type CloseDealInput } from '@lps/domain';
+import { batchName, closeDealDefaults, firstContactText, followUpText, outreachKind, phoneMatchCandidates, sendBlockReason, type ChatState, type Contact, type CloseDealInput } from '@lps/domain';
 import { MessageCircle } from 'lucide-react';
 import { AvatarRefresher } from '@/components/crm/avatar-refresher';
 import { CloseDealDrawer } from '@/components/crm/close-deal-drawer';
@@ -145,7 +145,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     ?? (outreachKind(selected.status, !!selected.responded_at, await outreachCount(db, selected as Contact)) === 'bloqueado' ? FOLLOW_UP_LIMIT_MESSAGE : null);
   const flow = lead ? flowLabel(lead).label : null;
   const origin = selected.origin === 'batch'
-    ? { label: batch ? `Batch ${batch.location} · ${batch.business_type}` : 'Batch', href: batch ? `/painel/batches/${batch.id}` : null }
+    ? { label: batch ? `Batch ${batchName(batch)}` : 'Batch', href: batch ? `/painel/batches/${batch.id}` : null }
     : { label: selected.origin === 'whatsapp_direto' ? 'WhatsApp direto' : 'Contato manual', href: null };
 
   let closeDefaults: CloseDealInput | null = null;

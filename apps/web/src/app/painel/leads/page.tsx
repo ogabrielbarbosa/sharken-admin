@@ -1,5 +1,5 @@
 import { LEADS_PAGE, listAllLeads, listBatches, NO_BATCH } from '@lps/db';
-import { columnOf, formatPhone, MANUAL_LOCATION, PIPELINE_COLUMNS, prospectedNiches, sameNiche, type Batch } from '@lps/domain';
+import { BATCH_SOURCE_LABEL, batchSource, columnOf, formatPhone, PIPELINE_COLUMNS, prospectedNiches, sameNiche } from '@lps/domain';
 import { workspaceHasApify } from '@lps/integrations';
 import { ChevronLeft, ChevronRight, Plus, Search, Users } from 'lucide-react';
 import Link from 'next/link';
@@ -14,10 +14,6 @@ import { formatDate } from '@/lib/lead-labels';
 
 type Params = { q?: string; batch?: string; nicho?: string; fonte?: string; etapa?: string; pagina?: string; novo?: string };
 const HERE = '/painel/leads';
-const SOURCE: Record<Batch['source'], string> = { instagram: 'Instagram', maps: 'Google Maps', manual: 'Manual' };
-
-// Há batch manual gravado com outra fonte no banco: o local identifica.
-const sourceOf = (b: Batch): Batch['source'] => (b.location === MANUAL_LOCATION ? 'manual' : b.source);
 
 /** Todos os leads do workspace, com o que foi buscado, a fonte e os batches em que cada um apareceu. */
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<Params> }) {
@@ -32,7 +28,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const noBatch = params.batch === NO_BATCH;
   const filtered = !!(params.batch || params.nicho || params.fonte);
   const batchIds = batches
-    .filter((b) => (!params.batch || b.id === params.batch) && (!params.nicho || sameNiche(b.business_type, params.nicho)) && (!params.fonte || sourceOf(b) === params.fonte))
+    .filter((b) => (!params.batch || b.id === params.batch) && (!params.nicho || sameNiche(b.business_type, params.nicho)) && (!params.fonte || batchSource(b) === params.fonte))
     .map((b) => b.id);
   const { workspace } = await getSession();
   const [{ leads, total }, apifyConnected] = await Promise.all([
@@ -69,7 +65,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
               ]}
             />
             <Select autoSubmit name="nicho" aria-label="Nicho buscado" defaultValue={params.nicho ?? ''} className="w-full sm:w-40" options={[{ value: '', label: 'Todos os nichos' }, ...prospectedNiches(batches).map((n) => ({ value: n, label: n }))]} />
-            <Select autoSubmit name="fonte" aria-label="Fonte do batch" defaultValue={params.fonte ?? ''} className="w-full sm:w-40" options={[{ value: '', label: 'Todas as fontes' }, ...Object.entries(SOURCE).map(([value, label]) => ({ value, label }))]} />
+            <Select autoSubmit name="fonte" aria-label="Fonte do batch" defaultValue={params.fonte ?? ''} className="w-full sm:w-40" options={[{ value: '', label: 'Todas as fontes' }, ...Object.entries(BATCH_SOURCE_LABEL).map(([value, label]) => ({ value, label }))]} />
             <Select autoSubmit name="etapa" aria-label="Etapa" defaultValue={params.etapa ?? ''} className="w-full sm:w-44" options={[{ value: '', label: 'Todas as etapas' }, ...PIPELINE_COLUMNS.map((c) => ({ value: c.key, label: c.label }))]} />
           </div>
         </form>
@@ -93,7 +89,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     <td className="px-4 py-3 text-muted-foreground">
                       {niches.length ? <span tabIndex={0} data-tip={`Nicho buscado: ${niches.join(', ')}`} className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/60">{lead.business_type ?? '—'}</span> : (lead.business_type ?? '—')}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{origin ? SOURCE[sourceOf(origin)] : 'Manual'}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{origin ? BATCH_SOURCE_LABEL[batchSource(origin)] : 'Manual'}</td>
                     <td className="min-w-44 px-4 py-3">
                       {found.length ? found.map((b) => <Link key={b.id} href={`/painel/batches/${b.id}?lead=${lead.id}`} className="block text-brand-soft hover:underline">{batchLabel(b)} <span className="text-xs text-muted-foreground">{formatDate(b.created_at)}</span></Link>) : <span className="text-muted-foreground">Sem batch</span>}
                     </td>

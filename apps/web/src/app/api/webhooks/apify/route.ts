@@ -1,6 +1,10 @@
 import { secretMatches } from '@lps/config';
+import { after } from 'next/server';
 import { parseWebhookEvent } from '@lps/integrations';
-import { handleGoogleResult, handleInstagramResult, handleMapsResult, handleProfilesResult } from '@lps/integrations';
+import { handleGoogleResult, handleInstagramResult, handleMapsResult, handleNetworkResult, handleProfilesResult } from '@lps/integrations';
+
+/** Centenas de perfis levam minutos para gravar. */
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const url = new URL(request.url);
@@ -14,7 +18,9 @@ export async function POST(request: Request) {
   const kind = url.searchParams.get('kind');
   if (kind === 'instagram') await handleInstagramResult(batchId, event);
   else if (kind === 'google') await handleGoogleResult(batchId, event);
-  else if (kind === 'profiles') await handleProfilesResult(batchId, event);
+  else if (kind === 'network') await handleNetworkResult(batchId, event);
+  // Responde antes de gravar: se demorasse, o Apify reenviaria o aviso e os leads entrariam em dobro.
+  else if (kind === 'profiles') after(() => handleProfilesResult(batchId, event));
   else await handleMapsResult(batchId, event);
   return Response.json({ ok: true });
 }

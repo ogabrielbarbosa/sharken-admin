@@ -12,6 +12,7 @@ import {
   type LeadStage,
   type Message,
   type PipelineColumn,
+  batchName,
 } from '@lps/domain';
 import type { Db } from './client';
 import { fetchAll } from './fetch-all';
@@ -129,8 +130,8 @@ async function batchesOf(db: Db, ids: string[], leadIds: string[]): Promise<Map<
   }
   const batches = new Map<string, { id: string; label: string; source: string }>();
   for (const part of chunks([...new Set(links.map((l) => l.batch_id))])) {
-    for (const b of check<{ id: string; location: string; business_type: string; source: string }[]>(await db.from('batches').select('id, location, business_type, source').in('workspace_id', ids).in('id', part))) {
-      batches.set(b.id, { id: b.id, label: `${b.location} · ${b.business_type}`, source: b.source });
+    for (const b of check<{ id: string; name: string | null; location: string; business_type: string; source: string }[]>(await db.from('batches').select('id, name, location, business_type, source').in('workspace_id', ids).in('id', part))) {
+      batches.set(b.id, { id: b.id, label: batchName(b), source: b.source });
     }
   }
   const out = new Map<string, { id: string; label: string; source: string }[]>();
@@ -174,7 +175,7 @@ async function summarize(db: Db, access: Access, ids: string[], rows: SummaryRow
 }
 
 /** De onde o lead veio: a fonte do batch de origem; sem batch, foi cadastrado à mão. */
-const sourceOf = (batchSource?: string): LeadSummary['source'] => (batchSource === 'maps' ? 'google' : batchSource === 'instagram' ? 'instagram' : 'manual');
+const sourceOf = (batchSource?: string): LeadSummary['source'] => (batchSource === 'maps' ? 'google' : batchSource?.startsWith('instagram') ? 'instagram' : 'manual');
 
 /** Vírgula, parênteses e curingas têm sentido na sintaxe do filtro; saem da busca. */
 const cleanSearch = (s?: string) => s?.replace(/[,()%*"\\]/g, ' ').trim();

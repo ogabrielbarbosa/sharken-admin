@@ -1,5 +1,5 @@
 import { listBatches, listBatchStages, listNoBatchStages, NO_BATCH } from '@lps/db';
-import { PIPELINE_COLUMNS, summarizeBatch, type Batch, type LeadStage, type PipelineColumn } from '@lps/domain';
+import { BATCH_SOURCE_LABEL, batchName, batchSource, batchSourceDetail, PIPELINE_COLUMNS, PROFILE_BATCH_NICHE, summarizeBatch, type Batch, type LeadStage, type PipelineColumn } from '@lps/domain';
 import { ChevronRight, Copy, Layers, Map as MapIcon, Plus, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { NewBatchDrawer } from '@/components/batches/new-batch-drawer';
@@ -40,16 +40,15 @@ function StageCounts({ counts }: { counts: Record<PipelineColumn, number> }) {
 /** `etapa` aceita a coluna (`qualificado`) ou um estágio (`revisar`, dos links da visão geral). */
 const columnFor = (etapa: string) => PIPELINE_COLUMNS.find((c) => c.key === etapa || c.stages.includes(etapa as LeadStage));
 
-export default async function BatchesPage({ searchParams }: { searchParams: Promise<{ novo?: string; local?: string; etapa?: string }> }) {
-  const { novo, local, etapa } = await searchParams;
+export default async function BatchesPage({ searchParams }: { searchParams: Promise<{ novo?: string; fonte?: string; etapa?: string }> }) {
+  const { novo, fonte, etapa } = await searchParams;
   const db = await authedDb();
   const { workspace } = await getSession();
   const [batches, stages, looseLeads, apifyConnected] = await Promise.all([listBatches(db), listBatchStages(db), listNoBatchStages(db), novo ? workspaceHasApify(workspace.id) : true]);
-  const locations = [...new Map(batches.map((b) => [b.location_key, b.location])).entries()];
 
   const column = etapa ? columnFor(etapa) : undefined;
   const rows = batches
-    .filter((b) => !local || b.location_key === local)
+    .filter((b) => !fonte || batchSource(b) === fonte)
     .filter((b) => {
       if (!column) return true;
       return stages.some((s) => s.batch_id === b.id && column.stages.includes(s.stage));
@@ -57,8 +56,8 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
     .map((batch) => ({ batch, summary: summarizeBatch(stages.filter((s) => s.batch_id === batch.id)) }));
 
   const loose = { total: looseLeads.length, summary: summarizeBatch(looseLeads) };
-  // Fixo no topo; os filtros de local e etapa só o escondem quando não há lead dele.
-  const showLoose = !local && (!column || loose.summary.counts[column.key] > 0);
+  // Fixo no topo; os filtros de fonte e etapa só o escondem quando não há lead dele.
+  const showLoose = !fonte && (!column || loose.summary.counts[column.key] > 0);
 
   return (
     <>
@@ -68,7 +67,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
           <>
             <form>
               {etapa && <input type="hidden" name="etapa" value={etapa} />}
-              <Select autoSubmit name="local" defaultValue={local ?? ''} aria-label="Localização" className="w-36 sm:w-52" options={[{ value: '', label: 'Todas as localizações' }, ...locations.map(([value, label]) => ({ value, label }))]} />
+              <Select autoSubmit name="fonte" defaultValue={fonte ?? ''} aria-label="Fonte" className="w-36 sm:w-52" options={[{ value: '', label: 'Todas as fontes' }, ...Object.entries(BATCH_SOURCE_LABEL).map(([value, label]) => ({ value, label }))]} />
             </form>
             <LinkButton href="/painel/batches/mapa" variant="outline"><MapIcon /><span className="max-sm:sr-only">Mapa</span></LinkButton>
             <LinkButton href="/painel/batches/duplicados" variant="outline"><Copy /><span className="max-sm:sr-only">Possíveis duplicados</span></LinkButton>
@@ -89,15 +88,16 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
           <EmptyState icon={<Layers />} title="Nenhum batch por aqui" description="Crie um batch para buscar negócios de uma região." actions={<LinkButton href="/painel/batches?novo=1"><Plus />Novo batch</LinkButton>} />
         ) : (
           <Card>
-            <Table head={['Localização', 'Tipo de negócio', 'Quantidade', 'Status', 'Leads por etapa', 'Próxima ação', '']}>
+            <Table head={['Batch', 'Fonte', 'Tipo de negócio', 'Quantidade', 'Status', 'Leads por etapa', 'Próxima ação', '']}>
               {showLoose && (
                 <tr className="group/row">
                   <td className="px-4 py-3 font-medium"><Link href={NO_BATCH_HREF}>{NO_BATCH_LABEL}</Link></td>
+                  <td className="px-4 py-3 text-muted-foreground">Manual</td>
                   <td className="px-4 py-3 text-muted-foreground">—</td>
                   <td className="px-4 py-3">{loose.total}</td>
                   <td className="px-4 py-3 text-muted-foreground">—</td>
                   <td className="px-4 py-3"><StageCounts counts={loose.summary.counts} /></td>
-                  <td className="px-4 py-3 text-muted-foreground">Manual</td>
+                  <td className="px-4 py-3 text-muted-foreground">—</td>
                   <td className="px-4 py-3 text-right"><Link href={NO_BATCH_HREF} aria-label={`Abrir ${NO_BATCH_LABEL}`}><ChevronRight className="ml-auto size-4 text-muted-foreground transition-[translate,color] duration-200 group-hover/row:translate-x-0.5 group-hover/row:text-brand-soft" /></Link></td>
                 </tr>
               )}
@@ -107,9 +107,10 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                 const started = PIPELINE_COLUMNS.some((c) => summary.counts[c.key] > 0);
                 return (
                   <tr key={batch.id} className="group/row">
-                    <td className="px-4 py-3 font-medium"><Link href={href}>{batch.location}</Link></td>
-                    <td className="px-4 py-3 text-muted-foreground">{batch.business_type}<span className="block text-xs text-subtle-foreground">{{ instagram: 'Instagram', maps: 'Google Maps', manual: 'Manual' }[batch.source]}</span></td>
-                    <td className="px-4 py-3">{batch.source === 'manual' ? stages.filter((s) => s.batch_id === batch.id).length : batch.quantity}</td>
+                    <td className="px-4 py-3 font-medium"><Link href={href}>{batchName(batch)}</Link></td>
+                    <td className="px-4 py-3 text-muted-foreground">{BATCH_SOURCE_LABEL[batchSource(batch)]}<span className="block text-xs text-subtle-foreground">{batchSourceDetail(batch)}</span></td>
+                    <td className="px-4 py-3 text-muted-foreground">{batch.business_type === PROFILE_BATCH_NICHE ? '—' : batch.business_type}</td>
+                    <td className="px-4 py-3">{batch.source === 'manual' || batch.source === 'instagram_profile' ? stages.filter((s) => s.batch_id === batch.id).length : batch.quantity}</td>
                     <td className="px-4 py-3"><Status tone={status.tone} live={batch.status === 'buscando' || batch.status === 'analisando'}>{status.label}</Status></td>
                     <td className="px-4 py-3">
                       {started ? (
