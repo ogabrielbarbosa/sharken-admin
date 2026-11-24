@@ -4,7 +4,7 @@ import { PGlite } from '@electric-sql/pglite';
 import type { LeadStage } from '@lps/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { listLeads } from '../src/leads';
-import { completeInfo, qualifyLeads, savePageUrl, saveLoomUrl, stepBack, STALE } from '../src/pipeline';
+import { completeInfo, qualifyLeads, restoreLead, savePageUrl, saveLoomUrl, stepBack, BLOCKED_LEAD, OPTED_OUT_LEAD, STALE } from '../src/pipeline';
 import { fakeDb } from './fake-db';
 import { TEST_WORKSPACE_DEFAULTS } from './test-defaults';
 
@@ -179,6 +179,54 @@ describe('stepBack', () => {
     const id = await lead('crm');
     expect(await stepBack(db(), id, 'video')).toEqual({ ok: false, error: STALE });
     expect((await row(id)).stage).toBe('crm');
+  });
+});
+
+describe('restoreLead', () => {
+  it('volta o descartado para Novo lead e Qualificado e limpa o motivo', async () => {
+    for (const [column, stage] of [['novo', 'revisar'], ['qualificado', 'completar']] as const) {
+      const id = await lead('descartado');
+      await pg.query(`update leads set exit_reason = 'Descartado por você' where id = $1`, [id]);
+      expect(await restoreLead(db(), id, column)).toEqual({ ok: true });
+      expect((await pg.query(`select stage, exit_reason from leads where id = $1`, [id])).rows[0]).toEqual({ stage, exit_reason: null });
+    }
+  });
+
+  it('não pula para Vídeo sem página, nem volta quem está bloqueado ou já saiu', async () => {
+    const id = await lead('descartado');
+    expect((await restoreLead(db(), id, 'video')).ok).toBe(false);
+    expect(await restoreLead(db(), id, 'pronto')).toEqual({ ok: false, error: STALE });
+    expect(await restoreLead(db(), await lead('crm'), 'novo')).toEqual({ ok: false, error: STALE });
+    const blocked = await lead('descartado', { phone: '5521900000777' });
+    await pg.query(`insert into do_not_contact (phone_e164, reason) values ('5521900000777', 'x')`);
+    expect(await restoreLead(db(), blocked, 'novo')).toEqual({ ok: false, error: BLOCKED_LEAD });
+  });
+});
+
+describe('restoreLead de Não contatar', () => {
+  const blocked = async (phone: string, reason: string) => {
+    const id = await lead('nao_contatar', { phone });
+    await pg.query(`insert into do_not_contact (phone_e164, reason) values ($1, $2)`, [phone, reason]);
+    return id;
+  };
+  const blocks = async (phone: string) => (await pg.query(`select 1 from do_not_contact where phone_e164 = $1`, [phone])).rows.length;
+
+  it('volta o marcado no painel e tira o bloqueio', async () => {
+    const id = await blocked('5521900000801', 'Marcado como não contatar');
+    expect(await restoreLead(db(), id, 'novo')).toEqual({ ok: true });
+    expect((await row(id)).stage).toBe('revisar');
+    expect(await blocks('5521900000801')).toBe(0);
+  });
+
+  it('mantém travado quem pediu para parar, por motivo ou por contato', async () => {
+    const id = await blocked('5521900000802', 'pediu para não receber mensagens');
+    const viaContact = await blocked('5521900000803', 'Marcado como não contatar');
+    await pg.query(`insert into contacts (name, origin, phone_e164, status, lead_id) values ('x', 'manual', '5521900000803', 'nao_contatar', $1)`, [viaContact]);
+    for (const [l, phone] of [[id, '5521900000802'], [viaContact, '5521900000803']] as const) {
+      expect(await restoreLead(db(), l, 'novo')).toEqual({ ok: false, error: OPTED_OUT_LEAD });
+      expect((await row(l)).stage).toBe('nao_contatar');
+      expect(await blocks(phone)).toBe(1);
+    }
   });
 });
 

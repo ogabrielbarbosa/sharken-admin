@@ -170,6 +170,9 @@ export async function updateContact(db: Db, id: string, patch: Partial<Contact>)
   if (error) throw new Error(error.message);
 }
 
+/** Motivo de quem pediu para parar: vale sobre o bloqueio do painel e não se desfaz. */
+export const OPT_OUT_REASON = 'pediu para não receber mensagens';
+
 /**
  * Mudança de status feita pelo Gabriel. Com lead ligado, registra o evento e mantém a etapa do lead
  * coerente: perdido vira sem_interesse e não contatar entra na lista de bloqueio (a retenção respeita).
@@ -184,7 +187,7 @@ export async function setContactStatus(db: Db, contact: Pick<Contact, 'id' | 'st
   if (!canSetStatus(contact.status, to)) throw new Error(`Não dá para mudar de ${contact.status} para ${to}.`);
   if (to === 'nao_contatar') {
     // Primeiro o bloqueio: se o status falhar depois, o número já não recebe mensagem.
-    const { error } = await db.from('do_not_contact').upsert({ phone_e164: contact.phone_e164, reason: 'pediu para não receber mensagens' }, { onConflict: 'phone_e164', ignoreDuplicates: true });
+    const { error } = await db.from('do_not_contact').upsert({ phone_e164: contact.phone_e164, reason: OPT_OUT_REASON }, { onConflict: 'phone_e164' });
     if (error) throw new Error(error.message);
   }
   const patch: Partial<Contact> = { status: to, status_at: new Date().toISOString(), changed_by: by };

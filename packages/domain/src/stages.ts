@@ -28,12 +28,13 @@ const NEXT: Partial<Record<LeadStage, LeadStage[]>> = {
   sem_interesse: ['crm'],
   // Descartado volta ao quadro; a página e o vídeo só com o que a etapa pede (`restoreLead`).
   descartado: ['revisar', 'completar', 'pagina', 'video'],
+  nao_contatar: ['revisar', 'completar', 'pagina', 'video'],
 };
 
 const FINAL: LeadStage[] = ['vendido', 'descartado', 'sem_interesse', 'nao_contatar'];
 
 export function canTransition(from: LeadStage, to: LeadStage): boolean {
-  if (from === 'nao_contatar') return false;
+  if (from === 'nao_contatar') return NEXT.nao_contatar!.includes(to);
   if (to === 'nao_contatar') return true;
   if (to === 'descartado') return !FINAL.includes(from);
   return NEXT[from]?.includes(to) ?? false;
@@ -52,6 +53,8 @@ const DROPS: Partial<Record<LeadStage, Partial<Record<PipelineColumn, DropMove>>
   pagina: { video: 'abrir', qualificado: 'voltar' },
   video: { pronto: 'abrir', pagina: 'voltar' },
   descartado: { novo: 'restaurar', qualificado: 'restaurar', pagina: 'restaurar', video: 'restaurar' },
+  // Só quem foi marcado no painel volta; quem pediu para parar segue travado (`restoreLead`).
+  nao_contatar: { novo: 'restaurar', qualificado: 'restaurar', pagina: 'restaurar', video: 'restaurar' },
 };
 
 export function dropMove(stage: LeadStage, column: PipelineColumn): DropMove | null {

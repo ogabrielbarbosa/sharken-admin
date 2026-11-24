@@ -86,7 +86,10 @@ export function Board({ batchId, leads, contacts, query = '', openId, known = {}
       else if (move === 'completar') run(() => completeInfoAction(lead.id));
       else if (move === 'voltar') run(() => stepBackAction(lead.id, lead.stage as 'pagina' | 'video'));
       else if (move === 'descartar') run(() => discardAction([lead.id]));
-      else if (move === 'restaurar') run(() => restoreAction(lead.id, column));
+      else if (move === 'restaurar') {
+        if (lead.stage === 'nao_contatar' && !window.confirm(`Voltar ${lead.name} para o quadro? O negócio sai da lista de não contatar.`)) return;
+        run(() => restoreAction(lead.id, column));
+      }
       // Página → Vídeo e Vídeo → Pronto pedem um link: abre o modal do lead.
       else router.push(boardHref(batchId, query, lead.id), { scroll: false });
     };

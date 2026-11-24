@@ -1,7 +1,7 @@
-import { canCompleteInfo, normalizeLinkUrl, parseLoomUrl, parsePageUrl, type Lead, type PipelineColumn } from '@lps/domain';
+import { canCompleteInfo, normalizeLinkUrl, parseLoomUrl, parsePageUrl, phoneMatchCandidates, instagramHandle, type Lead, type PipelineColumn } from '@lps/domain';
 import type { Db } from './client';
 import { getContactContext } from './contact';
-import { createContactFromLead } from './contacts';
+import { OPT_OUT_REASON, createContactFromLead } from './contacts';
 import { getLead, moveLead, updateLead } from './leads';
 import { listAssets } from './lead-assets';
 
@@ -11,6 +11,7 @@ export const STALE = 'Este lead já mudou de etapa.';
 export const INVALID_LINK = 'Esse link não parece válido.';
 export const NOT_LOOM = 'Use um link do Loom (loom.com/share/…).';
 export const OTHER_LEAD_CONTACT = 'Este telefone já é contato de outro lead: os links mostrados no CRM são os dele.';
+export const OPTED_OUT_LEAD = 'Esta pessoa pediu para não receber mensagens, ou o negócio também foi bloqueado em outro lugar. Ele continua em Não contatar.';
 export const BLOCKED_LEAD = 'Este negócio está na lista de não contatar.';
 
 const stale = (): PipelineResult => ({ ok: false, error: STALE });
@@ -72,17 +73,45 @@ export async function stepBack(db: Db, leadId: string, from: 'pagina' | 'video')
 
 const RESTORE_TO: Partial<Record<PipelineColumn, 'revisar' | 'completar' | 'pagina' | 'video'>> = { novo: 'revisar', qualificado: 'completar', pagina: 'pagina', video: 'video' };
 
-/** Descartado → de volta ao quadro. Página e Vídeo pedem o mesmo que no caminho normal. */
-export async function restoreLead(db: Db, leadId: string, column: PipelineColumn): Promise<PipelineResult> {
+/** Descartado ou Não contatar marcado no painel → de volta ao quadro. `all` enxerga todos os workspaces, porque o bloqueio é global. Página e Vídeo pedem o mesmo que no caminho normal. */
+export async function restoreLead(db: Db, leadId: string, column: PipelineColumn, all: Db = db): Promise<PipelineResult> {
   const to = RESTORE_TO[column];
   const lead = await getLead(db, leadId);
-  if (!to || !lead || lead.stage !== 'descartado') return stale();
-  if ((await getContactContext(db, lead)).blocked) return { ok: false, error: BLOCKED_LEAD };
+  if (!to || !lead || !['descartado', 'nao_contatar'].includes(lead.stage)) return stale();
+  if (lead.stage === 'descartado' && (await getContactContext(db, lead)).blocked) return { ok: false, error: BLOCKED_LEAD };
   if (to === 'pagina' || to === 'video') {
     const check = canCompleteInfo(lead, await listAssets(db, leadId));
     if (!check.ok) return { ok: false, error: check.reason };
   }
   if (to === 'video' && !lead.page_url) return { ok: false, error: 'Este lead ainda não tem página. Solte em Página.' };
+  if (lead.stage === 'nao_contatar' && !(await unblockLead(all, lead))) return { ok: false, error: OPTED_OUT_LEAD };
   await moveLead(db, lead, to, { exit_reason: null }, { restaurado: true });
   return { ok: true };
+}
+
+/** Tira da lista global o bloqueio marcado no painel. `false`, sem tirar nada, se a pessoa pediu para parar ou outro lead também o bloqueou. */
+async function unblockLead(all: Db, lead: Lead): Promise<boolean> {
+  const phones = lead.phone_e164 ? phoneMatchCandidates(lead.phone_e164) : [];
+  const handle = instagramHandle(lead.instagram_url);
+  const keys: ['phone_e164' | 'place_id' | 'instagram_handle', string[]][] = [
+    ['phone_e164', phones], ['place_id', lead.place_id ? [lead.place_id] : []], ['instagram_handle', handle ? [handle] : []],
+  ];
+  const check = async <T>(q: PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> => {
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return (data ?? []) as T[];
+  };
+  const blocks: string[] = [];
+  for (const [column, values] of keys) {
+    if (!values.length) continue;
+    const rows = await check<{ id: string; reason: string | null }>(all.from('do_not_contact').select('id, reason').in(column, values));
+    if (rows.some((r) => r.reason === OPT_OUT_REASON)) return false;
+    blocks.push(...rows.map((r) => r.id));
+    const others = await check(all.from('leads').select('id').in(column, values).eq('stage', 'nao_contatar').neq('id', lead.id));
+    if (others.length) return false;
+  }
+  if ((await check(all.from('contacts').select('id').eq('lead_id', lead.id).eq('status', 'nao_contatar'))).length) return false;
+  if (phones.length && (await check(all.from('contacts').select('id').in('phone_e164', phones).eq('status', 'nao_contatar'))).length) return false;
+  if (blocks.length) await check(all.from('do_not_contact').delete().in('id', blocks));
+  return true;
 }

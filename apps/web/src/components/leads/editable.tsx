@@ -154,7 +154,7 @@ export function BlockLeadButton({ leadId }: { leadId: string }) {
       <Popover.Portal>
         <Popover.Positioner sideOffset={8} align="end" className="z-[1100]">
           <Popover.Popup aria-label="Confirmar não contatar" className="w-64 origin-(--transform-origin) space-y-3 rounded-md border border-border-strong bg-card p-3 text-sm text-foreground shadow-overlay outline-none transition-[opacity,scale] duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0">
-            <p>Marcar como não contatar? Vale para o negócio todo e não dá para desfazer.</p>
+            <p>Marcar como não contatar? Vale para o negócio todo. Para desfazer, arraste o card de volta no quadro.</p>
             <form action={blockLeadAction} className="flex justify-end gap-1">
               <input type="hidden" name="leadId" value={leadId} />
               <Popover.Close render={<Button variant="ghost" />}>Cancelar</Popover.Close>

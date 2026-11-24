@@ -20,6 +20,8 @@ const allowed: [LeadStage, LeadStage][] = [
   ['vendido', 'nao_contatar'],
   ['descartado', 'nao_contatar'],
   ['sem_interesse', 'nao_contatar'],
+  ['descartado', 'revisar'],
+  ['nao_contatar', 'revisar'],
 ];
 
 const forbidden: [LeadStage, LeadStage][] = [
@@ -29,7 +31,7 @@ const forbidden: [LeadStage, LeadStage][] = [
   ['pagina', 'crm'],
   ['crm', 'video'],
   ['crm', 'crm'],
-  ['nao_contatar', 'revisar'],
+  ['nao_contatar', 'crm'],
   ['nao_contatar', 'descartado'],
   ['vendido', 'descartado'],
 ];
@@ -84,7 +86,8 @@ describe('dropMove', () => {
     for (const c of ['novo', 'qualificado', 'pagina', 'video'] as const) expect(dropMove('descartado', c)).toBe('restaurar');
     expect(dropMove('descartado', 'pronto')).toBeNull();
     expect(dropMove('descartado', 'descartados')).toBeNull();
-    expect(dropMove('nao_contatar', 'novo')).toBeNull();
+    expect(dropMove('nao_contatar', 'novo')).toBe('restaurar');
+    expect(dropMove('nao_contatar', 'pronto')).toBeNull();
   });
 
   it('não deixa pular etapa nem soltar na própria coluna', () => {

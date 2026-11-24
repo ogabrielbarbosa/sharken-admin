@@ -1,7 +1,7 @@
 'use server';
 
 import {
-  addAsset, addContactToLead, addManualLead, completeInfo, deleteAsset, deleteBatch, enqueueJob, getAsset, getBatch, getLead, listAssets, moveLead, qualifyLeads, restoreLead,
+  addAsset, addContactToLead, createAdminClient, addManualLead, completeInfo, deleteAsset, deleteBatch, enqueueJob, getAsset, getBatch, getLead, listAssets, moveLead, qualifyLeads, restoreLead,
   savePageUrl, saveLoomUrl, STALE, setResponsible, stepBack, saveLeadNote, updateAsset, type Db, type PipelineResult,
 } from '@lps/db';
 import { canTransition, isAcceptedMime, manualLead, toMobileE164, MAX_ASSET_BYTES, normalizeLinkUrl, sanitizeFileName, type Lead, type PipelineColumn } from '@lps/domain';
@@ -108,9 +108,9 @@ export async function stepBackAction(leadId: string, from: 'pagina' | 'video'): 
   return result;
 }
 
-/** Descartado → coluna em que o cartão foi solto. */
+/** Descartado ou Não contatar → coluna em que o cartão foi solto. */
 export async function restoreAction(leadId: string, column: PipelineColumn): Promise<PipelineResult> {
-  const result = await restoreLead(await authedDb(), leadId, column);
+  const result = await restoreLead(await authedDb(), leadId, column, createAdminClient());
   refresh();
   return result;
 }

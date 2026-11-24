@@ -56,7 +56,7 @@ export function fakeDb(pg: PGlite): Db {
         // Só o formato `coluna.ilike.valor,coluna.ilike.valor` usado pela busca.
         conds.push('(' + expr.split(',').map((part) => {
           const [col, op, ...rest] = part.split('.');
-          return `${col} ${op} ${p(rest.join('.'))}`;
+          return `${col} ${op === 'eq' ? '=' : op} ${p(rest.join('.'))}`;
         }).join(' or ') + ')');
       }
       const where = conds.length ? ' where ' + conds.join(' and ') : '';
