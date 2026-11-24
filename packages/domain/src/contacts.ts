@@ -44,6 +44,9 @@ export type Message = {
   /** `nota` é interna: aparece só no painel. */
   direction: 'entrada' | 'saida' | 'nota';
   sent_from: 'painel' | 'celular' | null;
+  /** Usuário que enviou pelo painel. Nulo nas recebidas, nas do celular e nas anteriores à migração 0026. */
+  sent_by: string | null;
+  sent_by_email: string | null;
   kind: MessageKind;
   body: string | null;
   media_path: string | null;

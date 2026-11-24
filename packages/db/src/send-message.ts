@@ -17,6 +17,9 @@ import { getContact } from './contacts';
 import { logEvent } from './leads';
 import { findByExternalId, insertMessage, messagePreview } from './messages';
 
+/** Usuário logado que clicou em enviar. */
+export type MessageSender = { id: string; email: string };
+
 export const INVALID_NUMBER_MESSAGE = 'Número sem WhatsApp';
 
 export async function isDoNotContact(db: Db, phoneE164: string): Promise<boolean> {
@@ -69,7 +72,7 @@ const isUniqueViolation = (e: { message: string; code?: string }) => e.code === 
 export async function sendMessage(
   db: Db,
   provider: Pick<WhatsAppProvider, 'sendText'> & Partial<Pick<WhatsAppProvider, 'sendMedia'>>,
-  input: { contactId: string; text: string; clientMessageId: string; media?: OutboundMedia & { path: string }; quotedExternalId?: string | null },
+  input: { contactId: string; text: string; clientMessageId: string; media?: OutboundMedia & { path: string }; quotedExternalId?: string | null; sender?: MessageSender },
   now: Date,
 ): Promise<Message> {
   const text = input.text.trim();
@@ -106,6 +109,8 @@ export async function sendMessage(
     contact_id: contact.id,
     direction: 'saida',
     sent_from: 'painel',
+    sent_by: input.sender?.id ?? null,
+    sent_by_email: input.sender?.email ?? null,
     kind: media?.kind ?? 'texto',
     body: text || null,
     media_path: media?.path ?? null,
@@ -206,8 +211,9 @@ export async function retryMessage(
   messageId: string,
   newClientMessageId: string,
   now: Date,
+  sender?: MessageSender,
 ): Promise<Message> {
   const old = await getMessage(db, messageId);
   if (old.status !== 'erro' || old.direction !== 'saida' || !old.body) throw new Error('Só dá para tentar de novo uma mensagem com erro.');
-  return sendMessage(db, provider, { contactId: old.contact_id, text: old.body, clientMessageId: newClientMessageId, quotedExternalId: old.quoted_external_id }, now);
+  return sendMessage(db, provider, { contactId: old.contact_id, text: old.body, clientMessageId: newClientMessageId, quotedExternalId: old.quoted_external_id, sender }, now);
 }

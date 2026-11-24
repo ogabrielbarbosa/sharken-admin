@@ -28,7 +28,7 @@ export type ConversationProps = {
   dailyLimit: number;
   quickReplies: QuickReplyItem[];
   variables: Variable[];
-  me: { name: string; avatar: string | null; phone: string | null };
+  me: { userId: string; email: string; name: string; avatar: string | null; phone: string | null };
   /** Aba aberta na lista. A aba acompanha o estado do atendimento desta conversa. */
   tab: ChatState;
   /** Com busca a lista mostra todas as abas: não troca de aba. */
@@ -104,7 +104,7 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
     setError(null);
     const quote = again ?? takeQuote();
     const local: ThreadMessage = {
-      id: `local-${clientMessageId}`, created_at: new Date().toISOString(), contact_id: contact.id, direction: 'saida', sent_from: 'painel', kind: 'texto', body: text,
+      id: `local-${clientMessageId}`, created_at: new Date().toISOString(), contact_id: contact.id, direction: 'saida', sent_from: 'painel', sent_by: me.userId, sent_by_email: me.email, kind: 'texto', body: text,
       media_path: null, media_mime: null, status: 'pendente', error: null, external_id: null, client_message_id: clientMessageId, is_first_contact: false, is_follow_up: false, at: new Date().toISOString(),
       meta: {}, reactions: [], edited_at: null, deleted_at: null, ...quote,
     };
@@ -118,7 +118,7 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
     const quote = takeQuote();
     const kind = asAudio || file.type.startsWith('audio/') ? 'audio' : file.type.startsWith('image/') ? 'imagem' : file.type.startsWith('video/') ? 'video' : 'documento';
     const local: ThreadMessage = {
-      id: `local-${clientMessageId}`, created_at: new Date().toISOString(), contact_id: contact.id, direction: 'saida', sent_from: 'painel', kind, body: caption || null,
+      id: `local-${clientMessageId}`, created_at: new Date().toISOString(), contact_id: contact.id, direction: 'saida', sent_from: 'painel', sent_by: me.userId, sent_by_email: me.email, kind, body: caption || null,
       media_path: null, media_mime: file.type, status: 'pendente', error: null, external_id: null, client_message_id: clientMessageId, is_first_contact: false, is_follow_up: false,
       at: new Date().toISOString(), mediaUrl: URL.createObjectURL(file), meta: {}, reactions: [], edited_at: null, deleted_at: null, ...quote,
     };

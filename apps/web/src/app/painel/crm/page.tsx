@@ -61,7 +61,8 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
   };
   const connection = connectionInfo.state;
   const base = crmHref(tab, { q: search });
-  const profile = workspaceProfile((await getSession()).workspace);
+  const { user, workspace } = await getSession();
+  const profile = workspaceProfile(workspace);
   const dailyLimit = profile.dailyLimit;
 
   const list = (
@@ -138,7 +139,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
   }
 
   const phoneLabel = connectionInfo.phone ? connectionInfo.phone.replace(/^\+?55(\d{2})(\d{4,5})(\d{4})$/, '+55 $1 $2-$3') : null;
-  const me = { name: profile.signer, avatar: (connectionRow.data?.profile_pic_url as string | null | undefined) ?? null, phone: phoneLabel };
+  const me = { userId: user.id, email: user.email, name: profile.signer, avatar: (connectionRow.data?.profile_pic_url as string | null | undefined) ?? null, phone: phoneLabel };
   const variables: Variable[] = [
     { key: 'nome', label: 'Nome do contato', value: selected.name },
     { key: 'primeiro_nome', label: 'Primeiro nome', value: selected.name.split(/\s+/)[0] ?? null },

@@ -245,6 +245,20 @@ describe('sendMessage', () => {
   });
 });
 
+describe('quem enviou', () => {
+  const ana = { id: '00000000-0000-4000-8000-00000000000a', email: 'ana@teste.com' };
+  const bia = { id: '00000000-0000-4000-8000-00000000000b', email: 'bia@teste.com' };
+
+  it('grava o usuário do envio e, no reenvio, quem clicou em tentar de novo', async () => {
+    const c = await mk('novo');
+    await expect(sendMessage(db, failing(), { contactId: c.id, text: 'Oi!', clientMessageId: `c-${++n}`, sender: ana }, now)).rejects.toThrow();
+    const [old] = await listMessages(db, c.id);
+    expect(old).toMatchObject({ status: 'erro', sent_by: ana.id, sent_by_email: ana.email });
+    const again = await retryMessage(db, ok(), old!.id, `r-${++n}`, now, bia);
+    expect(again).toMatchObject({ status: 'enviada', sent_by: bia.id, sent_by_email: bia.email });
+  });
+});
+
 describe('retryMessage', () => {
   it('reenvia o texto como mensagem nova e deixa a antiga com erro', async () => {
     const c = await mk('novo');

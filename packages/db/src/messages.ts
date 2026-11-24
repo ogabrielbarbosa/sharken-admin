@@ -3,7 +3,7 @@ import type { Db } from './client';
 
 type MessageStatus = Message['status'];
 export type NewMessage = Pick<Message, 'contact_id' | 'direction'> &
-  Partial<Pick<Message, 'sent_from' | 'kind' | 'body' | 'media_path' | 'media_mime' | 'status' | 'error' | 'external_id' | 'client_message_id' | 'is_first_contact' | 'is_follow_up' | 'at' | 'quoted_external_id' | 'quoted_preview' | 'meta'>>;
+  Partial<Pick<Message, 'sent_from' | 'sent_by' | 'sent_by_email' | 'kind' | 'body' | 'media_path' | 'media_mime' | 'status' | 'error' | 'external_id' | 'client_message_id' | 'is_first_contact' | 'is_follow_up' | 'at' | 'quoted_external_id' | 'quoted_preview' | 'meta'>>;
 
 const KIND_LABEL: Record<Message['kind'], string> = {
   texto: '',

@@ -30,7 +30,7 @@ import { normalizeDocument, toMobileE164, validateCloseDeal, type CloseDealInput
 import { getWhatsAppProvider, suggestConversationReply } from '@lps/integrations';
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
-import { authedDb } from '@/lib/auth';
+import { authedDb, getSession } from '@/lib/auth';
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -58,7 +58,7 @@ export async function sendMessageAction(contactId: string, body: string, clientM
   return guarded(async () => {
     if (!contactId || !text(body) || !clientMessageId) throw new Error('Escreva a mensagem antes de enviar.');
     const db = await authedDb();
-    const message = await sendMessage(db, await whatsapp(db), { contactId, text: body, clientMessageId, quotedExternalId }, new Date());
+    const message = await sendMessage(db, await whatsapp(db), { contactId, text: body, clientMessageId, quotedExternalId, sender: (await getSession()).user }, new Date());
     return { messageId: message.id };
   });
 }
@@ -67,7 +67,7 @@ export async function retryMessageAction(messageId: string, clientMessageId: str
   return guarded(async () => {
     if (!messageId || !clientMessageId) throw new Error('Mensagem não encontrada.');
     const db = await authedDb();
-    const message = await retryMessage(db, await whatsapp(db), messageId, clientMessageId, new Date());
+    const message = await retryMessage(db, await whatsapp(db), messageId, clientMessageId, new Date(), (await getSession()).user);
     return { messageId: message.id };
   });
 }
@@ -304,7 +304,7 @@ export async function sendMediaAction(form: FormData) {
     const message = await sendMessage(
       db,
       await whatsapp(db),
-      { contactId, text: text(form.get('caption')), clientMessageId, quotedExternalId: text(form.get('quotedExternalId')) || null, media: { kind, mime, base64: buffer.toString('base64'), fileName: file.name || `arquivo.${mediaExtension(mime)}`, path } },
+      { contactId, text: text(form.get('caption')), clientMessageId, sender: (await getSession()).user, quotedExternalId: text(form.get('quotedExternalId')) || null, media: { kind, mime, base64: buffer.toString('base64'), fileName: file.name || `arquivo.${mediaExtension(mime)}`, path } },
       new Date(),
     );
     return { messageId: message.id };
@@ -317,7 +317,8 @@ export async function saveNoteAction(contactId: string, body: string) {
     const note = text(body);
     if (!contactId || !note) throw new Error('Escreva a nota antes de salvar.');
     const db = await authedDb();
-    const { error } = await db.from('messages').insert({ contact_id: contactId, direction: 'nota', kind: 'texto', body: note, status: 'recebida', sent_from: 'painel', at: new Date().toISOString() });
+    const { user } = await getSession();
+    const { error } = await db.from('messages').insert({ contact_id: contactId, direction: 'nota', kind: 'texto', body: note, status: 'recebida', sent_from: 'painel', sent_by: user.id, sent_by_email: user.email, at: new Date().toISOString() });
     if (error) throw new Error(error.message);
   });
 }

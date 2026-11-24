@@ -50,13 +50,22 @@ function Ticks({ status, pop }: { status: Message['status']; pop: boolean }) {
 
 export type ThreadPeople = { contactName: string; contactAvatar: string | null; contactSeed: string; meName: string; meAvatar: string | null };
 
+/** Quem enviou pelo painel: o começo do e-mail, com o e-mail inteiro ao passar o mouse. */
+function Sender({ m }: { m: ThreadMessage }) {
+  if (!m.sent_by_email) return null;
+  return <span title={`Enviada por ${m.sent_by_email}`} className="max-w-48 cursor-default truncate font-medium">{m.sent_by_email.split('@')[0]}</span>;
+}
+
+/** Mesmo lado e mesmo autor: troca de membro quebra a sequência, para cada um aparecer. */
+const sameSender = (a: ThreadMessage, b: ThreadMessage) => a.direction === b.direction && a.sent_from === b.sent_from && a.sent_by === b.sent_by;
+
 function NoteBubble({ m }: { m: ThreadMessage }) {
   return (
     <div className="my-2 flex justify-end pr-9">
       <div className="max-w-[70%] rounded-xl border border-amber-500/25 bg-amber-950/40 px-3.5 py-2.5">
         <p className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-amber-300/80"><StickyNote className="size-3" />Nota interna</p>
         <p className="whitespace-pre-wrap break-words text-sm text-amber-50/90">{m.body}</p>
-        <p className="mt-1 text-right text-[11px] text-amber-200/50">{clock(m.at)}</p>
+        <p className="mt-1 flex items-center justify-end gap-1 text-[11px] text-amber-200/50"><Sender m={m} />{m.sent_by_email && <span>·</span>}{clock(m.at)}</p>
       </div>
     </div>
   );
@@ -141,6 +150,7 @@ function Bubble({ m, onRetry, onReply, quote, showMeta, people, now, animate }: 
         </div>
         {m.status === 'erro' && (
           <div className="mt-1 flex animate-slide-up items-center gap-3 text-xs text-destructive">
+            <Sender m={m} />
             <span>{m.error ?? 'Não foi possível enviar.'}</span>
             <button type="button" onClick={() => onRetry(m)} className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap font-medium hover:underline"><RotateCcw className="size-3" />Tentar de novo</button>
           </div>
@@ -148,6 +158,7 @@ function Bubble({ m, onRetry, onReply, quote, showMeta, people, now, animate }: 
         {showMeta && m.status !== 'erro' && (
           <p className="mt-1 flex items-center gap-1 px-1 text-[11px] text-muted-foreground">
             {mine && <Ticks key={m.status} status={m.status} pop={animate} />}
+            {mine && m.sent_by_email && <><Sender m={m} /><span>·</span></>}
             {mine && m.sent_from === 'celular' && <span>pelo celular ·</span>}
             {m.edited_at && <span title={m.meta?.original_body ? `Antes: ${m.meta.original_body}` : undefined} className="cursor-default italic">editada ·</span>}
             {clock(m.at)} {dayKey(new Date(m.at)) !== dayKey(now) && new Date(m.at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })}
@@ -209,7 +220,7 @@ export function Thread({ messages, legacy, now, onRetry, onReply, people }: {
     }
     // Só a última de uma sequência do mesmo lado (em até 5 min) mostra a foto e o horário.
     const next = messages[i + 1];
-    const lastOfGroup = !next || next.direction !== m.direction || new Date(next.at).getTime() - new Date(m.at).getTime() > GROUP_MS || dayKey(new Date(next.at)) !== day;
+    const lastOfGroup = !next || !sameSender(m, next) || new Date(next.at).getTime() - new Date(m.at).getTime() > GROUP_MS || dayKey(new Date(next.at)) !== day;
     const original = m.quoted_external_id ? byExternal.get(m.quoted_external_id) : undefined;
     const quote = m.quoted_external_id
       ? {
