@@ -41,7 +41,7 @@ export function SidebarToggle() {
       type="button"
       onClick={toggle}
       aria-label="Alternar menu"
-      title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+      data-tip={collapsed ? 'Expandir menu' : 'Recolher menu'}
       className="press grid size-8 shrink-0 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-white/5 hover:text-foreground"
     >
       <PanelLeft className={`size-4 transition-transform duration-300 ease-(--ease-out-expo) ${collapsed ? 'rotate-180' : ''}`} />

@@ -1,5 +1,5 @@
 import type { NewLead } from './apify-mapper';
-import { toMobileE164 } from './phone';
+import { mobilesInText, toCountryMobile, toWhatsAppLinkMobile } from './phone';
 import { classifyLink } from './website';
 
 /** O que o `apify/instagram-profile-scraper` devolve de cada perfil (só o que usamos). */
@@ -21,21 +21,19 @@ export type InstagramProfileData = {
 const EMAIL = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
 // (12) 99876-5432, 12 998765432, +55 12 99876 5432...
 const PHONE = /(?:\+?55[\s.-]?)?\(?\b\d{2}\)?[\s.-]?9[\s.-]?\d{4}[\s.-]?\d{4}\b/g;
-const WHATSAPP = /(?:wa\.me\/|whatsapp\.com\/send\?phone=|api\.whatsapp\.com\/send\?phone=)(\+?\d{10,13})/i;
+const WHATSAPP = /(?:wa\.me\/|whatsapp\.com\/send\?phone=|api\.whatsapp\.com\/send\?phone=)(\+?\d{8,15})/i;
 
 /** Celular da conta comercial, do link do WhatsApp ou escrito na bio. */
-export function phoneFromProfile(p: InstagramProfileData): { raw: string | null; e164: string | null } {
+export function phoneFromProfile(p: InstagramProfileData, country = 'BR'): { raw: string | null; e164: string | null } {
   const links = [p.externalUrl ?? '', ...(p.externalUrls ?? []).map((u) => u.url ?? ''), p.biography ?? ''];
-  const candidates = [
-    p.businessPhoneNumber, p.publicPhoneNumber,
-    ...links.map((l) => l.match(WHATSAPP)?.[1]),
-    ...(p.biography?.match(PHONE) ?? []),
-  ].filter((v): v is string => !!v);
-  for (const raw of candidates) {
-    const e164 = toMobileE164(raw);
-    if (e164) return { raw, e164 };
-  }
-  return { raw: candidates[0] ?? null, e164: null };
+  const candidates: { raw: string; e164: string | null }[] = [
+    ...[p.businessPhoneNumber, p.publicPhoneNumber].filter((v): v is string => !!v).map((raw) => ({ raw, e164: toCountryMobile(raw, country) })),
+    ...links.flatMap((l) => l.match(WHATSAPP)?.[1] ?? []).map((raw) => ({ raw, e164: toWhatsAppLinkMobile(raw, country) })),
+    ...(country === 'BR'
+      ? (p.biography?.match(PHONE) ?? []).map((raw) => ({ raw, e164: toCountryMobile(raw, country) }))
+      : mobilesInText(p.biography ?? '', country)),
+  ];
+  return candidates.find((c) => c.e164) ?? { raw: candidates[0]?.raw ?? null, e164: null };
 }
 
 export function emailFromProfile(p: InstagramProfileData): string | null {
@@ -50,12 +48,12 @@ export function latestPostAt(p: { latestPosts?: { timestamp?: string }[] }): str
  * Perfil do Instagram como lead (sem lugar no Maps). O site é o primeiro link que não é rede social; sem ele,
  * fica o link da bio (linktree etc.), que a análise trata como "só rede social".
  */
-export function mapProfileToLead(p: InstagramProfileData, batchId: string, ctx: { city: string | null; businessType: string }): NewLead | null {
+export function mapProfileToLead(p: InstagramProfileData, batchId: string, ctx: { city: string | null; businessType: string; country?: string }): NewLead | null {
   const username = p.username?.toLowerCase();
   if (!username) return null;
   const links = [p.externalUrl, ...(p.externalUrls ?? []).map((u) => u.url)].filter((u): u is string => !!u && !/wa\.me|whatsapp\.com/i.test(u));
   const website = links.find((u) => classifyLink(u).status === 'site') ?? links[0] ?? null;
-  const phone = phoneFromProfile(p);
+  const phone = phoneFromProfile(p, ctx.country);
   return {
     batch_id: batchId,
     place_id: null,

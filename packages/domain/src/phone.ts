@@ -1,3 +1,32 @@
+import { findPhoneNumbersInText, parsePhoneNumberFromString, type CountryCode, type PhoneNumber } from 'libphonenumber-js/max';
+
+const mobileDigits = (p: PhoneNumber | undefined): string | null => {
+  // Nos EUA e no Canadá não dá para separar celular de fixo pelo número.
+  const type = p?.isValid() ? p.getType() : undefined;
+  return type === 'MOBILE' || type === 'FIXED_LINE_OR_MOBILE' ? p!.number.slice(1) : null;
+};
+
+/** Celular de qualquer país, em dígitos com o código do país. `country` é o de quem escreveu o número sem código. */
+export function toCountryMobile(raw: string | null | undefined, country: string): string | null {
+  if (!raw) return null;
+  if (country === 'BR') return toMobileE164(raw);
+  return mobileDigits(parsePhoneNumberFromString(raw, country as CountryCode));
+}
+
+/** Celular de um link do WhatsApp, que sempre traz o código do país. */
+export function toWhatsAppLinkMobile(digits: string, country: string): string | null {
+  if (country === 'BR') return toMobileE164(digits);
+  return mobileDigits(parsePhoneNumberFromString(`+${digits.replace(/\D/g, '')}`)) ?? toCountryMobile(digits, country);
+}
+
+/** Celulares escritos num texto, pelo país. */
+export function mobilesInText(text: string, country: string): { raw: string; e164: string }[] {
+  return findPhoneNumbersInText(text, country as CountryCode).flatMap(({ number, startsAt, endsAt }) => {
+    const e164 = mobileDigits(number);
+    return e164 ? [{ raw: text.slice(startsAt, endsAt), e164 }] : [];
+  });
+}
+
 export function toMobileE164(raw: string | null | undefined): string | null {
   if (!raw) return null;
   let digits = raw.replace(/\D/g, '');

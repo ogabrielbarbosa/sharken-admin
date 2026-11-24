@@ -50,7 +50,7 @@ function ToolButton({ label, onClick, active, disabled, children }: { label: str
   return (
     <button
       type="button"
-      title={label}
+      data-tip={label}
       aria-label={label}
       aria-pressed={active}
       disabled={disabled}
@@ -449,7 +449,7 @@ export function Composer(props: Props) {
                 <button
                   type="button"
                   disabled={acting}
-                  title={gate === 'outro_responsavel' ? 'Passa este atendimento para você' : 'Abre o atendimento com você como responsável'}
+                  data-tip={gate === 'outro_responsavel' ? 'Passa este atendimento para você' : 'Abre o atendimento com você como responsável'}
                   onClick={async () => { setActing(true); try { await (gate === 'outro_responsavel' ? props.onTakeOver() : props.onOpen()); } finally { setActing(false); } }}
                   className="press inline-flex h-8 cursor-pointer items-center gap-2 rounded-lg bg-brand px-3 text-sm font-medium text-white hover:bg-brand-bright disabled:cursor-wait disabled:opacity-70"
                 >
@@ -458,7 +458,7 @@ export function Composer(props: Props) {
                 </button>
               )}
               {props.canIntervene && (
-                <button type="button" disabled={acting} onClick={props.onIntervene} title="Envia uma única mensagem sem mudar o atendimento. O bloqueio volta depois do envio." className="press inline-flex h-8 cursor-pointer items-center rounded-lg border border-border px-3 text-sm font-medium hover:bg-accent">Intervenção pontual</button>
+                <button type="button" disabled={acting} onClick={props.onIntervene} data-tip="Envia uma única mensagem sem mudar o atendimento. O bloqueio volta depois do envio." className="press inline-flex h-8 cursor-pointer items-center rounded-lg border border-border px-3 text-sm font-medium hover:bg-accent">Intervenção pontual</button>
               )}
             </div>
           </div>

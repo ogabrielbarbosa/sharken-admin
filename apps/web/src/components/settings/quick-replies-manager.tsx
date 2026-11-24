@@ -17,7 +17,7 @@ function IconButton({ label, onClick, disabled, danger, children }: { label: str
   return (
     <button
       type="button"
-      title={label}
+      data-tip={label}
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
@@ -173,7 +173,7 @@ export function QuickRepliesManager({ items, variables, canEdit }: { items: Quic
                       role="switch"
                       aria-checked={r.active}
                       aria-label={`${r.title} no atendimento`}
-                      title={r.active ? 'Aparece no atendimento' : 'Não aparece no atendimento'}
+                      data-tip={r.active ? 'Aparece no atendimento' : 'Não aparece no atendimento'}
                       disabled={pending}
                       onClick={() => run(() => toggleQuickReplyAction(r.id, !r.active), list.map((x) => (x.id === r.id ? { ...x, active: !r.active } : x)))}
                       className={cx('relative mt-0.5 h-5 w-9 shrink-0 cursor-pointer rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed', r.active ? 'bg-brand' : 'bg-white/15')}
@@ -190,7 +190,7 @@ export function QuickRepliesManager({ items, variables, canEdit }: { items: Quic
           {canEdit && (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-white/[0.015] px-4 py-3">
               <span className="text-xs text-muted-foreground">A ordem daqui é a mesma do atendimento.</span>
-              <Button variant="ghost" disabled={pending} onClick={restore} title="Adiciona só as padrão que faltam, sem mexer nas suas"><RotateCcw />Adicionar padrão</Button>
+              <Button variant="ghost" disabled={pending} onClick={restore} data-tip="Adiciona só as padrão que faltam, sem mexer nas suas"><RotateCcw />Adicionar padrão</Button>
             </div>
           )}
         </Card>

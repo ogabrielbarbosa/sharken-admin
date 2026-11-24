@@ -1,4 +1,4 @@
-import { toMobileE164 } from './phone';
+import { toMobileE164, toWhatsAppLinkMobile } from './phone';
 
 /**
  * Enriquecimento do lead: contatos e dados do dono achados fora do Google.
@@ -65,10 +65,10 @@ export function extractEmails(text: string | null | undefined): string[] {
 }
 
 /** Celular de um link de WhatsApp (wa.me/55..., api.whatsapp.com/send?phone=...). */
-export function whatsappFromHref(href: string | null | undefined): string | null {
+export function whatsappFromHref(href: string | null | undefined, country = 'BR'): string | null {
   if (!href) return null;
-  const m = href.match(/wa\.me\/(\+?\d{10,15})/i) ?? href.match(/[?&]phone=(\+?\d{10,15})/i);
-  return m ? toMobileE164(m[1]) : null;
+  const m = href.match(/wa\.me\/(\+?\d{8,15})/i) ?? href.match(/[?&]phone=(\+?\d{8,15})/i);
+  return m ? toWhatsAppLinkMobile(m[1], country) : null;
 }
 
 /** Nome em maiúsculas vira nome próprio ("EDSON HILGERT" → "Edson Hilgert"). */

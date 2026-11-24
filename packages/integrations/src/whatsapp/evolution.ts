@@ -21,7 +21,8 @@ const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() !=
 function phoneFromJid(jid: string | null): string | null {
   if (!jid || !jid.endsWith('@s.whatsapp.net')) return null;
   const digits = jid.split('@')[0]!.replace(/\D/g, '');
-  const mobile = toMobileE164(digits);
+  // O jid traz o código do país: sem o 55, é número de fora e não passa pela regra do celular brasileiro.
+  const mobile = digits.startsWith('55') ? toMobileE164(digits) : null;
   if (mobile) return mobile;
   return /^\d{10,15}$/.test(digits) ? digits : null;
 }

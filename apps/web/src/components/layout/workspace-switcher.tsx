@@ -31,7 +31,7 @@ export function WorkspaceSwitcher({ workspaces, current, collapsed, fade, canSwi
   if (!active) return null;
   if (!canSwitch) {
     return (
-      <div title={collapsed ? active.name : undefined} className="mb-4 flex h-10 items-center gap-2.5 rounded-md border border-border bg-white/[0.02] px-2 text-sm">
+      <div data-tip-side="right" data-tip={collapsed ? active.name : undefined} className="mb-4 flex h-10 items-center gap-2.5 rounded-md border border-border bg-white/[0.02] px-2 text-sm">
         <span className="grid size-6 shrink-0 place-items-center rounded bg-brand text-xs font-semibold text-brand-foreground">{initial(active.name)}</span>
         <span className={`min-w-0 flex-1 truncate font-medium ${fade}`}>{active.name}</span>
       </div>
@@ -43,7 +43,7 @@ export function WorkspaceSwitcher({ workspaces, current, collapsed, fade, canSwi
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
-        title={collapsed ? active.name : undefined}
+        data-tip-side="right" data-tip={collapsed ? active.name : undefined}
         // Recolhido, o menu cortaria a lista: leva para a página de workspaces.
         onClick={() => (collapsed && window.matchMedia('(min-width: 1024px)').matches ? (window.location.href = '/painel/configuracoes?aba=workspaces') : setOpen((v) => !v))}
         className="press flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-md border border-border bg-white/[0.02] px-2 text-left text-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60"

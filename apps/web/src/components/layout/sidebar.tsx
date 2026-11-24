@@ -12,7 +12,7 @@ import { WorkspaceSwitcher, type WorkspaceItem } from './workspace-switcher';
 type Item = { href: string; label: string; icon: typeof LayoutGrid; exact?: boolean };
 const before: Item[] = [
   { href: '/painel', label: 'Overview', icon: LayoutGrid, exact: true },
-  { href: '/painel/batches', label: 'Batches', icon: Layers },
+  { href: '/painel/leads', label: 'Leads', icon: Layers },
 ];
 const after: Item[] = [
   { href: '/painel/contratos', label: 'Contratos', icon: FilePenLine },
@@ -38,7 +38,7 @@ function AtendimentoLink({ whatsapp, pathname, collapsed, fade }: { whatsapp: Si
   const active = pathname.startsWith(CRM);
   const alert = whatsapp.tone !== 'success' ? whatsapp : null;
   return (
-    <Link href={CRM} title={collapsed ? 'Atendimento' : undefined} aria-current={active ? 'page' : undefined} className={linkClass(active)}>
+    <Link href={CRM} data-tip-side="right" data-tip={collapsed ? 'Atendimento' : undefined} aria-current={active ? 'page' : undefined} className={linkClass(active)}>
       {active && <Indicator />}
       <MessageCircle className="size-4 shrink-0 transition-[scale] duration-200 ease-(--ease-spring) group-hover/link:scale-110" />
       <span className={`flex-1 ${fade}`}>Atendimento</span>
@@ -46,7 +46,7 @@ function AtendimentoLink({ whatsapp, pathname, collapsed, fade }: { whatsapp: Si
         <span
           className={`size-1.5 shrink-0 rounded-full ${DOT[alert.tone]} ${collapsed ? 'absolute right-2 top-2' : ''}`}
           aria-label={`WhatsApp: ${alert.status}`}
-          title={`WhatsApp: ${alert.status}`}
+          data-tip-side="right" data-tip={`WhatsApp: ${alert.status}`}
         />
       )}
     </Link>
@@ -56,14 +56,14 @@ function AtendimentoLink({ whatsapp, pathname, collapsed, fade }: { whatsapp: Si
 export function Sidebar({ user, whatsapp, workspaces, current, isAdmin }: { user: { id: string; name: string; avatarUrl: string | null }; whatsapp: SidebarWhatsApp; workspaces: WorkspaceItem[]; current: string; isAdmin: boolean }) {
   const pathname = usePathname();
   const { collapsed, mobileOpen, closeMobile } = useShell();
-  const onBatch = pathname.startsWith('/painel/leads');
+  const onBatch = pathname.startsWith('/painel/batches');
   const fold = collapsed ? 'lg:pointer-events-none lg:opacity-0 lg:-translate-x-1' : '';
   const fade = `whitespace-nowrap transition-[opacity,translate] duration-300 ease-(--ease-out-expo) ${fold}`;
   const renderItems = (list: Item[]) =>
     list.map(({ href, label, icon: Icon, exact }) => {
-            const active = exact ? pathname === href : pathname.startsWith(href) || (href.endsWith('batches') && onBatch);
+            const active = exact ? pathname === href : pathname.startsWith(href) || (href.endsWith('leads') && onBatch);
             return (
-              <Link key={href} href={href} title={collapsed ? label : undefined} aria-current={active ? 'page' : undefined} className={linkClass(active)}>
+              <Link key={href} href={href} data-tip-side="right" data-tip={collapsed ? label : undefined} aria-current={active ? 'page' : undefined} className={linkClass(active)}>
                 {active && <Indicator />}
                 <Icon className="size-4 shrink-0 transition-[scale] duration-200 ease-(--ease-spring) group-hover/link:scale-110" />
                 <span className={fade}>{label}</span>

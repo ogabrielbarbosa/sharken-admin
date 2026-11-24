@@ -1,5 +1,5 @@
 import { instagramHandle } from './lead-keys';
-import { toMobileE164 } from './phone';
+import { toCountryMobile } from './phone';
 
 export type ApifyPlace = {
   placeId: string;
@@ -8,6 +8,7 @@ export type ApifyPlace = {
   phoneUnformatted?: string | null;
   address?: string | null;
   city?: string | null;
+  countryCode?: string | null;
   website?: string | null;
   totalScore?: number | null;
   reviewsCount?: number | null;
@@ -48,7 +49,7 @@ export type NewLead = {
   email?: string | null;
 };
 
-export function mapPlaceToLead(place: ApifyPlace, batchId: string): NewLead {
+export function mapPlaceToLead(place: ApifyPlace, batchId: string, country = 'BR'): NewLead {
   const phone = place.phone ?? place.phoneUnformatted ?? null;
   return {
     batch_id: batchId,
@@ -56,7 +57,7 @@ export function mapPlaceToLead(place: ApifyPlace, batchId: string): NewLead {
     name: place.title,
     business_type: place.categoryName ?? null,
     phone_raw: phone,
-    phone_e164: toMobileE164(phone),
+    phone_e164: toCountryMobile(phone, place.countryCode?.toUpperCase() || country),
     address: place.address ?? null,
     city: place.city ?? null,
     is_open: !place.permanentlyClosed && !place.temporarilyClosed,

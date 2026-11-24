@@ -29,7 +29,7 @@ export default async function DuplicatesPage() {
   const pairs = await listPossibleDuplicates(await authedDb());
   return (
     <>
-      <Topbar crumbs={[{ label: 'Batches', href: '/painel/batches' }, { label: 'Possíveis duplicados' }]} />
+      <Topbar crumbs={[{ label: 'Leads', href: '/painel/leads' }, { label: 'Batches', href: '/painel/batches' }, { label: 'Possíveis duplicados' }]} />
       <main className="p-4 lg:p-6">
         <p className="mb-4 max-w-2xl text-sm text-muted-foreground">
           Nome parecido na mesma cidade, sem @, telefone, site ou lugar no Maps em comum. Ao juntar, fica o lead que já andou mais na pipeline, com os dados e os batches dos dois.
@@ -42,7 +42,7 @@ export default async function DuplicatesPage() {
               {pairs.map(({ a, b, similarity }) => (
                 <li key={`${a.id}:${b.id}`} className="flex flex-col gap-3 px-4 py-3 text-sm lg:flex-row lg:items-center lg:gap-6">
                   <Side lead={a} />
-                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground" title="Semelhança dos nomes">{Math.round(similarity * 100)}%</span>
+                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground" data-tip="Semelhança dos nomes">{Math.round(similarity * 100)}%</span>
                   <Side lead={b} />
                   <span className="flex shrink-0 gap-2">
                     <form action={mergeDuplicateAction}>

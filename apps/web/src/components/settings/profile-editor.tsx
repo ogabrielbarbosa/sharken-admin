@@ -74,7 +74,7 @@ export function ProfileEditor({ userId, name, email, avatarUrl, isMe, canEdit }:
           <button
             type="button"
             aria-label={`Trocar a foto de ${label}`}
-            title="Trocar foto"
+            data-tip="Trocar foto"
             disabled={savingPhoto}
             onClick={() => fileInput.current?.click()}
             className="relative block size-9 cursor-pointer overflow-hidden rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
@@ -88,7 +88,7 @@ export function ProfileEditor({ userId, name, email, avatarUrl, isMe, canEdit }:
             <button
               type="button"
               aria-label={`Remover a foto de ${label}`}
-              title="Remover foto"
+              data-tip="Remover foto"
               onClick={() => startPhoto(async () => { await save({ remove_avatar: 'on' }); })}
               className="absolute -top-1 -right-1 grid size-4 cursor-pointer place-items-center rounded-full border border-border bg-card pointer-events-none text-muted-foreground opacity-0 group-hover/photo:pointer-events-auto group-hover/photo:opacity-100 hover:text-foreground focus-visible:opacity-100"
             >
@@ -117,7 +117,7 @@ export function ProfileEditor({ userId, name, email, avatarUrl, isMe, canEdit }:
           ) : canEdit ? (
             <button
               type="button"
-              title="Editar nome"
+              data-tip="Editar nome"
               aria-label={`Editar o nome de ${label}`}
               disabled={savingName}
               onClick={() => { cancelled.current = false; setDraft(name ?? ''); }}

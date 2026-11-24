@@ -40,7 +40,7 @@ const defaultDeps: EnrichDeps = { rdap: fetchRdap, brasilApi: fetchBrasilApiCnpj
  * Falha de uma fonte vira nota e não impede as outras. Só o limite do CNPJ.ws sobe (RateLimited),
  * para o job tentar de novo daqui a pouco.
  */
-export async function enrichLead(lead: Pick<Lead, 'website_url' | 'site_data'>, deps: EnrichDeps = defaultDeps): Promise<Enrichment> {
+export async function enrichLead(lead: Pick<Lead, 'website_url' | 'site_data'>, deps: EnrichDeps = defaultDeps, country = 'BR'): Promise<Enrichment> {
   const notes: string[] = [];
   let emails: FoundEmail[] = [];
   let phones: FoundPhone[] = [];
@@ -49,7 +49,7 @@ export async function enrichLead(lead: Pick<Lead, 'website_url' | 'site_data'>, 
   // 1. Página
   const siteEmails = extractEmails([...(lead.site_data?.emails ?? []), lead.site_data?.text ?? ''].join(' '));
   emails = addEmails(emails, siteEmails.map((email) => ({ email, source: 'site', note: null })));
-  const siteMobiles = (lead.site_data?.whatsappLinks ?? []).map(whatsappFromHref).filter((p): p is string => !!p);
+  const siteMobiles = (lead.site_data?.whatsappLinks ?? []).map((l) => whatsappFromHref(l, country)).filter((p): p is string => !!p);
   phones = addPhones(phones, siteMobiles.map((e164) => ({ e164, source: 'site', mobile: true })));
 
   // 2. WHOIS (registro.br responde só .br)

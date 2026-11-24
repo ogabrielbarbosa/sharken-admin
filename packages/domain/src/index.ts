@@ -18,6 +18,7 @@ export * from './billing-status';
 export * from './metrics';
 export * from './retention';
 export * from './municipios';
+export * from './places';
 export * from './review-filter';
 export * from './contacts';
 export * from './stop-words';

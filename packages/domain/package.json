@@ -3,7 +3,16 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "dependencies": { "@lps/config": "workspace:*" },
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "test": "vitest run --passWithNoTests", "typecheck": "tsc --noEmit" }
+  "sideEffects": false,
+  "dependencies": {
+    "@lps/config": "workspace:*",
+    "libphonenumber-js": "1.12.9"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  }
 }

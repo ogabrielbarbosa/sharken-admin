@@ -57,3 +57,10 @@ export async function countJobs(db: Db, type: string, batchId: string): Promise<
   const { count } = await db.from('jobs').select('id', { count: 'exact', head: true }).eq('type', type).eq('payload->>batch_id', batchId);
   return count ?? 0;
 }
+
+/** Última tarefa de um tipo para um lead (para mostrar na ficha se está rodando ou falhou). */
+export async function lastLeadJob(db: Db, type: string, leadId: string): Promise<{ status: 'pendente' | 'executando' | 'concluido' | 'erro'; error: string | null } | null> {
+  const { data, error } = await db.from('jobs').select('status, error').eq('type', type).eq('payload->>lead_id', leadId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data as Awaited<ReturnType<typeof lastLeadJob>>;
+}

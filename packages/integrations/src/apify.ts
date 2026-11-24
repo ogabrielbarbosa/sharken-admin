@@ -1,4 +1,4 @@
-import { findMunicipio, type ApifyPlace } from '@lps/domain';
+import { countryLanguage, countryNameEn, findMunicipio, type ApifyPlace } from '@lps/domain';
 
 const BASE = 'https://api.apify.com/v2';
 export const MAPS_ACTOR = 'compass/crawler-google-places';
@@ -9,16 +9,20 @@ export const GOOGLE_ACTOR = 'apify/google-search-scraper';
 /** Atores que o Sharken usa; os outros da conta são de outros projetos. */
 export const SHARKEN_ACTORS = [MAPS_ACTOR, INSTAGRAM_ACTOR, GOOGLE_ACTOR] as const;
 
-/** "Cidade, UF" → "Cidade, Estado, Brasil": o nome do estado por extenso evita que o Apify ache a cidade errada. */
-const mapsPlace = (location: string) => {
+/** Fora do Brasil: "Cidade, Região, País" com o país em inglês. No Brasil, "Cidade, UF" → "Cidade, Estado, Brasil": o nome do estado por extenso evita que o Apify ache a cidade errada. */
+const mapsPlace = (location: string, country: string) => {
+  if (country !== 'BR') return [...location.split(', ').slice(0, -1), countryNameEn(country)].join(', ');
   const m = findMunicipio(location);
   return m ? `${m.nome}, ${m.estado}, Brasil` : `${location}, Brasil`;
 };
 
-export function buildMapsInput(b: { location?: string; locations?: string[]; businessType: string; quantity: number }) {
+export function buildMapsInput(b: { location?: string; locations?: string[]; businessType: string; quantity: number; country?: string; nicheTerms?: string[] }) {
+  const country = b.country ?? 'BR';
+  // Fora do Brasil o nicho vai no idioma de lá (as variações escolhidas); a quantidade é dividida entre as buscas.
+  const terms = country !== 'BR' && b.nicheTerms?.length ? b.nicheTerms : [b.businessType];
   const locations = b.locations?.length ? b.locations : [b.location ?? ''];
   const common = {
-    language: 'pt-BR',
+    language: countryLanguage(country),
     website: 'allPlaces',
     maxImages: 8,
     maxReviews: 5,
@@ -27,19 +31,22 @@ export function buildMapsInput(b: { location?: string; locations?: string[]; bus
     scrapeReviewsPersonalData: false,
   };
   if (locations.length === 1) {
-    return { searchStringsArray: [b.businessType], locationQuery: mapsPlace(locations[0]), maxCrawledPlacesPerSearch: b.quantity, ...common };
+    return { searchStringsArray: terms, locationQuery: mapsPlace(locations[0], country), maxCrawledPlacesPerSearch: Math.max(1, Math.ceil(b.quantity / terms.length)), ...common };
   }
   // Várias cidades: uma busca por cidade, dividindo a quantidade.
   return {
-    searchStringsArray: locations.map((l) => `${b.businessType} em ${mapsPlace(l)}`),
-    maxCrawledPlacesPerSearch: Math.max(1, Math.ceil(b.quantity / locations.length)),
+    searchStringsArray: locations.flatMap((l) => terms.map((t) => (country === 'BR' ? `${t} em ${mapsPlace(l, country)}` : `${t}, ${mapsPlace(l, country)}`))),
+    maxCrawledPlacesPerSearch: Math.max(1, Math.ceil(b.quantity / (locations.length * terms.length))),
     ...common,
   };
 }
 
-/** Entrada do `apify/google-search-scraper`: uma consulta por linha, resultados do Brasil em português. */
-export function buildGoogleInput(queries: string[], pages: number) {
-  return { queries: queries.join('\n'), maxPagesPerQuery: pages, countryCode: 'br', languageCode: 'pt-BR', mobileResults: false, saveHtml: false, saveHtmlToKeyValueStore: false };
+/** Países do GeoNames que o ator não aceita como país da busca (sem ele, vale o padrão). */
+const GOOGLE_UNSUPPORTED = new Set(['AX', 'BL', 'BQ', 'CW', 'GG', 'IM', 'JE', 'MF', 'SS', 'SX', 'XK']);
+
+/** Entrada do `apify/google-search-scraper`: uma consulta por linha, resultados do país do batch, no idioma dele. */
+export function buildGoogleInput(queries: string[], pages: number, country = 'BR') {
+  return { queries: queries.join('\n'), maxPagesPerQuery: pages, countryCode: GOOGLE_UNSUPPORTED.has(country) ? '' : country.toLowerCase(), languageCode: countryLanguage(country), mobileResults: false, saveHtml: false, saveHtmlToKeyValueStore: false };
 }
 
 export function usernameFromUrl(url: string): string | null {

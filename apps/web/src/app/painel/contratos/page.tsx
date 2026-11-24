@@ -90,7 +90,7 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
                             <form action={whatsappContractAction}>
                               <input type="hidden" name="clientId" value={client.id} />
                               <input type="hidden" name="signUrl" value={contract.sign_url} />
-                              <Button type="submit" variant="outline" disabled={!hasPhone || optedOut(client)} title={optedOut(client) ? OPTED_OUT_MESSAGE : hasPhone ? undefined : 'O cliente não tem celular cadastrado.'}><MessageCircle />Mandar no WhatsApp</Button>
+                              <Button type="submit" variant="outline" disabled={!hasPhone || optedOut(client)} data-tip={optedOut(client) ? OPTED_OUT_MESSAGE : hasPhone ? undefined : 'O cliente não tem celular cadastrado.'}><MessageCircle />Mandar no WhatsApp</Button>
                             </form>
                             <CopyButton text={contract.sign_url} label="Copiar link" />
                           </>

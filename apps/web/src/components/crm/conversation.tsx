@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { closeChatAction, markReadAction, openChatAction, retryMessageAction, saveNoteAction, sendMediaAction, sendMessageAction, setChatResponsibleAction, setStatusAction } from '@/app/painel/crm/actions';
-import { Button, ErrorNote } from '@/components/ui';
+import { Button, ErrorNote, Select } from '@/components/ui';
 import { crmHref, STATUS_LABEL } from '@/lib/crm';
 import { Avatar } from './avatar';
 import { Composer, type QuickReplyItem, type Template, type Variable } from './composer';
@@ -207,20 +207,19 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-        <select
+        <Select
           aria-label="Status"
+          size="sm"
+          className="w-40 xl:hidden"
           value={contact.status}
           disabled={contact.status === 'nao_contatar' || contact.status === 'fechado'}
-          onChange={(e) => void changeStatus(e.target.value as ContactStatus)}
-          className="h-8 cursor-pointer rounded-md border border-input bg-input-bg px-2 text-sm outline-none xl:hidden disabled:cursor-not-allowed disabled:opacity-60 [&>option]:bg-card"
-        >
-          {contact.status === 'fechado' && <option value="fechado">{STATUS_LABEL.fechado.label}</option>}
-          {options.map((s) => <option key={s} value={s}>{STATUS_LABEL[s].label}</option>)}
-        </select>
+          onValueChange={(v) => void changeStatus(v as ContactStatus)}
+          options={[...(contact.status === 'fechado' ? (['fechado'] as const) : []), ...options].map((s) => ({ value: s, label: STATUS_LABEL[s].label }))}
+        />
         {contact.chat_state !== 'aberto' ? (
-          <Button variant="outline" onClick={() => void openChat()} title="Abrir atendimento"><LockOpen />Abrir</Button>
+          <Button variant="outline" onClick={() => void openChat()} data-tip="Abrir atendimento"><LockOpen />Abrir</Button>
         ) : (
-          <Button variant="secondary" onClick={() => void closeChat()} title="Fechar atendimento"><CheckCircle2 />Fechar</Button>
+          <Button variant="secondary" onClick={() => void closeChat()} data-tip="Fechar atendimento"><CheckCircle2 />Fechar</Button>
         )}
         </div>
       </header>

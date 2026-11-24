@@ -1,8 +1,9 @@
 'use server';
 
-import { addToDoNotContact, getLead, moveLead, updateLead } from '@lps/db';
+import { addToDoNotContact, enqueueJob, getLead, INSTAGRAM_MEDIA_JOB, moveLead, updateLead } from '@lps/db';
 import { revalidatePath } from 'next/cache';
-import { authedDb } from './auth';
+import { APIFY_NOT_CONNECTED, buildInstagramInput, workspaceHasApify } from '@lps/integrations';
+import { authedDb, getSession } from './auth';
 
 const id = (form: FormData) => String(form.get('leadId'));
 
@@ -26,4 +27,17 @@ export async function blockLeadAction(form: FormData) {
 export async function saveNotesAction(leadId: string, patch: { comment?: string; reason?: string }) {
   const db = await authedDb();
   await updateLead(db, leadId, patch);
+}
+
+/** Lê o perfil do Instagram no Apify (gasta crédito do workspace): imagens, último post e contatos que faltavam. */
+export async function analyzeInstagramAction(leadId: string): Promise<{ error?: string }> {
+  const { workspace } = await getSession();
+  const db = await authedDb();
+  const lead = await getLead(db, leadId);
+  if (!lead?.instagram_url) return { error: 'Este lead não tem Instagram.' };
+  if (!buildInstagramInput([lead.instagram_url]).usernames.length) return { error: 'O link do Instagram não é de um perfil.' };
+  if (!(await workspaceHasApify(workspace.id))) return { error: APIFY_NOT_CONNECTED };
+  await enqueueJob(db, { type: INSTAGRAM_MEDIA_JOB, payload: { lead_id: leadId, refresh: '1' }, dedupeKey: `${INSTAGRAM_MEDIA_JOB}:${leadId}` });
+  revalidatePath(`/painel/leads/${leadId}`);
+  return {};
 }

@@ -212,10 +212,7 @@ async function MembersTab({ workspaceId, me, canEdit }: { workspaceId: string; m
             <div className="grid gap-4 sm:grid-cols-[1fr_9rem]">
               <Field label="E-mail"><Input name="email" type="email" required /></Field>
               <Field label="Papel">
-                <Select name="role" defaultValue="member">
-                  <option value="member">Membro</option>
-                  <option value="owner">Dono</option>
-                </Select>
+                <Select name="role" defaultValue="member" options={[{ value: 'member', label: 'Membro' }, { value: 'owner', label: 'Dono' }]} />
               </Field>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">Dono altera as configurações e os membros. Membro só trabalha na operação.</p>
@@ -370,15 +367,10 @@ function CatalogFields({ item }: { item?: { name: string; kind: 'unico' | 'recor
       <Field label="Nome"><Input name="name" defaultValue={item?.name} placeholder="Ex.: Site institucional" required /></Field>
       <Field label="Valor"><Input name="amount" defaultValue={item ? formatBRL(item.amount_cents) : ''} placeholder="R$ 1.200,00" inputMode="decimal" required /></Field>
       <Field label="Tipo">
-        <Select name="kind" defaultValue={item?.kind ?? 'unico'}>
-          <option value="unico">Único (paga uma vez)</option>
-          <option value="recorrente">Recorrente (assinatura)</option>
-        </Select>
+        <Select name="kind" defaultValue={item?.kind ?? 'unico'} options={[{ value: 'unico', label: 'Único (paga uma vez)' }, { value: 'recorrente', label: 'Recorrente (assinatura)' }]} />
       </Field>
       <Field label="Periodicidade" hint="Só para recorrente">
-        <Select name="cycle" defaultValue={item?.cycle ?? 'mensal'}>
-          {CYCLES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-        </Select>
+        <Select name="cycle" defaultValue={item?.cycle ?? 'mensal'} options={CYCLES.map((c) => ({ value: c.value, label: c.label }))} />
       </Field>
       <div className="sm:col-span-2">
         <Field label="Descrição" hint="Opcional: escopo ou o que está incluso. Vai para as observações do serviço."><Input name="description" defaultValue={item?.description ?? ''} /></Field>

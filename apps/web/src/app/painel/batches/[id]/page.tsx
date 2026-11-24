@@ -164,7 +164,7 @@ export default async function PipelinePage({ params, searchParams }: { params: P
   return (
     <>
       <Topbar
-        crumbs={[{ label: 'Batches', href: '/painel/batches' }, { label: batchLabel(batch) }]}
+        crumbs={[{ label: 'Leads', href: '/painel/leads' }, { label: 'Batches', href: '/painel/batches' }, { label: batchLabel(batch) }]}
         menu={<BatchMenu batchId={id} label={batchLabel(batch)} sources={[...otherSources]} />}
         actions={
           <>

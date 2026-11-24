@@ -1,6 +1,6 @@
 import { getEnv, webhookBaseUrl } from '@lps/config';
 import { batchLocations, countJobs, createAdminClient, enqueueJob, getApifyToken, getBatch, importLeads, leadsByInstagramHandles, linkExistingLeads, listBatches, listKnownPlaceIds, listLeads, recordApifyRun, scopeDb, updateBatch, updateLead, workspaceOfRow, type Db } from '@lps/db';
-import { buildInstagramQueries, findMunicipio, handlesFromSearch, mapPlaceToLead, mapProfileToLead, searchPagesFor, type ApifyPlace, type Batch, type GoogleSearchPage, type InstagramProfileData } from '@lps/domain';
+import { batchCountry, buildInstagramQueries, cityName, handlesFromSearch, mapPlaceToLead, mapProfileToLead, searchPagesFor, type ApifyPlace, type Batch, type GoogleSearchPage, type InstagramProfileData } from '@lps/domain';
 import { APIFY_NOT_CONNECTED, buildGoogleInput, buildInstagramInput, buildMapsInput, fetchDataset, getRun, GOOGLE_ACTOR, INSTAGRAM_ACTOR, latestPostDate, MAPS_ACTOR, runOutcome, shouldPollRuns, startActorRun, usernameFromUrl, type InstagramProfile } from './apify';
 
 export type RunKind = 'maps' | 'instagram' | 'google' | 'profiles';
@@ -42,7 +42,7 @@ export async function startMapsSearch(batch: Batch) {
       await updateBatch(db, batch.id, { status: 'erro', error: APIFY_NOT_CONNECTED });
       return;
     }
-    const input = buildMapsInput({ locations: batchLocations(batch), businessType: batch.business_type, quantity: batch.quantity });
+    const input = buildMapsInput({ locations: batchLocations(batch), businessType: batch.business_type, quantity: batch.quantity, country: batchCountry(batch), nicheTerms: batch.niche_terms });
     const runId = await startActorRun(token, MAPS_ACTOR, input, webhookUrl(batch.id, 'maps'));
     await recordApifyRun(createAdminClient(), { run_id: runId, workspace_id: batch.workspace_id, actor: MAPS_ACTOR, purpose: 'maps', batch_id: batch.id });
     // Só uma busca por vez no batch: as execuções da outra fonte já terminaram.
@@ -54,7 +54,7 @@ export async function startMapsSearch(batch: Batch) {
 
 /** Termos da busca do Instagram: as variações escolhidas, ou o nicho e os nomes das cidades. */
 export function instagramSearchTerms(batch: Pick<Batch, 'business_type' | 'location' | 'locations' | 'niche_terms' | 'location_terms'>) {
-  const cities = batchLocations(batch).map((l) => findMunicipio(l)?.nome ?? l.split(',')[0]);
+  const cities = batchLocations(batch).map(cityName);
   return {
     niches: batch.niche_terms?.length ? batch.niche_terms : [batch.business_type],
     locations: batch.location_terms?.length ? batch.location_terms : cities.map((c) => c.toLowerCase()),
@@ -73,7 +73,7 @@ export async function startInstagramSearch(batch: Batch) {
     const terms = instagramSearchTerms(batch);
     const queries = buildInstagramQueries(terms.niches, terms.locations);
     if (!queries.length) throw new Error('Informe o nicho para buscar no Instagram.');
-    const runId = await startActorRun(token, GOOGLE_ACTOR, buildGoogleInput(queries, searchPagesFor(batch.quantity, queries.length)), webhookUrl(batch.id, 'google'));
+    const runId = await startActorRun(token, GOOGLE_ACTOR, buildGoogleInput(queries, searchPagesFor(batch.quantity, queries.length), batchCountry(batch)), webhookUrl(batch.id, 'google'));
     await recordApifyRun(createAdminClient(), { run_id: runId, workspace_id: batch.workspace_id, actor: GOOGLE_ACTOR, purpose: 'google', batch_id: batch.id });
     await updateBatch(db, batch.id, { google_run_id: runId, profiles_run_id: null, apify_run_id: null, instagram_run_id: null, status: 'buscando', error: null });
   } catch (err) {
@@ -129,12 +129,12 @@ export async function handleProfilesResult(batchId: string, event: { datasetId: 
   if (event.datasetId && token) {
     try {
       const profiles = await fetchDataset<InstagramProfileData>(token, event.datasetId);
-      const cities = batchLocations(batch).map((l) => findMunicipio(l)?.nome ?? l.split(',')[0]);
+      const cities = batchLocations(batch).map(cityName);
       const plain = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
       const leads = profiles.flatMap((p) => {
         // A cidade é a que aparece na bio; sem nenhuma, a primeira do batch.
         const city = cities.find((c) => plain(p.biography ?? '').includes(plain(c))) ?? cities[0] ?? null;
-        const lead = mapProfileToLead(p, batchId, { city, businessType: batch.business_type });
+        const lead = mapProfileToLead(p, batchId, { city, businessType: batch.business_type, country: batchCountry(batch) });
         return lead ? [lead] : [];
       });
       await importLeads(db, leads);
@@ -170,7 +170,7 @@ export async function handleMapsResult(batchId: string, event: { succeeded: bool
   if (event.datasetId && token) {
     try {
       const items = await fetchDataset<ApifyPlace>(token, event.datasetId);
-      await importLeads(db, items.filter((i) => i.placeId && i.title).map((i) => mapPlaceToLead(i, batchId)));
+      await importLeads(db, items.filter((i) => i.placeId && i.title).map((i) => mapPlaceToLead(i, batchId, batchCountry(batch))));
     } catch (err) {
       importError = (err as Error).message;
     }
@@ -245,7 +245,7 @@ export async function syncSearchProgress() {
       const run = await getRun(token, batch.apify_run_id);
       if (!run.defaultDatasetId) continue;
       const items = await fetchDataset<ApifyPlace>(token, run.defaultDatasetId);
-      const leads = items.filter((i) => i.placeId && i.title).map((i) => mapPlaceToLead(i, batch.id));
+      const leads = items.filter((i) => i.placeId && i.title).map((i) => mapPlaceToLead(i, batch.id, batchCountry(batch)));
       const known = await listKnownPlaceIds(db, leads.map((l) => l.place_id!));
       const fresh = leads.filter((l) => !known.has(l.place_id!));
       if (fresh.length) await importLeads(db, fresh);

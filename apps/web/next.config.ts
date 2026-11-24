@@ -16,6 +16,8 @@ const noFraming = [
 const config: NextConfig = {
   transpilePackages: ['@lps/domain', '@lps/config', '@lps/db', '@lps/integrations'],
   outputFileTracingRoot: join(import.meta.dirname, '../..'),
+  // Lista de cidades do mundo, lida em src/lib/world-cities.ts.
+  outputFileTracingIncludes: { '/painel/**': ['./data/**'] },
   images: { unoptimized: true },
   // Arquivos e áudios do CRM sobem por server action (limite do WhatsApp: 16 MB).
   experimental: { serverActions: { bodySizeLimit: '20mb' } },

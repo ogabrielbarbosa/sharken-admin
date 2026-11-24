@@ -4,11 +4,12 @@ import { ChevronRight, Copy, Layers, Map as MapIcon, Plus, RotateCcw } from 'luc
 import Link from 'next/link';
 import { NewBatchDrawer } from '@/components/batches/new-batch-drawer';
 import { Topbar } from '@/components/layout/topbar';
-import { Button, Card, EmptyState, LinkButton, Status, Table, type Tone } from '@/components/ui';
+import { LeadsHeader } from '@/components/leads/leads-header';
+import { Button, Card, EmptyState, LinkButton, Status, Table, type Tone, Select } from '@/components/ui';
 import { AutoRefresh } from '@/components/ui/auto-refresh';
-import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
 import { workspaceHasApify } from '@lps/integrations';
 import { authedDb, getSession } from '@/lib/auth';
+import { prospectedRows } from '@/lib/prospected';
 import { retryBatchAction } from './actions';
 
 const STATUS: Record<Batch['status'], { label: string; tone: Tone; detail: string }> = {
@@ -42,15 +43,12 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <Topbar
-        crumbs={[{ label: 'Batches' }]}
+        crumbs={[{ label: 'Leads' }]}
         actions={
           <>
             <form>
               {etapa && <input type="hidden" name="etapa" value={etapa} />}
-              <AutoSubmitSelect name="local" defaultValue={local ?? ''} aria-label="Localização" className="w-36 sm:w-52">
-                <option value="">Localização: Todas</option>
-                {locations.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-              </AutoSubmitSelect>
+              <Select autoSubmit name="local" defaultValue={local ?? ''} aria-label="Localização" className="w-36 sm:w-52" options={[{ value: '', label: 'Todas as localizações' }, ...locations.map(([value, label]) => ({ value, label }))]} />
             </form>
             <LinkButton href="/painel/batches/mapa" variant="outline"><MapIcon /><span className="max-sm:sr-only">Mapa</span></LinkButton>
             <LinkButton href="/painel/batches/duplicados" variant="outline"><Copy /><span className="max-sm:sr-only">Possíveis duplicados</span></LinkButton>
@@ -59,6 +57,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
         }
       />
       {!novo && batches.some((b) => b.status === 'buscando' || b.status === 'analisando') && <AutoRefresh />}
+      <LeadsHeader current="batches" />
       <main className="p-4 lg:p-6">
         {column && (
           <p className="mb-4 text-sm text-muted-foreground">
@@ -89,7 +88,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                       {started ? (
                         <div className="flex gap-3">
                           {PIPELINE_COLUMNS.map((c) => (
-                            <span key={c.key} title={c.label} className="text-center">
+                            <span key={c.key} data-tip={c.label} className="text-center">
                               <span className={`block text-sm tabular-nums ${summary.counts[c.key] > 0 ? 'font-medium text-brand-light' : 'text-subtle-foreground'}`}>{summary.counts[c.key]}</span>
                               <span className="block font-mono text-[10px] text-muted-foreground">{ABBR[c.key]}</span>
                             </span>
@@ -117,7 +116,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
           </Card>
         )}
       </main>
-      {novo && <NewBatchDrawer apifyConnected={apifyConnected} prospected={batches.map((b) => ({ id: b.id, location: b.location, locations: b.locations, business_type: b.business_type, created_at: b.created_at, leads: stages.filter((s) => s.batch_id === b.id).length }))} />}
+      {novo && <NewBatchDrawer apifyConnected={apifyConnected} prospected={prospectedRows(batches, stages)} />}
     </>
   );
 }

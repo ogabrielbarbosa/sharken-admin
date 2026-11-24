@@ -15,10 +15,10 @@ export const sameNiche = (a: string, b: string) => nicheKey(a) === nicheKey(b) |
 
 /**
  * Onde já houve batch: cada cidade com os batches que passaram por ela e quantos leads cada um achou.
- * Batch com várias cidades aparece em todas. Cidade fora da lista do IBGE (batches antigos com texto livre) fica de fora.
+ * Batch com várias cidades aparece em todas. Cidade sem coordenadas (batches antigos com texto livre) fica de fora.
  */
 export function prospectedCities(
-  batches: Pick<Batch, 'id' | 'location' | 'locations' | 'business_type' | 'created_at'>[],
+  batches: Pick<Batch, 'id' | 'location' | 'locations' | 'places' | 'business_type' | 'created_at'>[],
   leadsByBatch: Record<string, number>,
   niche?: string,
 ): ProspectedCity[] {
@@ -26,7 +26,7 @@ export function prospectedCities(
   for (const b of batches) {
     if (niche && !sameNiche(b.business_type, niche)) continue;
     for (const location of b.locations?.length ? b.locations : [b.location]) {
-      const geo = municipioGeo(location);
+      const geo = b.places?.find((p) => p.location === location) ?? municipioGeo(location);
       if (!geo) continue;
       const city = byCity.get(location) ?? { location, lat: geo.lat, lng: geo.lng, batches: [], leads: 0 };
       const leads = leadsByBatch[b.id] ?? 0;

@@ -1,8 +1,9 @@
 import { X } from 'lucide-react';
 import Link from 'next/link';
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
+import { cx } from './cx';
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, Ref, TextareaHTMLAttributes } from 'react';
 
-export const cx = (...parts: (string | false | undefined | null)[]) => parts.filter(Boolean).join(' ');
+export { cx };
 
 type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
 const variants: Record<Variant, string> = {
@@ -50,9 +51,7 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
 export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement> & { ref?: Ref<HTMLTextAreaElement> }) {
   return <textarea {...props} className={cx(inputBase, width(props.className), 'py-2', props.className)} />;
 }
-export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={cx(inputBase, width(props.className), 'h-9 cursor-pointer [&>option]:bg-card', props.className)} />;
-}
+export { Select, type SelectOption } from './select';
 
 export function Card({ className, children, interactive }: { className?: string; children: ReactNode; interactive?: boolean }) {
   return (

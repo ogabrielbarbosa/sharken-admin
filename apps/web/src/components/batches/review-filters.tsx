@@ -9,8 +9,7 @@ import { Check, Minus, SlidersHorizontal, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Button } from '@/components/ui';
-import { Dropdown } from '@/components/ui/dropdown';
+import { Button, Select } from '@/components/ui';
 
 type Counts = Record<FilterGroupKey, Record<string, number>>;
 
@@ -18,22 +17,6 @@ const hrefFor = (batchId: string, f: ReviewFilter) => {
   const qs = serializeReviewFilter(f);
   return `/painel/batches/${batchId}${qs ? `?${qs}` : ''}`;
 };
-
-/** Tooltip em posição fixa, preso dentro da tela, para não ser cortado pelo popover. */
-function useTooltip() {
-  const [tip, setTip] = useState<{ text: string; left: number; top: number } | null>(null);
-  const show = (text: string) => (e: { currentTarget: HTMLElement }) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const width = 240;
-    setTip({ text, top: r.top - 6, left: Math.min(Math.max(r.left + r.width / 2 - width / 2, 8), window.innerWidth - width - 8) });
-  };
-  const node = tip && (
-    <div role="tooltip" style={{ left: tip.left, top: tip.top, width: 240 }} className="pointer-events-none fixed z-50 -translate-y-full animate-fade-in rounded-md border border-border bg-card px-2.5 py-1.5 text-xs leading-snug text-foreground shadow-lg">
-      {tip.text}
-    </div>
-  );
-  return { show, hide: () => setTip(null), node };
-}
 
 const STATE_HINT: Record<OptionState, string> = {
   off: 'Clique para incluir.',
@@ -43,7 +26,6 @@ const STATE_HINT: Record<OptionState, string> = {
 
 function Group({ groupKey, value, counts, onChange }: { groupKey: FilterGroupKey; value?: GroupFilter; counts: Record<string, number>; onChange: (g: GroupFilter | undefined) => void }) {
   const { label, options } = FILTER_GROUPS[groupKey];
-  const tooltip = useTooltip();
 
   return (
     <section className="space-y-2">
@@ -65,11 +47,8 @@ function Group({ groupKey, value, counts, onChange }: { groupKey: FilterGroupKey
               key={o.value}
               type="button"
               aria-label={`${o.label}: ${state === 'off' ? 'sem filtro' : state}`}
-              onClick={(e) => { onChange(cycleOption(value, o.value)); tooltip.show(`${o.hint} ${STATE_HINT[{ off: 'incluir', incluir: 'excluir', excluir: 'off' }[state] as OptionState]}`)(e); }}
-              onMouseEnter={tooltip.show(tip)}
-              onMouseLeave={tooltip.hide}
-              onFocus={tooltip.show(tip)}
-              onBlur={tooltip.hide}
+              onClick={() => onChange(cycleOption(value, o.value))}
+              data-tip={tip}
               className={`press inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${tone}`}
             >
               {state === 'incluir' && <Check className="size-3 animate-check-pop" />}
@@ -80,7 +59,6 @@ function Group({ groupKey, value, counts, onChange }: { groupKey: FilterGroupKey
           );
         })}
       </div>
-      {tooltip.node}
     </section>
   );
 }
@@ -107,7 +85,7 @@ export function ReviewFilters({ batchId, filter, counts, shown, total }: { batch
 
   useEffect(() => {
     if (!open) return;
-    const onClick = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const onClick = (e: MouseEvent) => { const t = e.target as Element; if (!ref.current?.contains(t) && !t.closest('[data-select-popup]')) setOpen(false); };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', onClick);
     document.addEventListener('keydown', onKey);
@@ -170,12 +148,7 @@ export function ReviewFilters({ batchId, filter, counts, shown, total }: { batch
             </section>
             <section className="space-y-2">
               <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Ordenar por</h3>
-              <Dropdown
-                key={draft.ordem}
-                options={ORDER_OPTIONS.map((o) => ({ ...o }))}
-                defaultValue={draft.ordem}
-                onChange={(v) => update({ ...draft, ordem: v as ReviewFilter['ordem'] })}
-              />
+<Select aria-label="Ordenar por" options={ORDER_OPTIONS} value={draft.ordem} onValueChange={(v) => update({ ...draft, ordem: v as ReviewFilter['ordem'] })} />
             </section>
           </div>
           <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm">

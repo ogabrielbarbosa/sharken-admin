@@ -60,7 +60,7 @@ export function LeadLinks({ lead }: { lead: Pick<Lead, 'name' | 'place_id' | 'we
         ) : (
           <span
             key={item.label}
-            title={`Sem ${item.label.toLowerCase()} no cadastro`}
+            data-tip={`Sem ${item.label.toLowerCase()} no cadastro`}
             className="inline-flex h-8 cursor-not-allowed items-center gap-2 rounded-md border border-dashed border-border px-3 text-sm text-muted-foreground/50 [&_svg]:size-4 [&_svg]:shrink-0"
           >
             {item.icon}

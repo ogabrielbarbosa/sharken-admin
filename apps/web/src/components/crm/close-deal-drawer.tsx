@@ -97,10 +97,7 @@ export function CloseDealDrawer({ contactName, defaults, existingClient, closeHr
         <Block n={2} title="Serviço">
           {catalog.length > 0 && (
             <Labeled label="Do catálogo">
-              <Select value={catalogId} onChange={(e) => pick(e.target.value)}>
-                <option value="">Escolha um serviço ou preencha abaixo</option>
-                {catalog.map((c) => <option key={c.id} value={c.id}>{c.name} · {formatBRL(c.amount_cents)}{c.kind === 'recorrente' ? ` · ${CYCLES.find((x) => x.value === c.cycle)?.label.toLowerCase() ?? 'recorrente'}` : ''}</option>)}
-              </Select>
+              <Select value={catalogId} onValueChange={pick} options={[{ value: '', label: 'Escolha um serviço ou preencha abaixo' }, ...catalog.map((c) => ({ value: c.id, label: `${c.name} · ${formatBRL(c.amount_cents)}${c.kind === 'recorrente' ? ` · ${CYCLES.find((x) => x.value === c.cycle)?.label.toLowerCase() ?? 'recorrente'}` : ''}` }))]} />
             </Labeled>
           )}
           <Labeled label="Serviço" error={fields.service_name}><Input value={service.name} onChange={(e) => setService((s) => ({ ...s, name: e.target.value }))} required /></Labeled>
@@ -124,17 +121,12 @@ export function CloseDealDrawer({ contactName, defaults, existingClient, closeHr
         <Block n={3} title="Combinado do pagamento">
           <div className="grid gap-3 sm:grid-cols-2">
             <Labeled label="Forma" error={fields.method}>
-              <Select value={payment.method} onChange={(e) => setPayment((p) => ({ ...p, method: e.target.value as ChargeMethod }))}>
-                {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </Select>
+              <Select value={payment.method} onValueChange={(method) => setPayment((p) => ({ ...p, method: method as ChargeMethod }))} options={PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label }))} />
             </Labeled>
             <Labeled label="Primeiro vencimento" error={fields.first_due_date}><Input type="date" value={payment.first_due_date} onChange={(e) => setPayment((p) => ({ ...p, first_due_date: e.target.value }))} required /></Labeled>
             {service.kind === 'recorrente' && (
               <Labeled label="Periodicidade" error={fields.cycle}>
-                <Select value={payment.cycle} onChange={(e) => setPayment((p) => ({ ...p, cycle: e.target.value as Cycle | '' }))}>
-                  <option value="">Escolha</option>
-                  {CYCLES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </Select>
+                <Select value={payment.cycle} onValueChange={(cycle) => setPayment((p) => ({ ...p, cycle: cycle as Cycle | '' }))} options={[{ value: '', label: 'Escolha' }, ...CYCLES.map((c) => ({ value: c.value, label: c.label }))]} />
               </Labeled>
             )}
           </div>

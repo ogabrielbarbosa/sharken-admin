@@ -46,7 +46,7 @@ const day = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2
 
 function TabButton({ active, label, onClick, children, count }: { active: boolean; label: string; onClick: () => void; children: ReactNode; count?: number }) {
   return (
-    <button type="button" title={label} aria-label={label} aria-pressed={active} onClick={onClick} className={`relative inline-flex h-11 flex-1 cursor-pointer items-center justify-center border-b-2 transition-colors [&_svg]:size-[18px] ${active ? 'border-brand-soft text-brand-light' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+    <button type="button" data-tip={label} aria-label={label} aria-pressed={active} onClick={onClick} className={`relative inline-flex h-11 flex-1 cursor-pointer items-center justify-center border-b-2 transition-colors [&_svg]:size-[18px] ${active ? 'border-brand-soft text-brand-light' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
       {children}
       {!!count && <span className="absolute right-2 top-2 min-w-4 rounded-full bg-secondary px-1 text-[10px] leading-4 text-foreground">{count}</span>}
     </button>
@@ -170,7 +170,7 @@ export function ContactPanel({ contact, lead, origin, flowLabel, history, closeH
           <span className="absolute -bottom-0.5 -right-0.5 inline-flex size-4 items-center justify-center rounded-full bg-success ring-2 ring-background"><MessageCircle className="size-2.5 text-background" /></span>
         </span>
         <EditableName key={contact.id} contactId={contact.id} name={contact.name} />
-        <button type="button" onClick={() => void copy()} title="Copiar telefone" aria-label="Copiar telefone" className="cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">
+        <button type="button" onClick={() => void copy()} data-tip="Copiar telefone" aria-label="Copiar telefone" className="cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">
           {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
         </button>
       </div>
@@ -216,7 +216,7 @@ export function ContactPanel({ contact, lead, origin, flowLabel, history, closeH
               <Section title="Lead">
                 {flowLabel && <Row icon={<Route />} label="Fluxo"><Value>{flowLabel}</Value></Row>}
                 {lead.score !== null && <Row icon={<Gauge />} label="Pontuação"><Value>{lead.score} / 100</Value></Row>}
-                {lead.reason && <Row icon={<MessageSquareText />} label="Motivo"><span className="min-w-0 truncate" title={lead.reason}>{lead.reason}</span></Row>}
+                {lead.reason && <Row icon={<MessageSquareText />} label="Motivo"><span className="min-w-0 truncate" data-tip={lead.reason}>{lead.reason}</span></Row>}
                 <LeadComment contactId={contact.id} initial={lead.comment ?? ''} />
               </Section>
             )}

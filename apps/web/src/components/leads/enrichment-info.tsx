@@ -8,7 +8,7 @@ const formatPhone = (e164: string) => e164.replace(/^55(\d{2})(\d{4,5})(\d{4})$/
  * Contatos e dados do dono achados fora do Google (site, WHOIS do .br, CNPJ), cada um com a fonte.
  * Fica vazio para leads analisados antes do enriquecimento.
  */
-export function EnrichmentInfo({ lead }: { lead: Pick<Lead, 'enrichment' | 'email' | 'phone_e164' | 'phone_raw'> }) {
+export function EnrichmentInfo({ lead, title = true }: { title?: boolean; lead: Pick<Lead, 'enrichment' | 'email' | 'phone_e164' | 'phone_raw'> }) {
   const en = lead.enrichment;
   if (!en) return null;
   const tag = (text: string) => <span className="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">{text}</span>;
@@ -16,7 +16,7 @@ export function EnrichmentInfo({ lead }: { lead: Pick<Lead, 'enrichment' | 'emai
   const nothing = !en.emails.length && !mobiles.length && !en.company && !en.people.length;
   return (
     <section className="space-y-3">
-      <h3 className="text-sm font-medium">Contatos e dono</h3>
+      {title && <h3 className="text-sm font-medium">Contatos e dono</h3>}
       {nothing && <p className="text-sm text-muted-foreground">Nada encontrado no site, no WHOIS nem no CNPJ.</p>}
       {(en.emails.length > 0 || mobiles.length > 0) && (
         <ul className="space-y-1.5 text-sm">

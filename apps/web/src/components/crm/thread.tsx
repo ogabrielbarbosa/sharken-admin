@@ -96,7 +96,7 @@ type BubbleProps = {
 function Reactions({ reactions, mine, contactName }: { reactions: Message['reactions']; mine: boolean; contactName: string }) {
   const who = reactions.map((r) => `${r.from === 'eu' ? 'Você' : contactName}: ${r.emoji}`).join('\n');
   return (
-    <span title={who} className={`absolute -bottom-3.5 ${mine ? 'right-2' : 'left-2'} flex animate-pop-in items-center gap-0.5 rounded-full border border-background bg-secondary px-1.5 py-0.5 text-sm leading-none shadow`}>
+    <span data-tip={who} className={`absolute -bottom-3.5 ${mine ? 'right-2' : 'left-2'} flex animate-pop-in items-center gap-0.5 rounded-full border border-background bg-secondary px-1.5 py-0.5 text-sm leading-none shadow`}>
       {reactions.map((r) => <span key={r.from}>{r.emoji}</span>)}
       {reactions.length > 1 && <span className="ml-0.5 text-[10px] text-muted-foreground">{reactions.length}</span>}
     </span>
@@ -119,7 +119,7 @@ function Bubble({ m, onRetry, onReply, quote, showMeta, people, now, animate }: 
     <button
       type="button"
       aria-label="Responder"
-      title="Responder"
+      data-tip="Responder"
       onClick={() => onReply(m)}
       className="press mb-1 inline-flex size-7 shrink-0 cursor-pointer items-center justify-center self-center rounded-full text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
     >
@@ -154,7 +154,7 @@ function Bubble({ m, onRetry, onReply, quote, showMeta, people, now, animate }: 
         {showMeta && m.status !== 'erro' && (
           <p className="mt-1 flex items-center gap-1 px-1 text-[11px] text-muted-foreground">
             {mine && <Ticks key={m.status} status={m.status} pop={animate} />}
-            {m.edited_at && <span title={m.meta?.original_body ? `Antes: ${m.meta.original_body}` : undefined} className="cursor-default italic">editada ·</span>}
+            {m.edited_at && <span data-tip={m.meta?.original_body ? `Antes: ${m.meta.original_body}` : undefined} className="cursor-default italic">editada ·</span>}
             {clock(m.at)} {dayKey(new Date(m.at)) !== dayKey(now) && new Date(m.at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })}
           </p>
         )}

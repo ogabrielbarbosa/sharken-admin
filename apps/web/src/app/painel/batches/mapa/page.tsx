@@ -3,8 +3,7 @@ import { prospectedCities, prospectedNiches } from '@lps/domain';
 import Link from 'next/link';
 import { Topbar } from '@/components/layout/topbar';
 import { ProspectMap } from '@/components/map/prospect-map';
-import { Card } from '@/components/ui';
-import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
+import { Card, Select } from '@/components/ui';
 import { authedDb } from '@/lib/auth';
 
 /** Onde já houve batch, por cidade, com filtro por nicho. */
@@ -20,13 +19,10 @@ export default async function ProspectMapPage({ searchParams }: { searchParams: 
   return (
     <>
       <Topbar
-        crumbs={[{ label: 'Batches', href: '/painel/batches' }, { label: 'Mapa' }]}
+        crumbs={[{ label: 'Leads', href: '/painel/leads' }, { label: 'Batches', href: '/painel/batches' }, { label: 'Mapa' }]}
         actions={
           <form>
-            <AutoSubmitSelect name="nicho" defaultValue={nicho ?? ''} aria-label="Nicho" className="w-44 sm:w-60">
-              <option value="">Nicho: Todos</option>
-              {niches.map((n) => <option key={n} value={n}>{n}</option>)}
-            </AutoSubmitSelect>
+            <Select autoSubmit name="nicho" defaultValue={nicho ?? ''} aria-label="Nicho" className="w-44 sm:w-60" options={[{ value: '', label: 'Todos os nichos' }, ...niches.map((n) => ({ value: n, label: n }))]} />
           </form>
         }
       />

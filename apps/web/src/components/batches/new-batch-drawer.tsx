@@ -1,12 +1,12 @@
 'use client';
 
-import { buildInstagramQueries, DEFAULT_CRITERIA, findMunicipio, formatMunicipio, municipioGeo, municipiosNear, prospectedCities, type BatchSource, type SiteRequirement } from '@lps/domain';
+import { buildInstagramQueries, cityName, DEFAULT_CRITERIA, formatMunicipio, municipioGeo, municipiosNear, prospectedCities, type BatchSource, type Place, type SiteRequirement, type WorldCity } from '@lps/domain';
 import { ArrowLeft, ArrowRight, Check, Loader2, MapPin, Plus, Search, Sparkles, X } from 'lucide-react';
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { ProspectMap } from '@/components/map/prospect-map';
-import { createBatchAction, createManualBatchAction, suggestManyVariantsAction } from '@/app/painel/batches/actions';
+import { createBatchAction, createManualBatchAction, suggestManyVariantsAction, worldCitiesNearAction } from '@/app/painel/batches/actions';
 import { Button, Drawer, ErrorNote, Field, Input, LinkButton, Select } from '@/components/ui';
-import { MunicipioPicker } from './municipio-picker';
+import { CityPicker } from './city-picker';
 
 const criteriaFields = [
   { key: 'minReviews', label: 'Mínimo de avaliações' },
@@ -20,9 +20,9 @@ const SITE_LABEL: Record<SiteRequirement, string> = { qualquer: 'Tanto faz', sem
 const SOURCE_LABEL: Record<BatchSource, string> = { instagram: 'Instagram', maps: 'Google Maps' };
 
 /** Batch sem busca: só o nicho; os leads são adicionados dentro dele. Não depende do Apify. */
-function ManualBatch({ onBack }: { onBack: () => void }) {
+function ManualBatch({ onBack, closeHref }: { onBack: () => void; closeHref: string }) {
   return (
-    <Drawer title="Novo batch manual" subtitle="Você cadastra os leads e o sistema analisa" closeHref="/painel/batches">
+    <Drawer title="Novo batch manual" subtitle="Você cadastra os leads e o sistema analisa" closeHref={closeHref}>
       <form action={createManualBatchAction} className="flex flex-1 flex-col gap-4">
         <Field label="Nicho" hint="Dá nome ao batch. Cada lead pode ter outro tipo de negócio."><Input name="businessType" required autoFocus placeholder="advocacia" /></Field>
         <div className="mt-auto flex justify-between gap-2 pt-4">
@@ -35,11 +35,10 @@ function ManualBatch({ onBack }: { onBack: () => void }) {
 }
 
 type Variants = { options: string[]; chosen: string[]; saved: boolean };
-export type ProspectedRow = { id: string; location: string; locations: string[]; business_type: string; created_at: string; leads: number };
+export type ProspectedRow = { id: string; location: string; locations: string[]; places?: Place[]; business_type: string; created_at: string; leads: number };
 const RADII = [0, 15, 30, 50, 80];
-const cityName = (location: string) => findMunicipio(location)?.nome ?? location.split(',')[0];
 
-export function NewBatchDrawer({ apifyConnected, prospected = [] }: { apifyConnected: boolean; prospected?: ProspectedRow[] }) {
+export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/painel/batches' }: { apifyConnected: boolean; closeHref?: string; prospected?: ProspectedRow[] }) {
   const [manual, setManual] = useState(false);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +47,8 @@ export function NewBatchDrawer({ apifyConnected, prospected = [] }: { apifyConne
   const [picked, setPicked] = useState<string[]>([]);
   const [radius, setRadius] = useState(0);
   const [skipped, setSkipped] = useState<string[]>([]);
+  const [cityPlaces, setCityPlaces] = useState<Record<string, Place>>({});
+  const [worldNear, setWorldNear] = useState<{ key: string; cities: (WorldCity & { km: number })[] }>({ key: '', cities: [] });
   const [pickerKey, setPickerKey] = useState(0);
   const [where, setWhere] = useState({ businessType: '', quantity: '50' });
   const [criteria, setCriteria] = useState<Record<string, string>>(
@@ -59,41 +60,73 @@ export function NewBatchDrawer({ apifyConnected, prospected = [] }: { apifyConne
   const [loading, startLoading] = useTransition();
 
   const center = picked[0] ?? null;
-  const nearby = useMemo(() => (center ? municipiosNear(center, radius).map((m) => ({ ...m, location: formatMunicipio(m) })) : []), [center, radius]);
+  // País do batch: o da primeira cidade. Sem lugar conhecido, é município do Brasil.
+  const country = (center && cityPlaces[center]?.country) || 'BR';
+  const abroad = country !== 'BR';
+  const nearKey = `${center}:${radius}`;
+  useEffect(() => {
+    if (!center || !abroad || !radius) return;
+    let live = true;
+    worldCitiesNearAction(center, radius)
+      .then((cities) => live && setWorldNear({ key: nearKey, cities }))
+      .catch(() => live && setError('Não foi possível buscar as cidades em volta.'));
+    return () => { live = false; };
+  }, [center, abroad, radius, nearKey]);
+  const loadingNear = abroad && radius > 0 && worldNear.key !== nearKey;
+  const nearby = useMemo(() => {
+    if (!center) return [];
+    if (abroad) return radius && worldNear.key === nearKey ? worldNear.cities.map((c) => ({ location: c.location, name: c.name, km: c.km })) : [];
+    return municipiosNear(center, radius).map((m) => ({ location: formatMunicipio(m), name: m.nome, km: m.km }));
+  }, [center, radius, abroad, worldNear, nearKey]);
+  const geoOf = (l: string) => cityPlaces[l] ?? worldNear.cities.find((c) => c.location === l) ?? municipioGeo(l);
   const locations = [...new Set([...picked, ...nearby.map((m) => m.location).filter((l) => !skipped.includes(l))])];
   const done = useMemo(() => {
     const leads = Object.fromEntries(prospected.map((p) => [p.id, p.leads]));
     return prospectedCities(prospected, leads, where.businessType.trim() || undefined);
   }, [prospected, where.businessType]);
-  const centerGeo = center ? municipioGeo(center) : null;
-  const selection = centerGeo ? { center: centerGeo, radiusKm: radius, cities: locations.flatMap((l) => { const g = municipioGeo(l); return g ? [{ location: l, lat: g.lat, lng: g.lng }] : []; }) } : undefined;
+  const centerGeo = center ? geoOf(center) : null;
+  const selection = centerGeo ? { center: centerGeo, radiusKm: radius, cities: locations.flatMap((l) => { const g = geoOf(l); return g ? [{ location: l, lat: g.lat, lng: g.lng }] : []; }) } : undefined;
 
-  const steps = source === 'instagram' ? ['Onde buscar', 'Variações', 'Critérios', 'Confirmar'] : ['Onde buscar', 'Critérios', 'Confirmar'];
+  // No Maps fora do Brasil também há variações: o nicho vai no idioma de lá.
+  const steps = source === 'instagram' || abroad ? ['Onde buscar', 'Variações', 'Critérios', 'Confirmar'] : ['Onde buscar', 'Critérios', 'Confirmar'];
   const current = steps[step];
   const last = step === steps.length - 1;
-  const nicheTerms = niche?.chosen ?? [];
-  const locationTerms = [...new Set(Object.values(places).flatMap((p) => p.chosen))];
+  const nicheTerms = steps.includes('Variações') ? niche?.chosen ?? [] : [];
+  const locationTerms = [...new Set(Object.entries(places).filter(([l]) => source === 'instagram' && locations.includes(l)).map(([, p]) => p).flatMap((p) => p.chosen))];
   const queries = buildInstagramQueries(nicheTerms, locationTerms);
+
+  const variantCities = source === 'instagram' ? locations : [];
+  const termOf = (l: string) => (abroad ? l.toLowerCase() : cityName(l));
+
+  function addCity(l: string, place?: Place) {
+    setPickerKey(pickerKey + 1);
+    if (picked.includes(l)) return;
+    if (center && (place?.country ?? 'BR') !== country) return setError('Escolha cidades de um país só por batch.');
+    setError(null);
+    if (place) setCityPlaces({ ...cityPlaces, [l]: place });
+    setPicked([...picked, l]);
+  }
 
   function loadVariants() {
     startLoading(async () => {
       const [n, ...ps] = await suggestManyVariantsAction([
         { kind: 'nicho', term: where.businessType },
-        ...locations.map((l) => ({ kind: 'local' as const, term: cityName(l) })),
-      ]);
+        ...variantCities.map((l) => ({ kind: 'local' as const, term: termOf(l) })),
+      ], country);
       setNiche({ options: n.variants, chosen: n.variants, saved: n.saved });
-      setPlaces(Object.fromEntries(locations.map((l, i) => [l, { options: ps[i].variants, chosen: ps[i].variants, saved: ps[i].saved }])));
+      setPlaces(Object.fromEntries(variantCities.map((l, i) => [l, { options: ps[i].variants, chosen: ps[i].variants, saved: ps[i].saved }])));
     });
   }
 
   function next() {
     if (current === 'Onde buscar') {
-      if (!locations.length) return setError('Escolha pelo menos uma cidade na lista de municípios.');
+      if (!locations.length) return setError('Escolha pelo menos uma cidade na lista.');
       if (!where.businessType.trim()) return setError('Preencha o nicho.');
       if (!(Number(where.quantity) > 0)) return setError('Informe uma quantidade maior que zero.');
-      if (source === 'instagram') loadVariants();
+      if (loadingNear) return setError('Espere as cidades em volta carregarem.');
+      if (source === 'instagram' || abroad) loadVariants();
     }
-    if (current === 'Variações' && (!nicheTerms.length || !locationTerms.length)) {
+    if (current === 'Variações' && (!nicheTerms.length || (source === 'instagram' && !locationTerms.length))) {
       return setError('Deixe marcada pelo menos uma variação do nicho e uma da localização.');
     }
     if (current === 'Critérios' && Object.values(criteria).some((v) => v === '' || !(Number(v.replace(',', '.')) >= 0))) {
@@ -103,11 +136,11 @@ export function NewBatchDrawer({ apifyConnected, prospected = [] }: { apifyConne
     setStep(step + 1);
   }
 
-  if (manual) return <ManualBatch onBack={() => setManual(false)} />;
+  if (manual) return <ManualBatch onBack={() => setManual(false)} closeHref={closeHref} />;
 
   if (!apifyConnected) {
     return (
-      <Drawer title="Novo batch" closeHref="/painel/batches">
+      <Drawer title="Novo batch" closeHref={closeHref}>
         <div className="flex flex-col gap-4">
           <ErrorNote>Conecte sua conta do Apify em Configurações › Apify.</ErrorNote>
           <p className="text-sm text-muted-foreground">A busca no Google Maps e no Instagram roda na conta do Apify deste workspace. A conta gratuita traz US$ 5 de crédito por mês, uns 7 batches de 50 lugares.</p>
@@ -119,7 +152,7 @@ export function NewBatchDrawer({ apifyConnected, prospected = [] }: { apifyConne
   }
 
   return (
-    <Drawer title="Novo batch" subtitle={`Passo ${step + 1} de ${steps.length}`} closeHref="/painel/batches">
+    <Drawer title="Novo batch" subtitle={`Passo ${step + 1} de ${steps.length}`} closeHref={closeHref}>
       <ol className="mb-6 flex flex-wrap items-center gap-2 text-xs">
         {steps.map((label, i) => (
           <li key={label} className={`flex items-center gap-1.5 transition-colors duration-300 ${i === step ? 'font-medium' : 'text-muted-foreground'}`}>
@@ -152,9 +185,9 @@ export function NewBatchDrawer({ apifyConnected, prospected = [] }: { apifyConne
             </Field>
             <Button type="button" variant="outline" onClick={() => setManual(true)}><Plus />Cadastrar leads à mão (sem busca)</Button>
             <p className="text-xs text-muted-foreground">Depois dá para rodar a outra fonte em cima do mesmo batch: os resultados cruzam com os leads que já estão nele.</p>
-            <Field label="Cidades" hint="Escolha na lista. Com raio, as cidades em volta da primeira entram junto.">
+            <Field label="Cidades" hint="Do Brasil ou de qualquer país (um país por batch). Com raio, as cidades em volta da primeira entram junto.">
               <div className="flex flex-col gap-2">
-                <MunicipioPicker key={pickerKey} value="" onChange={(l) => { if (l && !picked.includes(l)) setPicked([...picked, l]); if (l) setPickerKey(pickerKey + 1); }} />
+                <CityPicker key={pickerKey} onPick={addCity} />
                 {center && (
                   <div className="flex flex-wrap items-center gap-1.5 text-xs">
                     <span className="text-muted-foreground">Raio em volta de {cityName(center)}:</span>
@@ -178,16 +211,17 @@ export function NewBatchDrawer({ apifyConnected, prospected = [] }: { apifyConne
                       return (
                         <li key={m.location}>
                           <button type="button" aria-pressed={on} onClick={() => setSkipped(on ? [...skipped, m.location] : skipped.filter((x) => x !== m.location))} className={`press cursor-pointer rounded-full border px-2.5 py-0.5 text-xs ${on ? 'border-border bg-white/[0.04]' : 'border-border text-muted-foreground line-through'}`}>
-                            {m.nome} <span className="text-muted-foreground">{Math.round(m.km)} km</span>
+                            {m.name} <span className="text-muted-foreground">{Math.round(m.km)} km</span>
                           </button>
                         </li>
                       );
                     })}
                   </ul>
                 )}
+                {loadingNear && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin" />Buscando as cidades em volta…</p>}
                 {locations.length > 0 && <p className="text-xs text-muted-foreground">{locations.length} {locations.length === 1 ? 'cidade' : 'cidades'} no batch.</p>}
-                <ProspectMap cities={done} selection={selection} height={220} onPick={(l) => { if (!picked.includes(l)) setPicked([...picked, l]); }} />
-                <p className="text-xs text-muted-foreground">Os círculos claros são cidades onde {where.businessType.trim() ? `"${where.businessType.trim()}"` : 'algum nicho'} já foi buscado. Clique num para acrescentar.</p>
+                <ProspectMap cities={done} selection={selection} height={220} onPick={(l) => addCity(l, prospected.flatMap((p) => p.places ?? []).find((p) => p.location === l))} />
+                <p className="text-xs text-muted-foreground">Os círculos claros são cidades onde {where.businessType.trim() ? `"${where.businessType.trim()}"` : 'algum nicho'} já foi buscado. Clique num para acrescentar. Cidades de fora do Brasil: GeoNames (CC BY 4.0).</p>
               </div>
             </Field>
             <Field label="Nicho" hint={source === 'instagram' ? 'Do jeito que vier à cabeça: no próximo passo aparecem as variações que os negócios usam.' : 'Como alguém buscaria no Google Maps.'}>
@@ -203,10 +237,10 @@ export function NewBatchDrawer({ apifyConnected, prospected = [] }: { apifyConne
             ) : (
               <>
                 <VariantList title={`Nicho · ${where.businessType}`} value={niche} onChange={setNiche} />
-                {locations.map((l) => places[l] && (
+                {variantCities.map((l) => places[l] && (
                   <VariantList key={l} title={`Localização · ${cityName(l)}`} value={places[l]} onChange={(v) => setPlaces({ ...places, [l]: v })} />
                 ))}
-                <div className="flex flex-col gap-1.5">
+                {source === 'instagram' && <div className="flex flex-col gap-1.5">
                   <span className="text-xs font-medium text-muted-foreground">
                     Busca no Google: {queries.length} {queries.length === 1 ? 'consulta' : 'consultas'}
                     {queries.length > 3 && ' (cada consulta gasta crédito do Apify; tirar variações diminui)'}
@@ -220,7 +254,7 @@ export function NewBatchDrawer({ apifyConnected, prospected = [] }: { apifyConne
                       </div>
                     </details>
                   )}
-                </div>
+                </div>}
               </>
             )}
           </div>
@@ -232,9 +266,7 @@ export function NewBatchDrawer({ apifyConnected, prospected = [] }: { apifyConne
               <Check2 label={`Postou no Instagram nos últimos ${criteria.instagramActiveDays || '…'} dias`} checked={marks.requireInstagramActive} onChange={(v) => setMarks({ ...marks, requireInstagramActive: v })} />
               <Check2 label="Tem celular" checked={marks.requirePhone} onChange={(v) => setMarks({ ...marks, requirePhone: v })} />
               <Field label="Site">
-                <Select value={marks.site} onChange={(e) => setMarks({ ...marks, site: e.target.value as SiteRequirement })}>
-                  {(Object.keys(SITE_LABEL) as SiteRequirement[]).map((s) => <option key={s} value={s}>{SITE_LABEL[s]}</option>)}
-                </Select>
+                <Select value={marks.site} onValueChange={(site) => setMarks({ ...marks, site: site as SiteRequirement })} options={(Object.keys(SITE_LABEL) as SiteRequirement[]).map((s) => ({ value: s, label: SITE_LABEL[s] }))} />
               </Field>
             </div>
             {criteriaFields.map((f) => (
@@ -266,7 +298,7 @@ export function NewBatchDrawer({ apifyConnected, prospected = [] }: { apifyConne
             <input type="hidden" name="businessType" value={where.businessType} />
             <input type="hidden" name="quantity" value={where.quantity} />
             {nicheTerms.map((t) => <input key={`n-${t}`} type="hidden" name="nicheTerm" value={t} />)}
-            <input type="hidden" name="placeTerms" value={JSON.stringify(Object.fromEntries(Object.entries(places).map(([l, v]) => [cityName(l), v.chosen])))} />
+            <input type="hidden" name="placeTerms" value={JSON.stringify(Object.fromEntries(Object.entries(places).filter(([l]) => variantCities.includes(l)).map(([l, v]) => [termOf(l), v.chosen])))} />
             {Object.entries(criteria).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
             <input type="hidden" name="requireInstagramActive" value={String(marks.requireInstagramActive)} />
             <input type="hidden" name="requirePhone" value={String(marks.requirePhone)} />

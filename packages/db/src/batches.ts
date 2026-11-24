@@ -1,10 +1,12 @@
-import type { Batch, BatchSource, Criteria } from '@lps/domain';
+import type { Batch, BatchSource, Criteria, Place } from '@lps/domain';
 import { DEFAULT_CRITERIA, MANUAL_LOCATION, toLocationKey } from '@lps/domain';
 import type { Db } from './client';
 
 export type NewBatch = {
-  /** Cidades no formato "Cidade, UF". A primeira dá nome ao batch no filtro de localização. */
+  /** Cidades no formato "Cidade, UF" ou, fora do Brasil, "Cidade, Região, País". A primeira dá nome ao batch no filtro de localização. */
   locations: string[];
+  /** Cidades fora do Brasil, com país e coordenadas. */
+  places?: Place[];
   businessType: string;
   quantity: number;
   criteria: Criteria;
@@ -22,6 +24,7 @@ export async function createBatch(db: Db, b: NewBatch): Promise<Batch> {
       location: locations.join(' + '),
       location_key: toLocationKey(locations[0]),
       locations,
+      ...(b.places?.length ? { places: b.places } : {}),
       business_type: b.businessType.trim(),
       quantity: b.quantity,
       criteria: b.criteria,

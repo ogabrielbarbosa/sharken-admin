@@ -4,8 +4,7 @@ import { ArrowRight, BadgeDollarSign, Eye, Hourglass, MessageSquareReply, Send, 
 import Link from 'next/link';
 import { Topbar } from '@/components/layout/topbar';
 import { DailyBars, Donut, Funnel } from '@/components/overview/charts';
-import { Card, EmptyState, Table } from '@/components/ui';
-import { AutoSubmitSelect } from '@/components/ui/auto-submit-select';
+import { Card, EmptyState, Table, Select } from '@/components/ui';
 import { authedDb } from '@/lib/auth';
 import { startOfTodayBrazil } from '@/lib/dates';
 
@@ -83,13 +82,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         crumbs={[{ label: 'Overview' }]}
         actions={
           <form className="flex gap-2">
-            <AutoSubmitSelect name="local" defaultValue={local ?? ''} aria-label="Localização" className="w-32 sm:w-48">
-              <option value="">Localização: Todas</option>
-              {locations.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-            </AutoSubmitSelect>
-            <AutoSubmitSelect name="dias" defaultValue={String(period)} aria-label="Período" className="w-32 sm:w-44">
-              {PERIODS.map((p) => <option key={p} value={p}>Últimos {p} dias</option>)}
-            </AutoSubmitSelect>
+            <Select autoSubmit name="local" defaultValue={local ?? ''} aria-label="Localização" className="w-32 sm:w-48" options={[{ value: '', label: 'Todas as localizações' }, ...locations.map(([value, label]) => ({ value, label }))]} />
+            <Select autoSubmit name="dias" defaultValue={String(period)} aria-label="Período" className="w-32 sm:w-44" options={PERIODS.map((p) => ({ value: String(p), label: `Últimos ${p} dias` }))} />
           </form>
         }
       />

@@ -1,8 +1,8 @@
 import type { ChatState, ContactStatus, Lead } from '@lps/domain';
-import { Globe, History, Loader2, MapPin, MessagesSquare, PanelTop, Video } from 'lucide-react';
+import { History, Loader2, MessagesSquare } from 'lucide-react';
 import Link, { useLinkStatus } from 'next/link';
 import { createContext, useContext, type ReactNode } from 'react';
-import { InstagramIcon, instagramUrl, mapsUrl, siteUrl, withProtocol } from '@/components/leads/lead-links';
+import { QuickLinks } from '@/components/leads/quick-links';
 import { Status } from '@/components/ui';
 import type { Member } from '@/lib/members';
 import { crmHref, STATUS_LABEL } from '@/lib/crm';
@@ -55,59 +55,6 @@ function Responsible({ lead }: { lead: Lead }) {
   return <ResponsiblePicker leadName={lead.name} value={lead.responsible_id ?? null} members={members} disabled={pending} onChange={(id) => assign(lead.id, id)} />;
 }
 
-/** Botõezinhos para abrir o negócio por fora (Instagram, Maps e site), sempre na mesma posição; o que falta fica apagado. */
-function QuickLinks({ lead }: { lead: Lead }) {
-  const items = [
-    { label: 'Instagram', href: instagramUrl(lead), icon: <InstagramIcon /> },
-    { label: 'Google Maps', href: lead.place_id ? mapsUrl(lead) : null, icon: <MapPin /> },
-    { label: 'Site', href: siteUrl(lead), icon: <Globe /> },
-  ];
-  const box = 'flex size-6 items-center justify-center rounded [&_svg]:size-3.5';
-  // A página e o vídeo prontos: azuis, à esquerda dos fixos, só quando existem.
-  const made = [
-    { label: 'Página', href: lead.page_url ? withProtocol(lead.page_url) : null, icon: <PanelTop /> },
-    { label: 'Vídeo', href: lead.loom_url ? withProtocol(lead.loom_url) : null, icon: <Video /> },
-  ].filter((i): i is typeof i & { href: string } => !!i.href);
-  return (
-    <span className="pointer-events-auto relative flex shrink-0 gap-0.5">
-      {made.map((i) => (
-        <a
-          key={i.label}
-          href={i.href}
-          target="_blank"
-          rel="noreferrer"
-          draggable={false}
-          aria-label={`${i.label} de ${lead.name}`}
-          title={i.label}
-          className={`${box} bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 hover:text-blue-300`}
-        >
-          {i.icon}
-        </a>
-      ))}
-      {items.map((i) =>
-        i.href ? (
-          <a
-            key={i.label}
-            href={i.href}
-            target="_blank"
-            rel="noreferrer"
-            draggable={false}
-            aria-label={`${i.label} de ${lead.name}`}
-            title={i.label}
-            className={`${box} text-muted-foreground hover:bg-white/10 hover:text-foreground`}
-          >
-            {i.icon}
-          </a>
-        ) : (
-          <span key={i.label} aria-label={`Sem ${i.label}`} title={`Sem ${i.label}`} className={`${box} cursor-not-allowed text-muted-foreground opacity-30`}>
-            {i.icon}
-          </span>
-        ),
-      )}
-    </span>
-  );
-}
-
 /** Mesmo formato em todas as colunas: nome, responsável, status do site, atalhos e o que falta na etapa. */
 function CardBody({ lead, children }: { lead: Lead; children?: ReactNode }) {
   const site = siteLabel(lead);
@@ -134,7 +81,7 @@ function Known() {
   const from = useContext(KnownFrom);
   if (!from) return null;
   return (
-    <span className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground" title={from.join('\n')}>
+    <span className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground" data-tip={from.join('\n')}>
       <History className="size-3 shrink-0" />
       <span className="truncate">Já conhecido{from.length ? ` · ${from[0]}${from.length > 1 ? ` e mais ${from.length - 1}` : ''}` : ''}</span>
     </span>

@@ -1,5 +1,5 @@
 import { countOpenJobs, createAdminClient, getApifyToken, getBatch, getContactContext, getLead, logEvent, moveLead, updateBatch, updateLead, type Db, type Job } from '@lps/db';
-import { bestContacts, checkEliminatory, looksLikeFranchise, classifyLink, instagramProfileFromLinks, flowFromSiteStatus, nextCheckStep, scoreLead, DEFAULT_CRITERIA, type Lead, type SiteStatus } from '@lps/domain';
+import { batchCountry, bestContacts, checkEliminatory, looksLikeFranchise, classifyLink, instagramProfileFromLinks, flowFromSiteStatus, nextCheckStep, scoreLead, DEFAULT_CRITERIA, type Lead, type SiteStatus } from '@lps/domain';
 import { analyzeLead, defaultEnrichDeps, enrichLead, instagramLastPostAt, RateLimited } from '@lps/integrations';
 import { probeSite } from '../site-probe';
 import { trackApifyRun } from './apify-token';
@@ -80,16 +80,18 @@ const rateLimitWaits = new Map<string, number>();
  */
 export async function resolveEnrichment(db: Db, lead: Lead): Promise<Lead> {
   if (lead.enrichment) return lead;
+  const batch = lead.batch_id ? await getBatch(db, lead.batch_id) : null;
+  const country = batch ? batchCountry(batch) : 'BR';
   let enrichment;
   try {
-    enrichment = await enrichLead(lead);
+    enrichment = await enrichLead(lead, defaultEnrichDeps(), country);
   } catch (err) {
     if (!(err instanceof RateLimited)) throw err;
     // O CNPJ.ws libera de novo em um minuto. Depois de algumas esperas, segue sem ele.
     const waits = (rateLimitWaits.get(lead.id) ?? 0) + 1;
     rateLimitWaits.set(lead.id, waits);
     if (waits <= MAX_RATE_LIMIT_WAITS) throw new Reschedule(1);
-    enrichment = await enrichLead(lead, { ...defaultEnrichDeps(), cnpjWs: async () => null });
+    enrichment = await enrichLead(lead, { ...defaultEnrichDeps(), cnpjWs: async () => null }, country);
     enrichment.notes.push('CNPJ.ws limitou as consultas: e-mail do CNPJ não consultado.');
   }
   rateLimitWaits.delete(lead.id);

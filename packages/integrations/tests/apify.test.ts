@@ -20,6 +20,21 @@ describe('buildMapsInput', () => {
   });
 });
 
+describe('fora do Brasil', () => {
+  const us = { country: 'US', businessType: 'lente dental', nicheTerms: ['veneers', 'cosmetic dentist'], quantity: 50 };
+  it('Maps: nicho e idioma do país', () => {
+    expect(buildMapsInput({ ...us, location: 'Austin, Texas, Estados Unidos' })).toMatchObject({
+      searchStringsArray: ['veneers', 'cosmetic dentist'], locationQuery: 'Austin, Texas, United States', language: 'en', maxCrawledPlacesPerSearch: 25,
+    });
+    expect(buildMapsInput({ ...us, nicheTerms: ['veneers'], locations: ['Austin, Texas, Estados Unidos', 'Dallas, Texas, Estados Unidos'] }).searchStringsArray)
+      .toEqual(['veneers, Austin, Texas, United States', 'veneers, Dallas, Texas, United States']);
+  });
+  it('Google: país e idioma', () => {
+    expect(buildGoogleInput(['a'], 1, 'US')).toMatchObject({ countryCode: 'us', languageCode: 'en' });
+    expect(buildGoogleInput(['a'], 1, 'XK').countryCode).toBe('');
+  });
+});
+
 describe('buildGoogleInput', () => {
   it('uma consulta por linha', () => {
     expect(buildGoogleInput(['a', 'b'], 3)).toMatchObject({ queries: 'a\nb', maxPagesPerQuery: 3, countryCode: 'br' });

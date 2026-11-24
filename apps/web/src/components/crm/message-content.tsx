@@ -391,7 +391,7 @@ function PollContent({ m, contactName }: { m: M; contactName: string }) {
                   <span className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${who.length ? 'border-emerald-400 bg-emerald-500' : 'border-muted-foreground/60'}`}>{who.length > 0 && <Check className="size-3 text-white" />}</span>
                   <span className="truncate">{o}</span>
                 </span>
-                <span className="text-xs tabular-nums text-muted-foreground" title={who.join(', ')}>{who.length}</span>
+                <span className="text-xs tabular-nums text-muted-foreground" data-tip={who.join(', ')}>{who.length}</span>
               </div>
               <span className="mt-1 block h-1 overflow-hidden rounded-full bg-white/10">
                 <span className="block h-full rounded-full bg-emerald-500 transition-[width] duration-500" style={{ width: `${total ? (who.length / total) * 100 : 0}%` }} />

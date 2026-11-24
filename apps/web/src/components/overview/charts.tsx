@@ -16,7 +16,7 @@ export function DailyBars({ days, series }: { days: { label: string; values: num
         {days.map((d, di) => {
           const total = d.values.reduce((a, b) => a + b, 0);
           return (
-            <div key={d.label} className="group relative flex h-full min-w-0 flex-1 flex-col-reverse items-center gap-0.5" title={`${d.label}: ${d.values.map((v, i) => `${series[i]} ${v}`).join(', ')}`}>
+            <div key={d.label} className="group relative flex h-full min-w-0 flex-1 flex-col-reverse items-center gap-0.5" data-tip={`${d.label}: ${d.values.map((v, i) => `${series[i]} ${v}`).join(', ')}`}>
               {d.values.map((v, i) => v > 0 && (
                 <span key={i} className="w-full max-w-3 origin-bottom animate-grow-y rounded-t-[3px] transition-[filter] duration-200 group-hover:brightness-125" style={{ height: (v / max) * height, background: BAR_FILLS[i], animationDelay: `${di * 18}ms` }} />
               ))}
@@ -56,8 +56,7 @@ export function Donut({ parts, total, unit }: { parts: { label: string; value: n
         {total > 0 && parts.map((p, i) => {
           const length = (p.value / total) * circumference;
           const el = (
-            <circle key={p.label} cx="75" cy="75" r={radius} fill="none" stroke={FLOW_COLORS[i]} strokeWidth="10" strokeDasharray={`${Math.max(length - 2, 0)} ${circumference}`} strokeDashoffset={-offset} transform="rotate(-90 75 75)" className="animate-fade-in" style={{ animationDuration: '900ms', animationDelay: `${i * 180}ms`, filter: i === 0 ? 'drop-shadow(0 0 6px #1f88c080)' : undefined }}>
-              <title>{`${p.label}: ${p.value}`}</title>
+            <circle key={p.label} data-tip={`${p.label}: ${p.value}`} cx="75" cy="75" r={radius} fill="none" stroke={FLOW_COLORS[i]} strokeWidth="10" strokeDasharray={`${Math.max(length - 2, 0)} ${circumference}`} strokeDashoffset={-offset} transform="rotate(-90 75 75)" className="animate-fade-in" style={{ animationDuration: '900ms', animationDelay: `${i * 180}ms`, filter: i === 0 ? 'drop-shadow(0 0 6px #1f88c080)' : undefined }}>
             </circle>
           );
           offset += length;

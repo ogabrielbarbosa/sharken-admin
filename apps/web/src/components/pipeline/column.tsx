@@ -50,7 +50,7 @@ export function Column({ label, count, visible, collapsed, onExpand, onCollapse,
           type="button"
           onClick={onExpand}
           aria-label={`${label} (${count})`}
-          title={`Mostrar ${label.toLowerCase()}`}
+          data-tip={`Mostrar ${label.toLowerCase()}`}
           className={`flex w-full items-center gap-2 rounded-lg border border-border bg-white/[0.02] px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-border-strong hover:bg-white/[0.04] hover:text-foreground md:h-full md:w-11 md:flex-col md:px-0 md:py-3 ${armed ? trashLook : ''}`}
         >
           {armed ? <Trash2 className={`size-4 shrink-0 transition-transform ${over ? 'scale-125' : ''}`} /> : <ChevronsLeft className="size-4 shrink-0 max-md:rotate-[-90deg]" />}
@@ -81,7 +81,7 @@ export function Column({ label, count, visible, collapsed, onExpand, onCollapse,
             type="button"
             onClick={onCollapse}
             aria-label={`Recolher ${label.toLowerCase()}`}
-            title="Recolher"
+            data-tip="Recolher"
             className="hidden rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground md:block"
           >
             <ChevronsRight className="size-4" />

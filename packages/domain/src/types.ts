@@ -2,6 +2,7 @@ import type { InstagramMedia } from './instagram-media';
 import type { LeadReview } from './apify-mapper';
 import type { Criteria } from './criteria';
 import type { Enrichment } from './enrichment';
+import type { Place } from './places';
 import type { LeadStage } from './stages';
 
 export type Flow = 'sem_site' | 'melhorar_site';
@@ -25,6 +26,8 @@ export type Batch = {
   source: BatchSource | 'manual';
   /** Cidades ("Cidade, UF"). Vazio nos batches antigos: vale `location`. */
   locations: string[];
+  /** Cidades fora do Brasil, com país e coordenadas (migração 0033). Vazio: as cidades são do Brasil. */
+  places?: Place[];
   /** Variações do nicho e da localização usadas na busca do Instagram pelo Google. */
   niche_terms: string[];
   location_terms: string[];

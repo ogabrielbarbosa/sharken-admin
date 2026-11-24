@@ -128,7 +128,7 @@ export function QuickReplyEditor({ draft, variables, taken, onClose, onSaved }: 
               <p className="text-xs text-muted-foreground">Clique para inserir um dado do contato</p>
               <div className="flex flex-wrap gap-1.5">
                 {variables.map((v) => (
-                  <button key={v.key} type="button" title={`$${v.key}`} onClick={() => insert(`$${v.key}`)} className="press cursor-pointer rounded-full border border-border bg-secondary px-2.5 py-1 text-xs text-foreground outline-none hover:border-brand-border-strong hover:bg-brand-muted hover:text-brand-light focus-visible:ring-2 focus-visible:ring-ring/60">
+                  <button key={v.key} type="button" data-tip={`$${v.key}`} onClick={() => insert(`$${v.key}`)} className="press cursor-pointer rounded-full border border-border bg-secondary px-2.5 py-1 text-xs text-foreground outline-none hover:border-brand-border-strong hover:bg-brand-muted hover:text-brand-light focus-visible:ring-2 focus-visible:ring-ring/60">
                     {v.label}
                   </button>
                 ))}

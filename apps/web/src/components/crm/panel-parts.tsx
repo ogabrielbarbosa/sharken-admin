@@ -52,7 +52,7 @@ export function Value({ children, copy, mono }: { children: ReactNode; copy?: st
     <span className="group/value flex min-w-0 flex-1 items-center gap-1 self-stretch">
       <span className={`min-w-0 truncate ${mono ? 'font-mono text-[12px]' : ''}`}>{children}</span>
       {copy && (
-        <button type="button" onClick={() => void doCopy()} title="Copiar" aria-label="Copiar" className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/value:opacity-100">
+        <button type="button" onClick={() => void doCopy()} data-tip="Copiar" aria-label="Copiar" className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/value:opacity-100">
           {copied ? <Check className="size-3 text-success" /> : <Copy className="size-3" />}
         </button>
       )}
@@ -139,7 +139,7 @@ export function InlineSelect<T extends string>({ value, options, onChange, disab
 
   return (
     <div className={customTrigger ? 'relative flex' : 'relative flex min-w-0 flex-1 self-stretch'}>
-      <button ref={trigger} type="button" aria-label={label} aria-haspopup="listbox" aria-expanded={open} disabled={disabled} onClick={() => setOpen((v) => !v)} title={triggerTitle} className={customTrigger ? 'group/trigger cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default' : inlineFieldTriggerClass}>
+      <button ref={trigger} type="button" aria-label={label} aria-haspopup="listbox" aria-expanded={open} disabled={disabled} onClick={() => setOpen((v) => !v)} data-tip={triggerTitle} className={customTrigger ? 'group/trigger cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default' : inlineFieldTriggerClass}>
         {customTrigger ?? <>
         {current?.icon}
         {current?.dot && <span className={`size-1.5 shrink-0 rounded-full ${current.dot}`} aria-hidden />}

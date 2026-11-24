@@ -4,6 +4,7 @@ import { Suspense, type ReactNode } from 'react';
 import { NavProgress } from '@/components/layout/nav-progress';
 import { ShellProvider, SIDEBAR_COOKIE } from '@/components/layout/shell';
 import { Sidebar } from '@/components/layout/sidebar';
+import { TooltipLayer } from '@/components/ui/tooltip';
 import { WorkspaceProvider } from '@/components/layout/workspace';
 import { authedDb, getSession } from '@/lib/auth';
 import { summarizeWhatsApp } from '@/lib/connections';
@@ -24,6 +25,7 @@ export default async function PainelLayout({ children }: { children: ReactNode }
     <ShellProvider initialCollapsed={collapsed}>
       <WorkspaceProvider id={workspace.id}>
         <Suspense><NavProgress /></Suspense>
+        <TooltipLayer />
         {/* A página não rola: o corpo tem a altura da tela e a rolagem acontece dentro dele. */}
         <div className="flex h-dvh overflow-hidden">
           <Sidebar
