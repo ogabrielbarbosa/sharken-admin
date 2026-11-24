@@ -3,7 +3,7 @@
 import type { PipelineResult } from '@lps/db';
 import { columnOf, dropMove, PIPELINE_COLUMNS, type Lead, type PipelineColumn } from '@lps/domain';
 import { useRouter } from 'next/navigation';
-import { completeInfoAction, discardAction, qualifyAction, setLeadResponsibleAction, stepBackAction } from '@/app/painel/batches/[id]/actions';
+import { completeInfoAction, discardAction, qualifyAction, restoreAction, setLeadResponsibleAction, stepBackAction } from '@/app/painel/batches/[id]/actions';
 import { useState, useTransition } from 'react';
 import { boardHref } from '@/lib/board-href';
 import type { Member } from '@/lib/members';
@@ -73,7 +73,7 @@ export function Board({ batchId, leads, contacts, query = '', openId, known = {}
   const [showDiscarded, setShowDiscarded] = useState(false);
   const router = useRouter();
   const { notice, run, pending } = useStageAction();
-  // Cartão sendo arrastado: as colunas uma etapa antes ou depois aceitam o cartão, e Descartados vira lixeira.
+  // Cartão sendo arrastado: as colunas uma etapa antes ou depois aceitam o cartão, e Descartados vira lixeira (menos para quem já está lá, que volta para as outras colunas).
   const [dragging, setDragging] = useState<Lead | null>(null);
 
   const dropOn = (column: PipelineColumn) => {
@@ -86,6 +86,7 @@ export function Board({ batchId, leads, contacts, query = '', openId, known = {}
       else if (move === 'completar') run(() => completeInfoAction(lead.id));
       else if (move === 'voltar') run(() => stepBackAction(lead.id, lead.stage as 'pagina' | 'video'));
       else if (move === 'descartar') run(() => discardAction([lead.id]));
+      else if (move === 'restaurar') run(() => restoreAction(lead.id, column));
       // Página → Vídeo e Vídeo → Pronto pedem um link: abre o modal do lead.
       else router.push(boardHref(batchId, query, lead.id), { scroll: false });
     };
@@ -127,7 +128,7 @@ export function Board({ batchId, leads, contacts, query = '', openId, known = {}
               onExpand={() => setShowDiscarded(true)}
               onCollapse={discarded ? () => setShowDiscarded(false) : undefined}
               empty={EMPTY[c.key]}
-              trash={discarded ? { armed: !!dragging, onDrop: dropOn('descartados') ?? (() => setDragging(null)) } : undefined}
+              trash={discarded ? { armed: !!dragging && columnOf(dragging.stage) !== 'descartados', onDrop: dropOn('descartados') ?? (() => setDragging(null)) } : undefined}
               target={!discarded && dropOn(c.key) ? { onDrop: dropOn(c.key)! } : undefined}
             >
               {list.map((lead) => (

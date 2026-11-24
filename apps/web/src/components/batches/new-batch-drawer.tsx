@@ -19,7 +19,6 @@ const criteriaFields = [
 const SITE_LABEL: Record<SiteRequirement, string> = { qualquer: 'Tanto faz', sem_site: 'Só quem não tem site', com_site: 'Só quem tem site' };
 const SOURCE_HINT: Record<BatchSource, string> = { instagram: 'Perfis achados pela busca do Google', maps: 'Lugares do Google Maps', instagram_profile: 'Seguidores e seguindo de um perfil' };
 const RELATIONS: ProfileRelation[] = ['following', 'followers'];
-const COUNTRIES = ['BR', 'US', 'PT', 'CA', 'GB', 'ES', 'FR', 'IT', 'DE', 'AR', 'MX', 'AU'].map((value) => ({ value, label: new Intl.DisplayNames('pt-BR', { type: 'region' }).of(value) ?? value }));
 
 type Variants = { options: string[]; chosen: string[]; saved: boolean };
 export type ProspectedRow = { id: string; location: string; locations: string[]; places?: Place[]; business_type: string; created_at: string; leads: number };
@@ -40,7 +39,7 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
   const [criteria, setCriteria] = useState<Record<string, string>>(
     Object.fromEntries(Object.entries(DEFAULT_CRITERIA).map(([k, v]) => [k, String(v)])),
   );
-  const [network, setNetwork] = useState({ profile: '', relations: ['following'] as ProfileRelation[], country: 'BR' });
+  const [network, setNetwork] = useState({ profile: '', relations: ['following'] as ProfileRelation[] });
   const [marks, setMarks] = useState({ requireInstagramActive: true, requirePhone: false, requireContact: false, site: 'qualquer' as SiteRequirement });
   const [niche, setNiche] = useState<Variants | null>(null);
   const [places, setPlaces] = useState<Record<string, Variants>>({});
@@ -191,9 +190,6 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
                 <Field label="Máximo de perfis por lista" hint={`Até ${perList}. Custa uns US$ 5 no Apify a cada 1.000 perfis (a lista e a leitura de cada um).`}>
                   <Input type="number" min={1} max={perList} value={where.quantity} onChange={(e) => setWhere({ ...where, quantity: e.target.value })} />
                 </Field>
-                <Field label="País dos perfis" hint="Para ler os telefones da bio.">
-                  <Select value={network.country} onValueChange={(c) => setNetwork({ ...network, country: c })} options={COUNTRIES} />
-                </Field>
                 <Field label="Tipo de negócio (opcional)" hint="Vale para quem não informa a categoria no perfil.">
                   <Input value={where.businessType} onChange={(e) => setWhere({ ...where, businessType: e.target.value })} />
                 </Field>
@@ -303,7 +299,6 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
                 <>
                   <Row label="Perfil" value={`@${handle}`} />
                   <Row label="Puxar" value={relationsLabel(network.relations)} />
-                  <Row label="País" value={COUNTRIES.find((c) => c.value === network.country)!.label} />
                 </>
               ) : <Row label="Cidades" value={locations.join(' + ')} />}
               {(!byProfile || where.businessType.trim()) && <Row label="Tipo de negócio" value={where.businessType} />}
@@ -320,7 +315,7 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
             <p className="text-xs text-muted-foreground">A busca roda em segundo plano. Você acompanha o andamento na lista de batches.</p>
             <input type="hidden" name="name" value={where.name} />
             <input type="hidden" name="source" value={source} />
-            {byProfile && <><input type="hidden" name="profile" value={handle ?? ''} /><input type="hidden" name="country" value={network.country} /><input type="hidden" name="requireContact" value={String(marks.requireContact)} />{network.relations.map((r) => <input key={r} type="hidden" name="relation" value={r} />)}</>}
+            {byProfile && <><input type="hidden" name="profile" value={handle ?? ''} /><input type="hidden" name="requireContact" value={String(marks.requireContact)} />{network.relations.map((r) => <input key={r} type="hidden" name="relation" value={r} />)}</>}
             {locations.map((l) => <input key={l} type="hidden" name="location" value={l} />)}
             <input type="hidden" name="businessType" value={where.businessType} />
             <input type="hidden" name="quantity" value={where.quantity} />

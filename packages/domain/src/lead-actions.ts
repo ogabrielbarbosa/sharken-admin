@@ -53,5 +53,6 @@ const LABELS: Record<string, string> = {
 
 export function describeEvent(event: { type: string; data?: unknown }): string {
   if (event.type === 'dados_editados') return describeChange(event.data as LeadChange);
+  if ((event.data as { restaurado?: boolean } | null | undefined)?.restaurado) return 'Voltou dos Descartados';
   return LABELS[event.type] ?? event.type.replace(/_/g, ' ');
 }

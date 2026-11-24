@@ -1,5 +1,6 @@
-import { canCompleteInfo, normalizeLinkUrl, parseLoomUrl, parsePageUrl, type Lead } from '@lps/domain';
+import { canCompleteInfo, normalizeLinkUrl, parseLoomUrl, parsePageUrl, type Lead, type PipelineColumn } from '@lps/domain';
 import type { Db } from './client';
+import { getContactContext } from './contact';
 import { createContactFromLead } from './contacts';
 import { getLead, moveLead, updateLead } from './leads';
 import { listAssets } from './lead-assets';
@@ -10,6 +11,7 @@ export const STALE = 'Este lead já mudou de etapa.';
 export const INVALID_LINK = 'Esse link não parece válido.';
 export const NOT_LOOM = 'Use um link do Loom (loom.com/share/…).';
 export const OTHER_LEAD_CONTACT = 'Este telefone já é contato de outro lead: os links mostrados no CRM são os dele.';
+export const BLOCKED_LEAD = 'Este negócio está na lista de não contatar.';
 
 const stale = (): PipelineResult => ({ ok: false, error: STALE });
 
@@ -65,5 +67,22 @@ export async function stepBack(db: Db, leadId: string, from: 'pagina' | 'video')
   const lead = await getLead(db, leadId);
   if (!lead || lead.stage !== from) return stale();
   await moveLead(db, lead, from === 'video' ? 'pagina' : 'completar');
+  return { ok: true };
+}
+
+const RESTORE_TO: Partial<Record<PipelineColumn, 'revisar' | 'completar' | 'pagina' | 'video'>> = { novo: 'revisar', qualificado: 'completar', pagina: 'pagina', video: 'video' };
+
+/** Descartado → de volta ao quadro. Página e Vídeo pedem o mesmo que no caminho normal. */
+export async function restoreLead(db: Db, leadId: string, column: PipelineColumn): Promise<PipelineResult> {
+  const to = RESTORE_TO[column];
+  const lead = await getLead(db, leadId);
+  if (!to || !lead || lead.stage !== 'descartado') return stale();
+  if ((await getContactContext(db, lead)).blocked) return { ok: false, error: BLOCKED_LEAD };
+  if (to === 'pagina' || to === 'video') {
+    const check = canCompleteInfo(lead, await listAssets(db, leadId));
+    if (!check.ok) return { ok: false, error: check.reason };
+  }
+  if (to === 'video' && !lead.page_url) return { ok: false, error: 'Este lead ainda não tem página. Solte em Página.' };
+  await moveLead(db, lead, to, { exit_reason: null }, { restaurado: true });
   return { ok: true };
 }

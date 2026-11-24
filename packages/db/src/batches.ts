@@ -40,7 +40,7 @@ export async function createBatch(db: Db, b: NewBatch): Promise<Batch> {
   return data as Batch;
 }
 
-export type NewProfileBatch = { name?: string; profile: string; relations: ProfileRelation[]; businessType: string; country: string; quantity: number; criteria: Criteria };
+export type NewProfileBatch = { name?: string; profile: string; relations: ProfileRelation[]; businessType: string; quantity: number; criteria: Criteria };
 
 /** Batch a partir de um perfil do Instagram: não tem cidade. `quantity` é o máximo de cada lista. */
 export async function createProfileBatch(db: Db, b: NewProfileBatch): Promise<Batch> {
@@ -56,7 +56,6 @@ export async function createProfileBatch(db: Db, b: NewProfileBatch): Promise<Ba
       source: 'instagram_profile',
       source_profile: b.profile,
       source_relations: b.relations,
-      country: b.country,
     })
     .select()
     .single();

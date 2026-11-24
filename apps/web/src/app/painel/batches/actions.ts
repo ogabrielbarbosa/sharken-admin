@@ -58,13 +58,11 @@ async function createFromProfile(form: FormData) {
   const asked = strings(form, 'relation');
   const relations = (['following', 'followers'] as ProfileRelation[]).filter((r) => asked.includes(r));
   if (!relations.length) throw new Error('Escolha seguindo, seguidores ou os dois.');
-  const country = String(form.get('country') ?? 'BR');
   const site = String(form.get('site') ?? 'qualquer') as SiteRequirement;
   return createProfileBatch(await authedDb(), {
     name: batchNameFrom(form),
     profile,
     relations,
-    country: /^[A-Z]{2}$/.test(country) ? country : 'BR',
     businessType: String(form.get('businessType') ?? ''),
     quantity: Math.min(Math.max(1, Math.floor(num(form, 'quantity')) || 1), Math.floor(MAX_NETWORK_PROFILES / relations.length)),
     criteria: { ...criteriaFrom(form, site), allowNoContact: form.get('requireContact') !== 'true' },

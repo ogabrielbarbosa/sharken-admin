@@ -30,7 +30,10 @@ export function phoneFromProfile(p: InstagramProfileData, country = 'BR'): { raw
     ...[p.businessPhoneNumber, p.publicPhoneNumber].filter((v): v is string => !!v).map((raw) => ({ raw, e164: toCountryMobile(raw, country) })),
     ...links.flatMap((l) => l.match(WHATSAPP)?.[1] ?? []).map((raw) => ({ raw, e164: toWhatsAppLinkMobile(raw, country) })),
     ...(country === 'BR'
-      ? (p.biography?.match(PHONE) ?? []).map((raw) => ({ raw, e164: toCountryMobile(raw, country) }))
+      ? [
+          ...(p.biography ? mobilesInText(p.biography) : []),
+          ...(p.biography?.match(PHONE) ?? []).map((raw) => ({ raw, e164: toCountryMobile(raw, country) })),
+        ]
       : mobilesInText(p.biography ?? '', country)),
   ];
   return candidates.find((c) => c.e164) ?? { raw: candidates[0]?.raw ?? null, e164: null };

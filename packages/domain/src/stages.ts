@@ -26,6 +26,8 @@ const NEXT: Partial<Record<LeadStage, LeadStage[]>> = {
   crm: ['vendido', 'sem_interesse'],
   // O contato perdido que volta a falar reabre o lead.
   sem_interesse: ['crm'],
+  // Descartado volta ao quadro; a página e o vídeo só com o que a etapa pede (`restoreLead`).
+  descartado: ['revisar', 'completar', 'pagina', 'video'],
 };
 
 const FINAL: LeadStage[] = ['vendido', 'descartado', 'sem_interesse', 'nao_contatar'];
@@ -38,17 +40,18 @@ export function canTransition(from: LeadStage, to: LeadStage): boolean {
 }
 
 /**
- * O que acontece ao soltar um cartão numa coluna do quadro. Só vale uma etapa para a frente ou para trás:
- * `qualificar`/`completar`/`voltar`/`descartar` rodam a ação da etapa; `abrir` abre o modal do lead,
+ * O que acontece ao soltar um cartão numa coluna do quadro. Só vale uma etapa para a frente ou para trás (um descartado volta até Vídeo):
+ * `qualificar`/`completar`/`voltar`/`descartar`/`restaurar` rodam a ação da etapa; `abrir` abre o modal do lead,
  * porque Página → Vídeo e Vídeo → Pronto precisam de um link. `null`: a coluna não aceita o cartão.
  */
-export type DropMove = 'qualificar' | 'completar' | 'abrir' | 'voltar' | 'descartar';
+export type DropMove = 'qualificar' | 'completar' | 'abrir' | 'voltar' | 'descartar' | 'restaurar';
 
 const DROPS: Partial<Record<LeadStage, Partial<Record<PipelineColumn, DropMove>>>> = {
   revisar: { qualificado: 'qualificar' },
   completar: { pagina: 'completar' },
   pagina: { video: 'abrir', qualificado: 'voltar' },
   video: { pronto: 'abrir', pagina: 'voltar' },
+  descartado: { novo: 'restaurar', qualificado: 'restaurar', pagina: 'restaurar', video: 'restaurar' },
 };
 
 export function dropMove(stage: LeadStage, column: PipelineColumn): DropMove | null {

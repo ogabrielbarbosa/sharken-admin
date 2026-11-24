@@ -81,6 +81,10 @@ describe('dropMove', () => {
     expect(dropMove('video', 'pronto')).toBe('abrir');
     expect(dropMove('video', 'pagina')).toBe('voltar');
     expect(dropMove('crm', 'descartados')).toBe('descartar');
+    for (const c of ['novo', 'qualificado', 'pagina', 'video'] as const) expect(dropMove('descartado', c)).toBe('restaurar');
+    expect(dropMove('descartado', 'pronto')).toBeNull();
+    expect(dropMove('descartado', 'descartados')).toBeNull();
+    expect(dropMove('nao_contatar', 'novo')).toBeNull();
   });
 
   it('não deixa pular etapa nem soltar na própria coluna', () => {

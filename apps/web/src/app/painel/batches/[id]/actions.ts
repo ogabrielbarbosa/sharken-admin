@@ -1,10 +1,10 @@
 'use server';
 
 import {
-  addAsset, addContactToLead, addManualLead, completeInfo, deleteAsset, deleteBatch, enqueueJob, getAsset, getBatch, getLead, listAssets, moveLead, qualifyLeads,
+  addAsset, addContactToLead, addManualLead, completeInfo, deleteAsset, deleteBatch, enqueueJob, getAsset, getBatch, getLead, listAssets, moveLead, qualifyLeads, restoreLead,
   savePageUrl, saveLoomUrl, STALE, setResponsible, stepBack, saveLeadNote, updateAsset, type Db, type PipelineResult,
 } from '@lps/db';
-import { canTransition, isAcceptedMime, manualLead, toMobileE164, MAX_ASSET_BYTES, normalizeLinkUrl, sanitizeFileName, type Lead } from '@lps/domain';
+import { canTransition, isAcceptedMime, manualLead, toMobileE164, MAX_ASSET_BYTES, normalizeLinkUrl, sanitizeFileName, type Lead, type PipelineColumn } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { authedDb, getSession } from '@/lib/auth';
@@ -104,6 +104,13 @@ export async function saveLoomUrlAction(leadId: string, url: string): Promise<Pi
 export async function stepBackAction(leadId: string, from: 'pagina' | 'video'): Promise<PipelineResult> {
   if (from !== 'pagina' && from !== 'video') return { ok: false, error: STALE };
   const result = await stepBack(await authedDb(), leadId, from);
+  refresh();
+  return result;
+}
+
+/** Descartado → coluna em que o cartão foi solto. */
+export async function restoreAction(leadId: string, column: PipelineColumn): Promise<PipelineResult> {
+  const result = await restoreLead(await authedDb(), leadId, column);
   refresh();
   return result;
 }
