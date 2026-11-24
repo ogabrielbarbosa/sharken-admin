@@ -34,6 +34,8 @@ export type Contact = {
   responsible_id: string | null;
   /** Quem definiu o responsável; nulo quando foi automático. */
   responsible_by: string | null;
+  /** Só na escrita: autor da mudança, para o log. O banco lê e zera. */
+  changed_by?: string | null;
   avatar_url: string | null;
   avatar_checked_at: string | null;
 };
@@ -45,8 +47,8 @@ export type Message = {
   id: string;
   created_at: string;
   contact_id: string;
-  /** `nota` é interna: aparece só no painel. */
-  direction: 'entrada' | 'saida' | 'nota';
+  /** `nota` e `log` são internos: aparecem só no painel. */
+  direction: 'entrada' | 'saida' | 'nota' | 'log';
   sent_from: 'painel' | 'celular' | null;
   /** Usuário que enviou pelo painel. Nulo nas recebidas, nas do celular e nas anteriores à migração 0026. */
   sent_by: string | null;
@@ -76,6 +78,21 @@ export type Message = {
   deleted_at: string | null;
 };
 
+export type ChatLog = { field: 'estado' | 'responsavel' | 'status'; from: string | null; to: string | null };
+
+/** O que impede a pessoa de responder direto: o estado do atendimento ou ele ser de outra pessoa. */
+export type AttendanceGate = 'pendente' | 'fechado' | 'outro_responsavel';
+
+export function attendanceGate(contact: Pick<Contact, 'chat_state' | 'responsible_id'>, userId: string): AttendanceGate | null {
+  if (contact.chat_state !== 'aberto') return contact.chat_state;
+  return contact.responsible_id === userId ? null : 'outro_responsavel';
+}
+
+/** Intervenção pontual: em pendente e fechado. No aberto de outra pessoa, só para quem não pode assumir (não é membro). */
+export function canIntervene(gate: AttendanceGate, isMember: boolean): boolean {
+  return gate !== 'outro_responsavel' || !isMember;
+}
+
 export type MessageKind = 'texto' | 'imagem' | 'audio' | 'video' | 'documento' | 'sticker' | 'localizacao' | 'contato' | 'enquete' | 'outro';
 
 export type MessageButton = { label: string; url?: string | null };
@@ -83,6 +100,8 @@ export type SharedContact = { name: string; phones: string[] };
 
 /** Tudo opcional: cada tipo usa o que precisa. Mensagens antigas têm meta vazio. */
 export type MessageMeta = {
+  /** Mudança registrada (direction = 'log'). `from` e `to`: estado, id do membro ou status. */
+  log?: ChatLog;
   /** Áudio e vídeo, em segundos. */
   seconds?: number;
   /** Áudio gravado na hora (mensagem de voz) e não um arquivo de áudio encaminhado. */

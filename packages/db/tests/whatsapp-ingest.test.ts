@@ -188,15 +188,15 @@ describe('estado do atendimento', () => {
     await ingestEvent(db, msg({ phoneE164: c.phone_e164 }), now);
     expect((await getContact(db, c.id))?.chat_state).toBe('aberto');
   });
-  it('mensagem enviada em atendimento fechado reabre', async () => {
+  it('mensagem enviada pelo celular em atendimento fechado reabre', async () => {
     const c = await mk('em_conversa', { chat_state: 'fechado' });
-    await insertMessage(db, { contact_id: c.id, direction: 'saida', sent_from: 'painel', kind: 'texto', body: 'Oi', status: 'enviada', at: now.toISOString() });
+    await insertMessage(db, { contact_id: c.id, direction: 'saida', sent_from: 'celular', kind: 'texto', body: 'Oi', status: 'enviada', at: now.toISOString() });
     expect((await getContact(db, c.id))?.chat_state).toBe('aberto');
   });
   it('setChatState só abre o que ainda está pendente', async () => {
     const c = await mk('em_conversa', { chat_state: 'pendente' });
-    expect(await setChatState(db, c.id, 'aberto', 'pendente')).toBe(true);
-    expect(await setChatState(db, c.id, 'aberto', 'pendente')).toBe(false);
+    expect(await setChatState(db, c.id, 'aberto', { from: 'pendente' })).toBe(true);
+    expect(await setChatState(db, c.id, 'aberto', { from: 'pendente' })).toBe(false);
     await setChatState(db, c.id, 'fechado');
     expect((await getContact(db, c.id))?.chat_state).toBe('fechado');
   });

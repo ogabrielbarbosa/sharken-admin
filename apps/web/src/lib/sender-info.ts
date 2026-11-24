@@ -9,10 +9,7 @@ export type SenderInfo = {
   seed: string;
   /** Nula na nota interna, que não passa pelo WhatsApp. */
   connection: string | null;
-  connectionPhone: string | null;
 };
-
-const phoneLabel = (phone: string | null | undefined) => (phone ? phone.replace(/^\+?55(\d{2})(\d{4,5})(\d{4})$/, '+55 $1 $2-$3') : null);
 
 /** Quem enviou a mensagem (ou escreveu a nota) e por qual conexão, para a foto e o card do chat. */
 export function senderInfo(
@@ -20,10 +17,9 @@ export function senderInfo(
   profiles: Record<string, MemberProfile>,
   connection: { name: string; avatar: string | null },
 ): SenderInfo {
-  const phone = phoneLabel(m.connection_phone);
   const via = m.direction === 'nota'
-    ? { connection: null, connectionPhone: null }
-    : { connection: m.connection_name || phone || 'não registrada', connectionPhone: m.connection_name ? phone : null };
+    ? { connection: null }
+    : { connection: m.connection_name || (m.connection_phone ? 'WhatsApp' : 'não registrada') };
   if (!m.sent_by) {
     const title = m.sent_from === 'celular' ? 'Enviada pelo celular' : 'Remetente não registrado';
     return { title, email: null, avatar: connection.avatar, avatarName: connection.name, seed: 'eu', ...via };

@@ -10,6 +10,7 @@ import {
   listEvents,
   listResponsibleEvents,
   listCatalog,
+  listChatLogs,
   listMessages,
   profilesOrEmpty,
   listQuickReplies,
@@ -29,10 +30,11 @@ import { NewContactDialog } from '@/components/crm/new-contact-dialog';
 import { CrmRealtime } from '@/components/crm/use-crm-realtime';
 import { Topbar } from '@/components/layout/topbar';
 import { authedDb, getSession, workspaceProfile } from '@/lib/auth';
-import { composerDraft, crmHref, duration, eventLabel, responsibleLabel, stopRequestPending } from '@/lib/crm';
+import { composerDraft, chatLogLabel, crmHref, eventLabel, responsibleLabel, stopRequestPending } from '@/lib/crm';
 import { listMembers } from '@/lib/members';
 import { flowLabel } from '@/lib/lead-labels';
 
+const MESSAGE_LIMIT = 200;
 const TABS: ChatState[] = ['aberto', 'pendente', 'fechado'];
 type Params = { aba?: string; contato?: string; texto?: string; q?: string; fechar?: string };
 
@@ -89,16 +91,17 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
         <div className="col-span-full hidden min-h-0 flex-col items-center justify-center gap-2 text-center lg:col-span-1 lg:flex xl:col-span-2">
           <span className="mb-1 rounded-full bg-secondary p-4"><MessageCircle className="size-7 text-muted-foreground" /></span>
           <p className="text-sm font-medium">{counts.pendente > 0 ? `${counts.pendente} atendimento${counts.pendente === 1 ? '' : 's'} pendente${counts.pendente === 1 ? '' : 's'}` : 'Escolha uma conversa'}</p>
-          <p className="max-w-xs text-xs text-muted-foreground">Abrir um pendente passa o atendimento para Abertos. Cada envio é um clique seu.</p>
+          <p className="max-w-xs text-xs text-muted-foreground">Clicar num pendente só mostra a conversa; abra o atendimento para responder. Cada envio é um clique seu.</p>
         </div>
       </>,
     );
   }
 
   const closing = params.fechar === '1' && selected.status !== 'nao_contatar';
-  const [lead, messages, dnc, existingClient] = await Promise.all([
+  const [lead, messages, logs, dnc, existingClient] = await Promise.all([
     selected.lead_id ? getLead(db, selected.lead_id) : null,
-    listMessages(db, selected.id, 200),
+    listMessages(db, selected.id, MESSAGE_LIMIT),
+    listChatLogs(db, selected.id),
     db.from('do_not_contact').select('phone_e164').in('phone_e164', phoneMatchCandidates(selected.phone_e164)).limit(1),
     closing ? clientByContact(db, selected.id) : null,
   ]);
@@ -110,7 +113,8 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     profilesOrEmpty(db, [user.id, ...messages.flatMap((m) => (m.sent_by ? [m.sent_by] : []))]),
   ]);
 
-  const gone = responsibleEvents.flatMap((e) => [e.to_id, e.by_id]).filter((id): id is string => !!id && !members.some((m) => m.id === id));
+  const gone = [selected.responsible_id, ...responsibleEvents.flatMap((e) => [e.to_id, e.by_id]), ...logs.flatMap((l) => [l.sent_by, ...(l.meta.log?.field === 'responsavel' ? [l.meta.log.from, l.meta.log.to] : [])])]
+    .filter((id): id is string => !!id && !members.some((m) => m.id === id));
   const past = await profilesOrEmpty(db, gone);
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? past.get(id)?.name ?? 'ex-membro';
 
@@ -118,6 +122,11 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
 
   const threadMessages: ThreadMessage[] = messages.map((m) => ({ ...m, mediaUrl: m.media_path ? (urls.get(m.media_path) ?? null) : null }));
   const firstAt = messages[0]?.at;
+  // Com a lista cortada no limite, logs de antes da primeira mensagem ficariam soltos no topo.
+  const timeline: ThreadMessage[] = [
+    ...threadMessages,
+    ...logs.filter((l) => l.meta.log && (messages.length < MESSAGE_LIMIT || l.at >= firstAt!)).map((l) => ({ ...l, logLabel: chatLogLabel(l.meta.log!, l.sent_by, nameOf) })),
+  ].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const legacy: LegacyLine[] = firstAt
     ? events.filter((e) => e.created_at < firstAt && e.type !== 'abertura').flatMap((e) => { const label = eventLabel(e); return label ? [{ at: e.created_at, label }] : []; }).reverse().slice(-12)
     : [];
@@ -163,10 +172,6 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     { key: 'meu_nome', label: 'Seu nome', value: profile.signer },
   ];
   const quickReplies = (await listQuickReplies(db, { onlyActive: true })).map((r) => ({ shortcut: r.shortcut, title: r.title, text: r.body }));
-  // 1ª resposta: da primeira mensagem recebida até a primeira enviada depois dela.
-  const firstIn = messages.find((m) => m.direction === 'entrada');
-  const replyAfter = firstIn ? messages.find((m) => m.direction === 'saida' && m.at > firstIn.at) : undefined;
-  const firstResponse = firstIn && replyAfter ? duration(new Date(replyAfter.at).getTime() - new Date(firstIn.at).getTime()) : null;
   const mediaMessages = threadMessages.filter((m) => m.kind !== 'texto' && m.direction !== 'nota');
   const notes = threadMessages.filter((m) => m.direction === 'nota');
 
@@ -178,7 +183,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
         <Conversation
           key={selected.id}
           contact={selected}
-          messages={threadMessages}
+          messages={timeline}
           legacy={legacy}
           now={now}
           draft={composerDraft({ contact: selected, lead, link, texto: params.texto, now, signer: profile.signer })}
@@ -191,6 +196,8 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           quickReplies={quickReplies}
           variables={variables}
           me={me}
+          responsibleName={selected.responsible_id ? nameOf(selected.responsible_id) : null}
+          isMember={members.some((m) => m.id === user.id)}
           profiles={Object.fromEntries(profiles)}
           tab={tab}
           searching={!!search}
@@ -204,7 +211,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           flowLabel={flow}
           history={history}
           closeHref={`${base}&contato=${selected.id}&fechar=1`}
-          firstResponse={firstResponse}
+          connectionName={me.connectionName}
           media={mediaMessages}
           notes={notes}
           now={now.toISOString()}

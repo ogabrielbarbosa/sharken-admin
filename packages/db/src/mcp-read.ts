@@ -272,7 +272,7 @@ export async function mcpGetChat(
   if (!contact) return null;
   // As N mais recentes, devolvidas em ordem cronológica (notas internas incluídas).
   const recent = check<Message[]>(await db.from('messages').select('*').in('workspace_id', ids).eq('contact_id', contactId)
-    .order('at', { ascending: false }).order('id').limit(clamp(limit, MESSAGES_LIMIT, MESSAGES_MAX)));
+    .neq('direction', 'log').order('at', { ascending: false }).order('id').limit(clamp(limit, MESSAGES_LIMIT, MESSAGES_MAX)));
   let lead: LeadSummary | null = null;
   if (contact.lead_id) {
     const row = check<SummaryRow | null>(await db.from('leads').select(SUMMARY_COLUMNS).in('workspace_id', ids).eq('id', contact.lead_id).maybeSingle());

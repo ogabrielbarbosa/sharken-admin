@@ -56,11 +56,11 @@ async function guarded<T>(fn: () => Promise<T>): Promise<Result<T extends object
 }
 
 /** Um clique, um contato. O erro volta como texto para a tela mostrar. `quotedExternalId`: reply a essa mensagem. */
-export async function sendMessageAction(contactId: string, body: string, clientMessageId: string, quotedExternalId: string | null = null) {
+export async function sendMessageAction(contactId: string, body: string, clientMessageId: string, quotedExternalId: string | null = null, intervention = false) {
   return guarded(async () => {
     if (!contactId || !text(body) || !clientMessageId) throw new Error('Escreva a mensagem antes de enviar.');
     const db = await authedDb();
-    const message = await sendMessage(db, await whatsapp(db), { contactId, text: body, clientMessageId, quotedExternalId, sender: (await getSession()).user }, new Date());
+    const message = await sendMessage(db, await whatsapp(db), { contactId, text: body, clientMessageId, quotedExternalId, intervention: intervention === true, sender: (await getSession()).user }, new Date());
     return { messageId: message.id };
   });
 }
@@ -81,7 +81,7 @@ export async function setStatusAction(contactId: string, to: string) {
     const db = await authedDb();
     const contact = await getContact(db, contactId);
     if (!contact) throw new Error('Contato não encontrado.');
-    await setContactStatus(db, contact, to as ContactStatus);
+    await setContactStatus(db, contact, to as ContactStatus, {}, (await getSession()).user.id);
   });
 }
 
@@ -124,7 +124,7 @@ export async function markInvalidNumberAction(contactId: string) {
     const contact = await getContact(db, contactId);
     if (!contact) throw new Error('Contato não encontrado.');
     if (contact.status === 'perdido') return; // já está perdido
-    await setContactStatus(db, contact, 'perdido', { motivo: INVALID_NUMBER_MESSAGE });
+    await setContactStatus(db, contact, 'perdido', { motivo: INVALID_NUMBER_MESSAGE }, (await getSession()).user.id);
     if (contact.lead_id) await updateLead(db, contact.lead_id, { exit_reason: INVALID_NUMBER_MESSAGE });
   });
 }
@@ -250,7 +250,7 @@ export async function closeDealAction(input: CloseDealInput): Promise<CloseDealR
     const fields = validateCloseDeal(clean);
     if (Object.keys(fields).length) return { ok: false, error: 'Corrija os campos marcados.', fields };
     const db = await authedDb();
-    const contractId = await closeDeal(db, clean);
+    const contractId = await closeDeal(db, clean, (await getSession()).user.id);
     const contract = await getContract(db, contractId);
     const service = contract && (await getService(db, contract.service_id));
     if (!service) throw new Error('Contrato não encontrado.');
@@ -264,16 +264,12 @@ export async function closeDealAction(input: CloseDealInput): Promise<CloseDealR
   }
 }
 
-/** Abrir um atendimento pendente: passa para aberto. Só muda se ainda estiver pendente. */
-export async function attendChatAction(contactId: string): Promise<Result> {
-  return guarded(async () => { await openChat(await authedDb(), contactId, (await getSession()).user.id, 'pendente'); });
-}
-
 export async function closeChatAction(contactId: string): Promise<Result> {
-  return guarded(async () => { await setChatState(await authedDb(), contactId, 'fechado'); });
+  return guarded(async () => { await setChatState(await authedDb(), contactId, 'fechado', { by: (await getSession()).user.id }); });
 }
 
-export async function reopenChatAction(contactId: string): Promise<Result> {
+/** Abre o atendimento (pendente ou fechado). Quem abre vira o responsável. */
+export async function openChatAction(contactId: string): Promise<Result> {
   return guarded(async () => { await openChat(await authedDb(), contactId, (await getSession()).user.id); });
 }
 
@@ -311,7 +307,7 @@ export async function sendMediaAction(form: FormData) {
     const message = await sendMessage(
       db,
       await whatsapp(db),
-      { contactId, text: text(form.get('caption')), clientMessageId, sender: (await getSession()).user, quotedExternalId: text(form.get('quotedExternalId')) || null, media: { kind, mime, base64: buffer.toString('base64'), fileName: file.name || `arquivo.${mediaExtension(mime)}`, path } },
+      { contactId, text: text(form.get('caption')), clientMessageId, sender: (await getSession()).user, intervention: form.get('intervention') === '1', quotedExternalId: text(form.get('quotedExternalId')) || null, media: { kind, mime, base64: buffer.toString('base64'), fileName: file.name || `arquivo.${mediaExtension(mime)}`, path } },
       new Date(),
     );
     return { messageId: message.id };

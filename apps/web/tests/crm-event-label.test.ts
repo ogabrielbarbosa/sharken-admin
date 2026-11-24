@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { eventLabel } from '@/lib/crm';
+import { chatLogLabel, eventLabel } from '@/lib/crm';
 
 const label = (type: string, data = {}) => eventLabel({ type, data });
 
@@ -51,4 +51,13 @@ it('novos rótulos', () => {
   expect(label('numero_invalido')).toBe('Número sem WhatsApp');
   expect(label('etapa_vendido')).toBe('Vendido');
   expect(label('pediu_para_parar')).toBe('Pediu para parar');
+});
+
+it('logs da conversa dizem quem mudou, de qual valor para qual', () => {
+  const name = (id: string) => ({ g: 'Gabriel', j: 'João Guilherme', a: 'Arthur' })[id] ?? id;
+  expect(chatLogLabel({ field: 'responsavel', from: 'j', to: 'a' }, 'g', name)).toBe('Gabriel alterou o responsável de João Guilherme para Arthur');
+  expect(chatLogLabel({ field: 'responsavel', from: null, to: 'a' }, 'g', name)).toBe('Gabriel definiu Arthur como responsável');
+  expect(chatLogLabel({ field: 'estado', from: 'pendente', to: 'aberto' }, 'g', name)).toBe('Gabriel abriu o atendimento (de Pendente para Aberto)');
+  expect(chatLogLabel({ field: 'estado', from: 'fechado', to: 'pendente' }, null, name)).toBe('Sistema marcou o atendimento como pendente (de Fechado para Pendente)');
+  expect(chatLogLabel({ field: 'status', from: 'novo', to: 'contatado' }, 'g', name)).toBe('Gabriel alterou o status de Novo para Contatado');
 });

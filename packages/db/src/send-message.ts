@@ -1,4 +1,6 @@
 import {
+  attendanceGate,
+  canIntervene,
   followUpDueAt,
   isDemoPhone,
   outreachKind,
@@ -16,6 +18,7 @@ import type { Db } from './client';
 import { getContact } from './contacts';
 import { logEvent } from './leads';
 import { findByExternalId, insertMessage, messagePreview } from './messages';
+import { workspaceOf } from './scope';
 
 /** Usuário logado que clicou em enviar. */
 export type MessageSender = { id: string; email: string };
@@ -65,6 +68,23 @@ async function getMessage(db: Db, id: string): Promise<Message> {
 
 const isUniqueViolation = (e: { message: string; code?: string }) => e.code === '23505' || /duplicate key/i.test(e.message);
 
+const GATE_MESSAGE = {
+  pendente: 'Atendimento pendente. Abra o atendimento para responder.',
+  fechado: 'Atendimento fechado. Abra o atendimento para responder.',
+  outro_responsavel: 'Este atendimento é de outra pessoa. Altere o responsável para responder.',
+} as const;
+
+async function assertCanReply(db: Db, contact: Contact, userId: string, intervention: boolean): Promise<void> {
+  const gate = attendanceGate(contact, userId);
+  if (!gate) return;
+  if (intervention) {
+    const { data, error } = await db.from('workspace_members').select('user_id').eq('workspace_id', workspaceOf(db) ?? '').eq('user_id', userId).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (canIntervene(gate, !!data)) return;
+  }
+  throw new Error(GATE_MESSAGE[gate]);
+}
+
 /**
  * Envio de uma mensagem, um contato por vez. Grava `pendente` antes de chamar o provedor (o eco do
  * webhook procura essa linha) e só mexe no contato e no lead depois que o provedor aceitou.
@@ -72,7 +92,7 @@ const isUniqueViolation = (e: { message: string; code?: string }) => e.code === 
 export async function sendMessage(
   db: Db,
   provider: Pick<WhatsAppProvider, 'sendText'> & Partial<Pick<WhatsAppProvider, 'sendMedia'>>,
-  input: { contactId: string; text: string; clientMessageId: string; media?: OutboundMedia & { path: string }; quotedExternalId?: string | null; sender?: MessageSender },
+  input: { contactId: string; text: string; clientMessageId: string; media?: OutboundMedia & { path: string }; quotedExternalId?: string | null; sender?: MessageSender; intervention?: boolean },
   now: Date,
 ): Promise<Message> {
   const text = input.text.trim();
@@ -87,6 +107,8 @@ export async function sendMessage(
   // Reenvio do mesmo clique (duplo clique, rede lenta): devolve o que já existe.
   const previous = await findByClientId(db, input.clientMessageId);
   if (previous) return previous;
+
+  if (input.sender) await assertCanReply(db, contact, input.sender.id, !!input.intervention);
 
   const kind = outreachKind(contact.status, !!contact.responded_at, await outreachCount(db, contact));
   const blocked = sendBlockReason(contact, {
@@ -155,7 +177,7 @@ export async function sendMessage(
     console.error('send-message: ligar external_id falhou', err);
   }
   try {
-    await applySendEffects(db, contact, pending.id, kind as SendKind, now);
+    await applySendEffects(db, contact, pending.id, kind as SendKind, now, input.sender?.id ?? null);
   } catch (err) {
     console.error('send-message: efeitos do envio falharam', err);
   }
@@ -166,13 +188,14 @@ export async function sendMessage(
   }
 }
 
-async function applySendEffects(db: Db, contact: Contact, messageId: string, kind: SendKind, now: Date) {
+async function applySendEffects(db: Db, contact: Contact, messageId: string, kind: SendKind, now: Date, by: string | null) {
   const patch: Partial<Contact> = {};
   let status = statusAfterSend(contact, kind);
   if (kind === 'follow_up' && ['novo', 'contatado', 'follow_up'].includes(contact.status)) status = 'follow_up';
   if (status !== contact.status) {
     patch.status = status;
     patch.status_at = now.toISOString();
+    patch.changed_by = by;
   }
   if (kind === 'primeiro') {
     patch.first_contact_at = contact.first_contact_at ?? now.toISOString();

@@ -77,7 +77,7 @@ export function SenderAvatar({ m, people }: { m: ThreadMessage; people: ThreadPe
             {info.connection && (
               <>
                 <dt className="text-muted-foreground">Conexão</dt>
-                <dd className="min-w-0 break-words">{info.connection}{info.connectionPhone && <span className="block text-muted-foreground">{info.connectionPhone}</span>}</dd>
+                <dd className="min-w-0 break-words">{info.connection}</dd>
               </>
             )}
             <dt className="text-muted-foreground">{m.direction === 'nota' ? 'Escrita' : 'Enviada'}</dt>

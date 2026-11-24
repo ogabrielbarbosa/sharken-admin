@@ -1,7 +1,7 @@
 'use client';
 
-import { ChevronDown, FileText, Image as ImageIcon, Loader2, Lock, LockOpen, Mic, Paperclip, PenLine, Reply, Send, Smile, Square, StickyNote, Trash2, X } from 'lucide-react';
-import { fillVariables, matchesQuickReply } from '@lps/domain';
+import { ChevronDown, FileText, Image as ImageIcon, Loader2, Lock, LockOpen, Mic, Paperclip, PenLine, Reply, Send, Smile, Square, StickyNote, Trash2, UserPlus, X } from 'lucide-react';
+import { fillVariables, matchesQuickReply, type AttendanceGate } from '@lps/domain';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ErrorNote } from '@/components/ui';
@@ -17,7 +17,6 @@ type Props = {
   templates: Template[];
   quickReplies: QuickReplyItem[];
   variables: Variable[];
-  senderPhone: string | null;
   signatureName: string;
   /** Este envio seria um primeiro contato. */
   firstContact: boolean;
@@ -30,9 +29,16 @@ type Props = {
   /** Mensagem sendo respondida (aparece numa faixa em cima do campo). */
   replyTo: { author: string; text: string } | null;
   onCancelReply: () => void;
-  /** Atendimento fechado: o campo fica coberto até abrir o atendimento. */
-  closed: boolean;
-  onReopen: () => Promise<void>;
+  /** O que bloqueia a mensagem (a nota segue livre). Nulo: campo liberado. */
+  gate: AttendanceGate | null;
+  responsibleName: string | null;
+  canTakeOver: boolean;
+  canIntervene: boolean;
+  /** Intervenção pontual em curso: o próximo envio não muda o atendimento. */
+  intervening: boolean;
+  onOpen: () => Promise<void>;
+  onTakeOver: () => Promise<void>;
+  onIntervene: () => void;
   /** Arquivo solto em cima da conversa; `n` muda a cada soltura. */
   droppedFile: { file: File; n: number } | null;
 };
@@ -62,8 +68,14 @@ function Popover({ children, className = '' }: { children: ReactNode; className?
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
+function gateText(gate: AttendanceGate, responsible: string | null): string {
+  if (gate === 'outro_responsavel') return `Atendimento de ${responsible ?? 'outra pessoa'}.`;
+  if (gate === 'fechado') return 'Atendimento fechado. Abra para responder.';
+  return responsible ? `Atendimento pendente, com ${responsible} como responsável.` : 'Atendimento pendente. Abra para responder.';
+}
+
 export function Composer(props: Props) {
-  const { initialText, blockReason, templates, quickReplies, variables, senderPhone, signatureName, firstContact, dailyCount, dailyLimit } = props;
+  const { initialText, blockReason, templates, quickReplies, variables, signatureName, firstContact, dailyCount, dailyLimit } = props;
   const [mode, setMode] = useState<'mensagem' | 'nota'>('mensagem');
   const [text, setText] = useState(initialText);
   const [error, setError] = useState<string | null>(null);
@@ -82,8 +94,8 @@ export function Composer(props: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const busy = useRef(false);
   const root = useRef<HTMLDivElement>(null);
-  const [reopening, setReopening] = useState(false);
-  const { replyTo, onCancelReply, closed, droppedFile } = props;
+  const [acting, setActing] = useState(false);
+  const { replyTo, onCancelReply, gate, responsibleName, intervening, droppedFile } = props;
 
   useEffect(() => {
     if (!menu) return;
@@ -96,7 +108,8 @@ export function Composer(props: Props) {
 
   const note = mode === 'nota';
   const blocked = !note && !!blockReason;
-  const canAttach = !note && !blocked && !closed;
+  const gated = !note && !!gate;
+  const canAttach = !note && !blocked && !gated;
 
   // Arquivo solto em cima da conversa vira anexo.
   useEffect(() => {
@@ -168,7 +181,7 @@ export function Composer(props: Props) {
   async function submit(andClose = false) {
     setMenu(null);
     const body = text.trim();
-    if (busy.current || closed) return;
+    if (busy.current || gated) return;
     if (note) {
       if (!body) return;
       busy.current = true;
@@ -227,29 +240,29 @@ export function Composer(props: Props) {
     recorder.current = null;
   };
 
-  const canSend = !closed && (note ? !!text.trim() : !blocked && (!!text.trim() || !!file));
+  const canSend = !gated && (note ? !!text.trim() : !blocked && (!!text.trim() || !!file));
 
   return (
     <div className="px-4 pb-4 pt-1">
       {error && <div className="mb-2"><ErrorNote>{error}</ErrorNote></div>}
       <div ref={root} className={`relative rounded-xl border shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-colors ${note ? 'border-amber-500/30 bg-amber-950/25' : 'border-border bg-card'}`}>
-        {/* Cabeçalho: Mensagem / Nota e o número que envia */}
+        {/* Cabeçalho: Mensagem / Nota */}
         <div className="flex items-center justify-between gap-3 px-3 pt-3">
           <div className="inline-flex rounded-lg border border-border bg-background/60 p-0.5 text-xs">
             <button type="button" onClick={() => setMode('mensagem')} className={`h-7 cursor-pointer rounded-md px-3 font-medium ${!note ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Mensagem</button>
             <button type="button" onClick={() => setMode('nota')} className={`h-7 cursor-pointer rounded-md px-3 font-medium ${note ? 'bg-amber-500/15 text-amber-300' : 'text-muted-foreground hover:text-foreground'}`}>Nota</button>
           </div>
           {note ? (
-            <span className="flex items-center gap-1.5 text-xs text-amber-300/80"><StickyNote className="size-3.5" />Visível só para você</span>
+            <span className="flex items-center gap-1.5 text-xs text-amber-300/80"><StickyNote className="size-3.5" />Visível só para a equipe</span>
           ) : blockReason ? (
             <span className="truncate text-xs text-destructive">{blockReason}</span>
-          ) : (
-            <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-              Enviando de <span className="font-medium text-foreground">{senderPhone ?? 'WhatsApp'}</span>
-              <Lock className="size-3" aria-label="Número conectado" />
-            </span>
-          )}
+          ) : intervening ? (
+            <span className="truncate text-xs text-warning">Intervenção pontual: vale para uma mensagem</span>
+          ) : null}
         </div>
+
+        <div className="relative">
+        <div inert={gated}>
 
         {/* Respondendo a uma mensagem */}
         {replyTo && !note && (
@@ -308,9 +321,9 @@ export function Composer(props: Props) {
               ref={area}
               aria-label={note ? 'Nota interna' : 'Mensagem'}
               rows={2}
-              disabled={blocked || closed}
+              disabled={blocked || gated}
               value={text}
-              placeholder={note ? 'Escreva uma nota interna. Só você vê.' : blocked ? '' : "'/' mensagem rápida · '$' variável"}
+              placeholder={note ? 'Escreva uma nota interna. O cliente não vê.' : blocked ? '' : "'/' mensagem rápida · '$' variável"}
               onChange={(e) => { setText(e.target.value); setCaret(e.target.selectionStart); }}
               onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
               onPaste={(e) => {
@@ -410,10 +423,10 @@ export function Composer(props: Props) {
                   <button type="button" disabled={!canSend} onClick={() => void submit()} className="press inline-flex cursor-pointer items-center gap-2 px-4 text-sm font-medium hover:bg-white/10 disabled:cursor-not-allowed [&:active:not(:disabled)_svg]:translate-x-0.5 [&:active:not(:disabled)_svg]:-translate-y-0.5 [&_svg]:transition-transform">
                     <Send className="size-4" />Enviar
                   </button>
-                  <span className="my-2 w-px bg-border" />
-                  <button type="button" aria-label="Mais opções de envio" disabled={!canSend} onClick={() => setMenu(menu === 'enviar' ? null : 'enviar')} className="inline-flex cursor-pointer items-center px-2 hover:bg-white/10 disabled:cursor-not-allowed">
+                  {!intervening && <span className="my-2 w-px bg-border" />}
+                  {!intervening && <button type="button" aria-label="Mais opções de envio" disabled={!canSend} onClick={() => setMenu(menu === 'enviar' ? null : 'enviar')} className="inline-flex cursor-pointer items-center px-2 hover:bg-white/10 disabled:cursor-not-allowed">
                     <ChevronDown className="size-4" />
-                  </button>
+                  </button>}
                 </div>
               )}
               {menu === 'enviar' && (
@@ -426,20 +439,31 @@ export function Composer(props: Props) {
           )}
         </div>
 
-        {/* Atendimento fechado: nada sai até abrir de novo (como no LíderHub). */}
-        {closed && (
-          <div className="absolute inset-0 z-40 flex animate-overlay-in items-center justify-between gap-3 rounded-xl bg-background/80 px-4 backdrop-blur-sm">
-            <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"><Lock className="size-4 shrink-0" />Atendimento fechado. Abra para enviar mensagens.</span>
-            <button
-              type="button"
-              disabled={reopening}
-              onClick={async () => { setReopening(true); try { await props.onReopen(); } finally { setReopening(false); } }}
-              className="press inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-brand px-4 text-sm font-medium text-white hover:bg-brand-bright disabled:cursor-wait disabled:opacity-70"
-            >
-              {reopening ? <Loader2 className="size-4 animate-spin" /> : <LockOpen className="size-4" />}Abrir atendimento
-            </button>
+        </div>
+        {/* Bloqueio da mensagem, no molde do LíderHub. As abas Mensagem / Nota seguem vivas em cima. */}
+        {gated && (
+          <div className="absolute inset-0 z-40 flex animate-overlay-in flex-col items-center justify-center gap-2 rounded-b-xl bg-card/85 px-4 backdrop-blur-[2px]">
+            <p className="flex max-w-full items-center gap-1.5 text-center text-xs text-muted-foreground"><Lock className="size-3.5 shrink-0" />{gateText(gate!, responsibleName)}</p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {(gate !== 'outro_responsavel' || props.canTakeOver) && (
+                <button
+                  type="button"
+                  disabled={acting}
+                  title={gate === 'outro_responsavel' ? 'Passa este atendimento para você' : 'Abre o atendimento com você como responsável'}
+                  onClick={async () => { setActing(true); try { await (gate === 'outro_responsavel' ? props.onTakeOver() : props.onOpen()); } finally { setActing(false); } }}
+                  className="press inline-flex h-8 cursor-pointer items-center gap-2 rounded-lg bg-brand px-3 text-sm font-medium text-white hover:bg-brand-bright disabled:cursor-wait disabled:opacity-70"
+                >
+                  {acting ? <Loader2 className="size-4 animate-spin" /> : gate === 'outro_responsavel' ? <UserPlus className="size-4" /> : <LockOpen className="size-4" />}
+                  {gate === 'outro_responsavel' ? 'Alterar responsável' : 'Abrir atendimento'}
+                </button>
+              )}
+              {props.canIntervene && (
+                <button type="button" disabled={acting} onClick={props.onIntervene} title="Envia uma única mensagem sem mudar o atendimento. O bloqueio volta depois do envio." className="press inline-flex h-8 cursor-pointer items-center rounded-lg border border-border px-3 text-sm font-medium hover:bg-accent">Intervenção pontual</button>
+              )}
+            </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

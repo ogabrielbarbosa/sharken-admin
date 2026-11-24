@@ -14,9 +14,10 @@ const base = {
   blockReason: null, templates: [], firstContact: false, dailyCount: 0, dailyLimit: 20,
   quickReplies: [{ shortcut: 'oi', title: 'Cumprimento', text: 'Oi, $primeiro_nome!' }],
   variables: [{ key: 'primeiro_nome', label: 'Primeiro nome', value: 'Ana' }, { key: 'link', label: 'Link', value: null }],
-  senderPhone: '+55 19 99999-0000', signatureName: 'Gabriel',
+  signatureName: 'Gabriel',
   onSend: vi.fn(async () => {}), onSendMedia: vi.fn(async () => {}), onNote: vi.fn(async () => true), onAfterSendClose: vi.fn(async () => {}),
-  replyTo: null, onCancelReply: vi.fn(), closed: false, onReopen: vi.fn(async () => {}), droppedFile: null,
+  replyTo: null, onCancelReply: vi.fn(), gate: null, responsibleName: null, canTakeOver: true, canIntervene: false, intervening: false,
+  onOpen: vi.fn(async () => {}), onTakeOver: vi.fn(async () => {}), onIntervene: vi.fn(), droppedFile: null,
 };
 
 describe('composerDraft', () => {
@@ -93,6 +94,29 @@ describe('Composer', () => {
     fireEvent.change(box, { target: { value: 'Veja $li', selectionStart: 8 } });
     fireEvent.keyDown(box, { key: 'Enter' });
     await waitFor(() => expect(box.value).toBe('Veja $link'));
+  });
+
+  it('pendente e fechado: abrir ou intervir; a nota segue livre', async () => {
+    const [onOpen, onIntervene, onNote] = [vi.fn(async () => {}), vi.fn(), vi.fn(async () => true)];
+    render(<Composer {...base} gate="pendente" responsibleName="Arthur" canIntervene onOpen={onOpen} onIntervene={onIntervene} onNote={onNote} initialText="Olá" />);
+    expect(screen.getByText(/Arthur/)).toBeTruthy();
+    expect((screen.getByLabelText('Mensagem') as HTMLTextAreaElement).disabled).toBe(true);
+    fireEvent.click(screen.getByText('Intervenção pontual'));
+    expect(onIntervene).toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Abrir atendimento'));
+    await waitFor(() => expect(onOpen).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'Nota' }));
+    expect(screen.queryByText('Abrir atendimento')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Salvar nota/ }));
+    await waitFor(() => expect(onNote).toHaveBeenCalledWith('Olá'));
+  });
+
+  it('aberto de outra pessoa: só alterar o responsável', async () => {
+    const onTakeOver = vi.fn(async () => {});
+    render(<Composer {...base} gate="outro_responsavel" responsibleName="Arthur" onTakeOver={onTakeOver} initialText="" />);
+    expect(screen.queryByText('Intervenção pontual')).toBeNull();
+    fireEvent.click(screen.getByText('Alterar responsável'));
+    await waitFor(() => expect(onTakeOver).toHaveBeenCalled());
   });
 
   it('nota salva sem enviar pelo WhatsApp, mesmo com o envio bloqueado', async () => {

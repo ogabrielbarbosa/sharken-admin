@@ -1,11 +1,11 @@
 'use client';
 
-import { canSetStatus, type ChatState, type Contact, type ContactStatus, type MemberProfile } from '@lps/domain';
-import { CheckCircle2, ChevronLeft, Paperclip, RotateCcw, ShieldAlert, X } from 'lucide-react';
+import { attendanceGate, canIntervene, canSetStatus, type ChatState, type Contact, type ContactStatus, type MemberProfile } from '@lps/domain';
+import { CheckCircle2, ChevronLeft, LockOpen, Paperclip, ShieldAlert, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import { attendChatAction, closeChatAction, markReadAction, reopenChatAction, retryMessageAction, saveNoteAction, sendMediaAction, sendMessageAction, setStatusAction } from '@/app/painel/crm/actions';
+import { closeChatAction, markReadAction, openChatAction, retryMessageAction, saveNoteAction, sendMediaAction, sendMessageAction, setChatResponsibleAction, setStatusAction } from '@/app/painel/crm/actions';
 import { Button, ErrorNote } from '@/components/ui';
 import { crmHref, STATUS_LABEL } from '@/lib/crm';
 import { Avatar } from './avatar';
@@ -29,6 +29,9 @@ export type ConversationProps = {
   quickReplies: QuickReplyItem[];
   variables: Variable[];
   me: { userId: string; email: string; name: string; avatar: string | null; phone: string | null; connectionName: string | null };
+  responsibleName: string | null;
+  /** Só membro pode ser responsável (o administrador da plataforma pode não ser). */
+  isMember: boolean;
   /** Perfil de quem enviou mensagens nesta conversa, por usuário. */
   profiles: Record<string, MemberProfile>;
   /** Aba aberta na lista. A aba acompanha o estado do atendimento desta conversa. */
@@ -37,7 +40,7 @@ export type ConversationProps = {
   searching: boolean;
 };
 
-export function Conversation({ contact, messages, legacy, now, draft, templates, blockReason, backHref, stopRequest, dailyCount, dailyLimit, quickReplies, variables, me, profiles, tab, searching }: ConversationProps) {
+export function Conversation({ contact, messages, legacy, now, draft, templates, blockReason, backHref, stopRequest, dailyCount, dailyLimit, quickReplies, variables, me, responsibleName, isMember, profiles, tab, searching }: ConversationProps) {
   const router = useRouter();
   const [optimistic, setOptimistic] = useState<ThreadMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +49,11 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
   const [dropped, setDropped] = useState<{ file: File; n: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
-  const closed = contact.chat_state === 'fechado';
+  const [intervening, setIntervening] = useState(false);
+  const gate = attendanceGate(contact, me.userId);
+  const gated = !!gate && !intervening;
+  // A intervenção vale para um envio e cai quando o atendimento muda.
+  useEffect(() => { setIntervening(false); }, [contact.chat_state, contact.responsible_id]);
   const lastInboundId = [...messages].reverse().find((m) => m.direction === 'entrada')?.id ?? null;
 
   // O servidor traz a mensagem real: o balão local sai assim que o clientMessageId aparece.
@@ -56,19 +63,9 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
   }, [serverIds]);
   const shown = useMemo(() => [...messages, ...optimistic.filter((m) => !serverIds.has(m.client_message_id))], [messages, optimistic, serverIds]);
 
-  // Abrir um atendimento pendente é atender: vai para Abertos.
-  useEffect(() => {
-    if (contact.chat_state !== 'pendente') return;
-    let cancelled = false;
-    void attendChatAction(contact.id).then((out) => {
-      if (!cancelled && out.ok) router.replace(crmHref('aberto', { contato: contact.id }), { scroll: false });
-    });
-    return () => { cancelled = true; };
-  }, [contact.id, contact.chat_state, router]);
-
   // A aba segue o estado: enviou num fechado (vira aberto), fechou, reabriu, chegou mensagem.
   useEffect(() => {
-    if (searching || contact.chat_state === 'pendente' || contact.chat_state === tab) return;
+    if (searching || contact.chat_state === tab) return;
     router.replace(crmHref(contact.chat_state, { contato: contact.id }), { scroll: false });
   }, [contact.id, contact.chat_state, tab, searching, router]);
 
@@ -79,10 +76,15 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
     router.replace(crmHref('fechado', { contato: contact.id }), { scroll: false });
   }
 
-  async function reopenChat() {
-    const out = await reopenChatAction(contact.id);
+  async function openChat() {
+    const out = await openChatAction(contact.id);
     if (!out.ok) return setError(out.error);
     router.replace(crmHref('aberto', { contato: contact.id }), { scroll: false });
+  }
+
+  async function takeOver() {
+    const out = await setChatResponsibleAction(contact.id, me.userId);
+    setError(out.ok ? null : out.error);
   }
 
   // Marca como lida ao abrir e a cada mensagem nova com a conversa aberta.
@@ -105,19 +107,23 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
   async function send(text: string, clientMessageId: string, again?: Quote): Promise<void> {
     setError(null);
     const quote = again ?? takeQuote();
+    const intervention = intervening && !again;
+    if (intervention) setIntervening(false);
     const local: ThreadMessage = {
       id: `local-${clientMessageId}`, created_at: new Date().toISOString(), contact_id: contact.id, direction: 'saida', sent_from: 'painel', sent_by: me.userId, sent_by_email: me.email, connection_phone: me.phone, connection_name: me.connectionName, kind: 'texto', body: text,
       media_path: null, media_mime: null, status: 'pendente', error: null, external_id: null, client_message_id: clientMessageId, is_first_contact: false, is_follow_up: false, at: new Date().toISOString(),
       meta: {}, reactions: [], edited_at: null, deleted_at: null, ...quote,
     };
     setOptimistic((list) => [...list, local]);
-    const out = await sendMessageAction(contact.id, text, clientMessageId, quote.quoted_external_id);
+    const out = await sendMessageAction(contact.id, text, clientMessageId, quote.quoted_external_id, intervention);
     if (!out.ok) setOptimistic((list) => list.map((m) => (m.client_message_id === clientMessageId ? { ...m, status: 'erro', error: out.error } : m)));
   }
 
   async function sendMedia(file: File, caption: string, asAudio: boolean, clientMessageId: string): Promise<void> {
     setError(null);
     const quote = takeQuote();
+    const intervention = intervening;
+    if (intervention) setIntervening(false);
     const kind = asAudio || file.type.startsWith('audio/') ? 'audio' : file.type.startsWith('image/') ? 'imagem' : file.type.startsWith('video/') ? 'video' : 'documento';
     const local: ThreadMessage = {
       id: `local-${clientMessageId}`, created_at: new Date().toISOString(), contact_id: contact.id, direction: 'saida', sent_from: 'painel', sent_by: me.userId, sent_by_email: me.email, connection_phone: me.phone, connection_name: me.connectionName, kind, body: caption || null,
@@ -131,6 +137,7 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
     form.set('caption', caption);
     form.set('file', file);
     if (asAudio) form.set('audio', '1');
+    if (intervention) form.set('intervention', '1');
     if (quote.quoted_external_id) form.set('quotedExternalId', quote.quoted_external_id);
     const out = await sendMediaAction(form);
     if (!out.ok) setOptimistic((list) => list.map((m) => (m.client_message_id === clientMessageId ? { ...m, status: 'erro', error: out.error } : m)));
@@ -183,7 +190,7 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
         if (file) setDropped({ file, n: Date.now() });
       }}
     >
-      {dragging && !closed && (
+      {dragging && !gated && (
         <div className="pointer-events-none absolute inset-2 z-50 flex animate-overlay-in flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand-border-strong bg-background/85 backdrop-blur-sm">
           <Paperclip className="size-7 text-brand-soft" />
           <p className="text-sm font-medium">Solte para anexar</p>
@@ -210,8 +217,8 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
           {contact.status === 'fechado' && <option value="fechado">{STATUS_LABEL.fechado.label}</option>}
           {options.map((s) => <option key={s} value={s}>{STATUS_LABEL[s].label}</option>)}
         </select>
-        {contact.chat_state === 'fechado' ? (
-          <Button variant="outline" onClick={() => void reopenChat()} title="Reabrir atendimento"><RotateCcw />Reabrir</Button>
+        {contact.chat_state !== 'aberto' ? (
+          <Button variant="outline" onClick={() => void openChat()} title="Abrir atendimento"><LockOpen />Abrir</Button>
         ) : (
           <Button variant="secondary" onClick={() => void closeChat()} title="Fechar atendimento"><CheckCircle2 />Fechar</Button>
         )}
@@ -229,7 +236,7 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
       )}
       {error && <div className="px-4 pt-3"><ErrorNote>{error}</ErrorNote></div>}
 
-      <Thread messages={shown} legacy={legacy} now={now} onRetry={(m) => void retry(m)} onReply={!closed && !blockReason ? setReplyTo : null} people={people} />
+      <Thread messages={shown} legacy={legacy} now={now} onRetry={(m) => void retry(m)} onReply={!gated && !blockReason ? setReplyTo : null} people={people} />
 
       <Composer
         key={contact.id}
@@ -241,7 +248,6 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
         dailyLimit={dailyLimit}
         quickReplies={quickReplies}
         variables={variables}
-        senderPhone={me.phone}
         signatureName={me.name}
         onSend={send}
         onSendMedia={sendMedia}
@@ -249,8 +255,14 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
         onAfterSendClose={closeChat}
         replyTo={replyTo ? { author: replyTo.direction === 'saida' ? 'você' : contact.name, text: messageLabel(replyTo) } : null}
         onCancelReply={() => setReplyTo(null)}
-        closed={closed}
-        onReopen={reopenChat}
+        gate={gated ? gate : null}
+        responsibleName={responsibleName}
+        canTakeOver={isMember}
+        canIntervene={!!gate && canIntervene(gate, isMember)}
+        intervening={!!gate && intervening}
+        onOpen={openChat}
+        onTakeOver={takeOver}
+        onIntervene={() => setIntervening(true)}
         droppedFile={dropped}
       />
     </section>

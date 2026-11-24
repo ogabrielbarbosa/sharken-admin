@@ -250,10 +250,12 @@ describe('quem enviou', () => {
   const bia = { id: '00000000-0000-4000-8000-00000000000b', email: 'bia@teste.com' };
 
   it('grava o usuário do envio e, no reenvio, quem clicou em tentar de novo', async () => {
-    const c = await mk('novo');
+    await pg.query(`insert into workspace_members (workspace_id, user_id, role) select id, u, 'member' from workspaces, unnest($1::uuid[]) u where slug = 'sharken'`, [[ana.id, bia.id]]);
+    const c = await mk('novo', { responsible_id: ana.id });
     await expect(sendMessage(db, failing(), { contactId: c.id, text: 'Oi!', clientMessageId: `c-${++n}`, sender: ana }, now)).rejects.toThrow();
     const [old] = await listMessages(db, c.id);
     expect(old).toMatchObject({ status: 'erro', sent_by: ana.id, sent_by_email: ana.email });
+    await updateContact(db, c.id, { responsible_id: bia.id });
     const again = await retryMessage(db, ok(), old!.id, `r-${++n}`, now, bia);
     expect(again).toMatchObject({ status: 'enviada', sent_by: bia.id, sent_by_email: bia.email });
   });

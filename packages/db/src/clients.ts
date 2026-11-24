@@ -110,8 +110,8 @@ export async function updateCharge(db: Db, id: string, patch: Partial<ChargeReco
 }
 
 /** Fechar negócio numa transação só (função close_deal). Devolve o id do contrato criado. */
-export async function closeDeal(db: Db, input: CloseDealInput) {
-  return unwrap<string>(await db.rpc('close_deal', { input: { ...input, workspace_id: workspaceOf(db) } }));
+export async function closeDeal(db: Db, input: CloseDealInput, by: string | null = null) {
+  return unwrap<string>(await db.rpc('close_deal', { input: { ...input, workspace_id: workspaceOf(db), changed_by: by } }));
 }
 
 export const OPTED_OUT_MESSAGE = 'Este contato pediu para não receber mensagens.';

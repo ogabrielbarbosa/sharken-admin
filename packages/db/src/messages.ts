@@ -39,7 +39,14 @@ export function messagePreview(m: Pick<Message, 'kind' | 'body'> & { meta?: Mess
 
 export async function listMessages(db: Db, contactId: string, limit = 200): Promise<Message[]> {
   // As mais recentes, devolvidas em ordem cronológica.
-  const { data, error } = await db.from('messages').select().eq('contact_id', contactId).order('at', { ascending: false }).limit(limit);
+  const { data, error } = await db.from('messages').select().eq('contact_id', contactId).neq('direction', 'log').order('at', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message);
+  return (data as Message[]).reverse();
+}
+
+/** Logs da conversa (estado, responsável, status), em ordem cronológica. À parte, para não tomar o limite das mensagens. */
+export async function listChatLogs(db: Db, contactId: string, limit = 200): Promise<Message[]> {
+  const { data, error } = await db.from('messages').select().eq('contact_id', contactId).eq('direction', 'log').order('at', { ascending: false }).limit(limit);
   if (error) throw new Error(error.message);
   return (data as Message[]).reverse();
 }

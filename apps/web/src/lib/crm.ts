@@ -1,4 +1,4 @@
-import { firstContactText, followUpText, looksLikeStopRequest, type Contact, type ContactStatus, type Lead, type Message } from '@lps/domain';
+import { firstContactText, followUpText, looksLikeStopRequest, type Contact, type ContactStatus, type ChatLog, type Lead, type Message } from '@lps/domain';
 import type { Tone } from '@/components/ui';
 
 export function crmHref(tab: 'aberto' | 'pendente' | 'fechado', extra: { contato?: string; q?: string } = {}) {
@@ -125,13 +125,20 @@ export function responsibleLabel(e: { to_id: string | null; by_id: string | null
   return `${to} · ${e.by_id ? `por ${nameOf(e.by_id)}` : 'automático'}`;
 }
 
-/** Duração curta: 12 min, 9 h 54, 3 d 4 h. */
-export function duration(ms: number): string {
-  const min = Math.max(0, Math.floor(ms / 60_000));
-  if (min < 60) return `${min} min`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h} h ${String(min % 60).padStart(2, '0')}`;
-  return `${Math.floor(h / 24)} d ${h % 24} h`;
+const CHAT_STATE_LABEL: Record<string, string> = { aberto: 'Aberto', pendente: 'Pendente', fechado: 'Fechado' };
+
+/** Texto do log na conversa: quem mudou, o quê, de qual valor para qual. */
+export function chatLogLabel(log: ChatLog, by: string | null, nameOf: (id: string) => string): string {
+  const who = by ? nameOf(by) : 'Sistema';
+  if (log.field === 'responsavel') {
+    if (!log.to) return `${who} removeu o responsável ${log.from ? nameOf(log.from) : ''}`.trim();
+    return log.from ? `${who} alterou o responsável de ${nameOf(log.from)} para ${nameOf(log.to)}` : `${who} definiu ${nameOf(log.to)} como responsável`;
+  }
+  const label = (v: string | null) => (log.field === 'estado' ? CHAT_STATE_LABEL[v ?? ''] : STATUS_LABEL[v as ContactStatus]?.label) ?? v ?? '—';
+  const change = `de ${label(log.from)} para ${label(log.to)}`;
+  if (log.field === 'status') return `${who} alterou o status ${change}`;
+  const verb = log.to === 'aberto' ? 'abriu o atendimento' : log.to === 'fechado' ? 'fechou o atendimento' : 'marcou o atendimento como pendente';
+  return `${who} ${verb} (${change})`;
 }
 
 /** Tempo relativo: há 33 minutos, há 2 horas, há 3 dias. */

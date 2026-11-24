@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, Ban, Calendar, Check, CheckCheck, Clock, Reply, RotateCcw, StickyNote } from 'lucide-react';
+import { AlertCircle, Ban, Calendar, Check, CheckCheck, Clock, History, Reply, RotateCcw, StickyNote } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { MemberProfile, Message } from '@lps/domain';
 import { clock, dayKey, dayLabel } from '@/lib/crm';
@@ -13,7 +13,7 @@ import { SenderAvatar, senderOf } from './sender-avatar';
 const urlCache = createUrlCache(20 * 3600_000);
 
 export type LegacyLine = { at: string; label: string };
-export type ThreadMessage = Message & { mediaUrl?: string | null };
+export type ThreadMessage = Message & { mediaUrl?: string | null; logLabel?: string };
 
 const KIND_LABEL: Record<Message['kind'], string> = {
   texto: 'Mensagem', imagem: '📷 Imagem', audio: '🎤 Áudio', video: '🎬 Vídeo', documento: '📄 Documento',
@@ -207,6 +207,14 @@ export function Thread({ messages, legacy, now, onRetry, onReply, people }: {
     if (day !== lastDay) {
       lastDay = day;
       items.push(<Pill key={`d-${keyOf(m)}`} icon={<Calendar />}>{dayLabel(m.at, now)}{m.is_first_contact ? ' · primeiro contato' : ''}</Pill>);
+    }
+    if (m.direction === 'log') {
+      if (m.logLabel) items.push(
+        <div key={keyOf(m)} className={`my-2 flex justify-center ${initial.current!.has(keyOf(m)) ? '' : 'animate-slide-up'}`}>
+          <p className="inline-flex max-w-[85%] items-center gap-1.5 rounded-lg px-2 py-0.5 text-center text-xs text-muted-foreground"><History className="size-3 shrink-0" aria-hidden /><span className="break-words">{m.logLabel} · {clock(m.at)}</span></p>
+        </div>,
+      );
+      return;
     }
     if (m.direction === 'nota') {
       items.push(<div key={keyOf(m)} className={initial.current!.has(keyOf(m)) ? '' : 'animate-slide-up'}><NoteBubble m={m} people={people} /></div>);

@@ -2,10 +2,11 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { createContact, getContact, setChatState } from '../src/contacts';
-import { insertMessage } from '../src/messages';
+import { createContact, getContact, setChatState, setContactStatus } from '../src/contacts';
+import { insertMessage, listChatLogs, listMessages } from '../src/messages';
 import { listResponsibleEvents, openChat, setResponsible } from '../src/responsible';
 import { scopeDb } from '../src/scope';
+import { sendMessage } from '../src/send-message';
 import { fakeDb } from './fake-db';
 
 const dir = join(import.meta.dirname, '../../../supabase/migrations');
@@ -40,6 +41,8 @@ beforeEach(async () => {
 });
 
 const mk = (extra: Partial<Parameters<typeof createContact>[1]> = {}) => createContact(db, { name: 'C', phone_e164: `5521900000${100 + ++n}`, origin: 'manual', status: 'novo', ...extra });
+/** O PGlite só conta milissegundos: separa os horários dos logs. */
+const tick = () => new Promise((r) => setTimeout(r, 3));
 const who = async (contact: string) => (await getContact(db, contact))?.responsible_id ?? null;
 const mkLead = async (responsible: string | null) => {
   const b = (await pg.query<{ id: string }>(`insert into batches (workspace_id, location, location_key, business_type, quantity, criteria) values ($1, 'x', 'x', 'y', 1, '{}') returning id`, [ws])).rows[0]!.id;
@@ -64,13 +67,13 @@ describe('responsável', () => {
     expect((await listResponsibleEvents(db, c.id)).map((e) => [e.from_id, e.to_id, e.by_id])).toEqual([[ana, owner, owner], [null, ana, ana]]);
   });
 
-  it('a primeira abertura usa o responsável do lead, e depois são independentes', async () => {
+  it('quem abre vira o responsável, mesmo com outro no lead, e depois são independentes', async () => {
     const lead = await mkLead(ana);
     const c = await mk({ chat_state: 'pendente', lead_id: lead });
     await openChat(db, c.id, owner, 'pendente');
-    expect(await who(c.id)).toBe(ana);
+    expect(await who(c.id)).toBe(owner);
     await setResponsible(db, 'leads', lead, null, owner);
-    expect(await who(c.id)).toBe(ana);
+    expect(await who(c.id)).toBe(owner);
   });
 
   it('aberto sem clique fica com o dono; quem não é membro não vira responsável', async () => {
@@ -82,13 +85,55 @@ describe('responsável', () => {
     await expect(setResponsible(db, 'contacts', c.id, null as never, owner)).rejects.toThrow('Escolha');
   });
 
-  it('enviar num fechado: pelo painel fica com quem enviou; pelo celular mantém o anterior', async () => {
+  it('enviar num fechado: pelo painel não abre (intervenção); pelo celular abre e mantém o anterior', async () => {
     const c = await mk({ chat_state: 'fechado' });
     await insertMessage(db, { contact_id: c.id, direction: 'saida', sent_from: 'painel', body: 'oi', sent_by: ana } as Parameters<typeof insertMessage>[1]);
-    expect(await getContact(db, c.id)).toMatchObject({ chat_state: 'aberto', responsible_id: ana });
+    expect(await getContact(db, c.id)).toMatchObject({ chat_state: 'fechado', responsible_id: null });
+    await openChat(db, c.id, ana);
     await setChatState(db, c.id, 'fechado');
     await insertMessage(db, { contact_id: c.id, direction: 'saida', sent_from: 'celular', body: 'oi 2' });
     expect(await getContact(db, c.id)).toMatchObject({ chat_state: 'aberto', responsible_id: ana });
+  });
+
+  it('cada mudança vira log com autor, de e para; sem autor é automática; histórico importado não gera log', async () => {
+    const c = await mk({ chat_state: 'pendente' });
+    const logs = async () => (await listChatLogs(db, c.id)).map((m) => [m.sent_by, m.meta.log!.field, m.meta.log!.from, m.meta.log!.to]);
+    await openChat(db, c.id, ana);
+    await tick();
+    await setResponsible(db, 'contacts', c.id, owner, ana);
+    await tick();
+    await setContactStatus(db, c, 'contatado', {}, ana);
+    await tick();
+    await setChatState(db, c.id, 'fechado', { by: owner });
+    await tick();
+    await insertMessage(db, { contact_id: c.id, direction: 'entrada', body: 'antiga', history: true });
+    const before = [
+      [ana, 'estado', 'pendente', 'aberto'], [ana, 'responsavel', null, ana], [ana, 'responsavel', ana, owner],
+      [ana, 'status', 'novo', 'contatado'], [owner, 'estado', 'aberto', 'fechado'],
+    ];
+    expect(await logs()).toEqual(before);
+    await insertMessage(db, { contact_id: c.id, direction: 'entrada', body: 'oi' });
+    expect(await logs()).toEqual([...before, [null, 'estado', 'fechado', 'pendente']]);
+    expect((await listMessages(db, c.id)).every((m) => m.direction !== 'log')).toBe(true);
+    expect(await getContact(db, c.id)).toMatchObject({ last_message_preview: 'oi', unread_count: 2 });
+  });
+
+  it('o servidor só deixa responder o responsável, ou uma intervenção pontual', async () => {
+    const provider = { sendText: async () => ({ externalId: `e-${++n}` }) };
+    const send = (c: string, user: string, intervention = false) => sendMessage(db, provider, { contactId: c, text: 'oi', clientMessageId: `g-${++n}`, sender: { id: user, email: 'a@x.com' }, intervention }, new Date());
+    const open = await mk({ chat_state: 'aberto', responsible_id: ana });
+    await expect(send(open.id, owner)).rejects.toThrow('outra pessoa');
+    await expect(send(open.id, owner, true)).rejects.toThrow('outra pessoa');
+    await send(open.id, ana);
+    const admin = await mk({ chat_state: 'aberto', responsible_id: ana });
+    await expect(send(admin.id, outsider)).rejects.toThrow('outra pessoa');
+    await send(admin.id, outsider, true);
+    for (const chat_state of ['pendente', 'fechado'] as const) {
+      const c = await mk({ chat_state, responsible_id: ana });
+      await expect(send(c.id, ana)).rejects.toThrow('Abra o atendimento');
+      await send(c.id, owner, true);
+      expect(await getContact(db, c.id)).toMatchObject({ chat_state, responsible_id: ana });
+    }
   });
 
   it('remover o membro passa os abertos ao dono e solta os leads; apagar o workspace funciona', async () => {

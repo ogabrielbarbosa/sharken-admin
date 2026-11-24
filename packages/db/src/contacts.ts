@@ -125,9 +125,9 @@ export async function countChats(db: Db): Promise<ChatCounts> {
 }
 
 /** Muda o estado do atendimento. `from` evita corrida: só muda se ainda estiver no estado esperado. */
-export async function setChatState(db: Db, id: string, to: ChatState, from?: ChatState): Promise<boolean> {
-  let query = db.from('contacts').update({ chat_state: to, chat_state_at: new Date().toISOString() }).eq('id', id);
-  if (from) query = query.eq('chat_state', from);
+export async function setChatState(db: Db, id: string, to: ChatState, opts: { from?: ChatState; by?: string } = {}): Promise<boolean> {
+  let query = db.from('contacts').update({ chat_state: to, chat_state_at: new Date().toISOString(), changed_by: opts.by ?? null }).eq('id', id);
+  if (opts.from) query = query.eq('chat_state', opts.from);
   const { data, error } = await query.select('id');
   if (error) throw new Error(error.message);
   return ((data as unknown[] | null) ?? []).length > 0;
@@ -180,14 +180,14 @@ async function hasOtherActiveContact(db: Db, leadId: string, exceptId: string): 
   return ((data as Pick<Contact, 'id' | 'status'>[] | null) ?? []).some((c) => c.id !== exceptId && c.status !== 'perdido' && c.status !== 'nao_contatar');
 }
 
-export async function setContactStatus(db: Db, contact: Pick<Contact, 'id' | 'status' | 'lead_id' | 'phone_e164'>, to: ContactStatus, eventData: object = {}): Promise<void> {
+export async function setContactStatus(db: Db, contact: Pick<Contact, 'id' | 'status' | 'lead_id' | 'phone_e164'>, to: ContactStatus, eventData: object = {}, by: string | null = null): Promise<void> {
   if (!canSetStatus(contact.status, to)) throw new Error(`Não dá para mudar de ${contact.status} para ${to}.`);
   if (to === 'nao_contatar') {
     // Primeiro o bloqueio: se o status falhar depois, o número já não recebe mensagem.
     const { error } = await db.from('do_not_contact').upsert({ phone_e164: contact.phone_e164, reason: 'pediu para não receber mensagens' }, { onConflict: 'phone_e164', ignoreDuplicates: true });
     if (error) throw new Error(error.message);
   }
-  const patch: Partial<Contact> = { status: to, status_at: new Date().toISOString() };
+  const patch: Partial<Contact> = { status: to, status_at: new Date().toISOString(), changed_by: by };
   if (to === 'perdido' || to === 'nao_contatar') patch.follow_up_at = null;
   await updateContact(db, contact.id, patch);
 

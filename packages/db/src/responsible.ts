@@ -19,7 +19,7 @@ export async function setResponsible(db: Db, table: 'leads' | 'contacts', id: st
     if (error) throw new Error(error.message);
     if (!data) throw new Error('Essa pessoa não é membro do workspace.');
   }
-  const { data, error } = await db.from(table).update({ responsible_id: userId, responsible_by: by }).eq('id', id).select('id');
+  const { data, error } = await db.from(table).update({ responsible_id: userId, responsible_by: by, ...(table === 'contacts' ? { changed_by: by } : {}) }).eq('id', id).select('id');
   if (error) throw new Error(error.message);
   if (!(data as unknown[] | null)?.length) throw new Error(table === 'leads' ? 'Lead não encontrado.' : 'Contato não encontrado.');
 }

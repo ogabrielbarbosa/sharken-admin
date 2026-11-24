@@ -3,12 +3,12 @@
 import { canSetStatus, type ChatState, type Contact, type ContactStatus, type Lead } from '@lps/domain';
 import {
   Ban, CalendarDays, Check, CircleDot, Clock3, Copy, Gauge, Handshake, History, Image as ImageIcon, Layers, MessageCircle, MessageSquareText,
-  Phone, Plug, Route, StickyNote, Tag, ThumbsDown, Timer, User, UserCheck,
+  Phone, Plug, Route, StickyNote, Tag, ThumbsDown, User, UserCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
-import { closeChatAction, renameContactAction, reopenChatAction, setChatResponsibleAction, saveLeadCommentAction, setStatusAction } from '@/app/painel/crm/actions';
+import { closeChatAction, renameContactAction, openChatAction, setChatResponsibleAction, saveLeadCommentAction, setStatusAction } from '@/app/painel/crm/actions';
 import { ErrorNote, type Tone } from '@/components/ui';
 import { ago, crmHref, formatPhone, STATUS_LABEL } from '@/lib/crm';
 import type { Member } from '@/lib/members';
@@ -27,7 +27,7 @@ export type PanelProps = {
   flowLabel: string | null;
   history: HistoryItem[];
   closeHref: string;
-  firstResponse: string | null;
+  connectionName: string | null;
   media: ThreadMessage[];
   notes: ThreadMessage[];
   now: string;
@@ -124,7 +124,7 @@ function EditableName({ contactId, name }: { contactId: string; name: string }) 
   );
 }
 
-export function ContactPanel({ contact, lead, origin, flowLabel, history, closeHref, firstResponse, media, notes, now: nowIso, members }: PanelProps) {
+export function ContactPanel({ contact, lead, origin, flowLabel, history, closeHref, connectionName, media, notes, now: nowIso, members }: PanelProps) {
   const router = useRouter();
   const now = new Date(nowIso);
   const [tab, setTab] = useState<Tab>('contato');
@@ -145,7 +145,7 @@ export function ContactPanel({ contact, lead, origin, flowLabel, history, closeH
   };
   const changeChat = (to: ChatState) => {
     if (to === 'fechado') run(() => closeChatAction(contact.id), () => router.push(crmHref('aberto')));
-    else run(() => reopenChatAction(contact.id), () => router.replace(crmHref('aberto', { contato: contact.id }), { scroll: false }));
+    else run(() => openChatAction(contact.id), () => router.replace(crmHref('aberto', { contato: contact.id }), { scroll: false }));
   };
   const copy = async () => {
     try { await navigator.clipboard.writeText(formatPhone(contact.phone_e164)); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* sem permissão */ }
@@ -196,8 +196,7 @@ export function ContactPanel({ contact, lead, origin, flowLabel, history, closeH
               <Row icon={<Tag />} label="Status">
                 <InlineSelect label="Status comercial" value={contact.status} options={statusOptions} disabled={pending || ended || contact.status === 'fechado'} onChange={changeStatus} />
               </Row>
-              <Row icon={<Plug />} label="Conexão"><Value>WhatsApp · Evolution</Value></Row>
-              <Row icon={<Timer />} label="1ª resposta"><Value>{firstResponse ?? '—'}</Value></Row>
+              <Row icon={<Plug />} label="Conexão"><Value>{connectionName ?? 'WhatsApp'}</Value></Row>
             </Section>
 
             <Section title="Contato">
