@@ -1,6 +1,6 @@
 'use client';
 
-import { canSetStatus, type ChatState, type Contact, type ContactStatus } from '@lps/domain';
+import { canSetStatus, type ChatState, type Contact, type ContactStatus, type MemberProfile } from '@lps/domain';
 import { CheckCircle2, ChevronLeft, Paperclip, RotateCcw, ShieldAlert, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -28,14 +28,16 @@ export type ConversationProps = {
   dailyLimit: number;
   quickReplies: QuickReplyItem[];
   variables: Variable[];
-  me: { userId: string; email: string; name: string; avatar: string | null; phone: string | null };
+  me: { userId: string; email: string; name: string; avatar: string | null; phone: string | null; connectionName: string | null };
+  /** Perfil de quem enviou mensagens nesta conversa, por usuário. */
+  profiles: Record<string, MemberProfile>;
   /** Aba aberta na lista. A aba acompanha o estado do atendimento desta conversa. */
   tab: ChatState;
   /** Com busca a lista mostra todas as abas: não troca de aba. */
   searching: boolean;
 };
 
-export function Conversation({ contact, messages, legacy, now, draft, templates, blockReason, backHref, stopRequest, dailyCount, dailyLimit, quickReplies, variables, me, tab, searching }: ConversationProps) {
+export function Conversation({ contact, messages, legacy, now, draft, templates, blockReason, backHref, stopRequest, dailyCount, dailyLimit, quickReplies, variables, me, profiles, tab, searching }: ConversationProps) {
   const router = useRouter();
   const [optimistic, setOptimistic] = useState<ThreadMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +106,7 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
     setError(null);
     const quote = again ?? takeQuote();
     const local: ThreadMessage = {
-      id: `local-${clientMessageId}`, created_at: new Date().toISOString(), contact_id: contact.id, direction: 'saida', sent_from: 'painel', sent_by: me.userId, sent_by_email: me.email, kind: 'texto', body: text,
+      id: `local-${clientMessageId}`, created_at: new Date().toISOString(), contact_id: contact.id, direction: 'saida', sent_from: 'painel', sent_by: me.userId, sent_by_email: me.email, connection_phone: me.phone, connection_name: me.connectionName, kind: 'texto', body: text,
       media_path: null, media_mime: null, status: 'pendente', error: null, external_id: null, client_message_id: clientMessageId, is_first_contact: false, is_follow_up: false, at: new Date().toISOString(),
       meta: {}, reactions: [], edited_at: null, deleted_at: null, ...quote,
     };
@@ -118,7 +120,7 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
     const quote = takeQuote();
     const kind = asAudio || file.type.startsWith('audio/') ? 'audio' : file.type.startsWith('image/') ? 'imagem' : file.type.startsWith('video/') ? 'video' : 'documento';
     const local: ThreadMessage = {
-      id: `local-${clientMessageId}`, created_at: new Date().toISOString(), contact_id: contact.id, direction: 'saida', sent_from: 'painel', sent_by: me.userId, sent_by_email: me.email, kind, body: caption || null,
+      id: `local-${clientMessageId}`, created_at: new Date().toISOString(), contact_id: contact.id, direction: 'saida', sent_from: 'painel', sent_by: me.userId, sent_by_email: me.email, connection_phone: me.phone, connection_name: me.connectionName, kind, body: caption || null,
       media_path: null, media_mime: file.type, status: 'pendente', error: null, external_id: null, client_message_id: clientMessageId, is_first_contact: false, is_follow_up: false,
       at: new Date().toISOString(), mediaUrl: URL.createObjectURL(file), meta: {}, reactions: [], edited_at: null, deleted_at: null, ...quote,
     };
@@ -162,7 +164,7 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
     if (!out.ok) setError(out.error);
   }
 
-  const people: ThreadPeople = { contactName: contact.name, contactAvatar: contact.avatar_url, contactSeed: contact.id, meName: me.name, meAvatar: me.avatar };
+  const people: ThreadPeople = { contactName: contact.name, contactAvatar: contact.avatar_url, contactSeed: contact.id, meName: me.name, meAvatar: me.avatar, profiles };
   const options = MANUAL_STATUSES.filter((s) => s === contact.status || canSetStatus(contact.status, s));
 
   return (

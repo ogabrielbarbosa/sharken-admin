@@ -448,7 +448,7 @@ function OtherContent({ m }: { m: M }) {
 
 // ── Entrada ──────────────────────────────────────────────────────────────────────────────────────
 
-export type ContentPeople = { me: { name: string; src: string | null }; contact: { name: string; src: string | null; seed: string } };
+export type ContentPeople = { me: { name: string; src: string | null; seed: string }; contact: { name: string; src: string | null; seed: string } };
 
 /** Mídia e cartões do balão. O texto (legenda, corpo) fica com o balão. */
 export function MessageContent({ m, mine, people }: { m: M; mine: boolean; people: ContentPeople }) {
@@ -470,7 +470,7 @@ export function MessageContent({ m, mine, people }: { m: M; mine: boolean; peopl
       // eslint-disable-next-line @next/next/no-img-element
       return m.mediaUrl ? <img src={m.mediaUrl} alt="Figurinha" className="size-36 object-contain drop-shadow" /> : <span className="flex size-36 items-center justify-center rounded-2xl bg-white/5 text-muted-foreground"><Smile className="size-8" /></span>;
     case 'audio': {
-      const avatar = mine ? { ...people.me, seed: 'eu' } : people.contact;
+      const avatar = mine ? people.me : people.contact;
       return <AudioPlayer m={m} mine={mine} avatar={avatar} />;
     }
     case 'video':

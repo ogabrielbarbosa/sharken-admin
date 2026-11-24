@@ -9,7 +9,7 @@ import {
   listChats,
   listEvents,
   listCatalog,
-  listMessages,
+  listMessages, listProfiles,
   listQuickReplies,
   markStalePending,
   outreachCount,
@@ -52,7 +52,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     listChats(db, { state: search ? null : tab, search }),
     countChats(db),
     firstContactsToday(db, now),
-    db.from('whatsapp_connection').select('state, phone, profile_pic_url').maybeSingle(),
+    db.from('whatsapp_connection').select('state, phone, profile_name, profile_pic_url').maybeSingle(),
     params.contato ? getContact(db, params.contato) : Promise.resolve(null),
   ]);
   const connectionInfo: ConnectionInfo = {
@@ -98,10 +98,11 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     db.from('do_not_contact').select('phone_e164').in('phone_e164', phoneMatchCandidates(selected.phone_e164)).limit(1),
     closing ? clientByContact(db, selected.id) : null,
   ]);
-  const [events, batch, urls] = await Promise.all([
+  const [events, batch, urls, profiles] = await Promise.all([
     selected.lead_id ? listEvents(db, selected.lead_id) : [],
     selected.batch_id ? getBatch(db, selected.batch_id) : null,
     mediaUrls(db, messages as ThreadMessage[]),
+    listProfiles(db, [user.id, ...messages.flatMap((m) => (m.sent_by ? [m.sent_by] : []))]),
   ]);
 
   const link = lead?.page_url ?? null;
@@ -139,7 +140,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
   }
 
   const phoneLabel = connectionInfo.phone ? connectionInfo.phone.replace(/^\+?55(\d{2})(\d{4,5})(\d{4})$/, '+55 $1 $2-$3') : null;
-  const me = { userId: user.id, email: user.email, name: profile.signer, avatar: (connectionRow.data?.profile_pic_url as string | null | undefined) ?? null, phone: phoneLabel };
+  const me = { userId: user.id, email: user.email, name: profile.signer, avatar: (connectionRow.data?.profile_pic_url as string | null | undefined) ?? null, phone: phoneLabel, connectionName: (connectionRow.data?.profile_name as string | null | undefined) ?? null };
   const variables: Variable[] = [
     { key: 'nome', label: 'Nome do contato', value: selected.name },
     { key: 'primeiro_nome', label: 'Primeiro nome', value: selected.name.split(/\s+/)[0] ?? null },
@@ -178,6 +179,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           quickReplies={quickReplies}
           variables={variables}
           me={me}
+          profiles={Object.fromEntries(profiles)}
           tab={tab}
           searching={!!search}
         />
