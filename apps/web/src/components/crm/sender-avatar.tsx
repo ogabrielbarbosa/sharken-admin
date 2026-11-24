@@ -13,7 +13,8 @@ const stable = (url: string | null) => (url ? urlCache.resolve(url.split('?')[0]
 
 export function senderOf(m: ThreadMessage, people: ThreadPeople) {
   const info = senderInfo(m, people.profiles, { name: people.meName, avatar: people.meAvatar });
-  return { ...info, avatar: stable(info.avatar) };
+  // A foto do WhatsApp expira pela própria URL: essa segue a mais nova.
+  return m.sent_by ? { ...info, avatar: stable(info.avatar) } : info;
 }
 
 const sentAt = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });

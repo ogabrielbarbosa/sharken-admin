@@ -250,6 +250,18 @@ describe('importHistory', () => {
     expect((await getContact(db, named.id))!.name).toBe('Fulano');
   });
 
+  it('não atribui a conexão atual ao que foi enviado antes da importação', async () => {
+    const p = phone();
+    const { rows } = await pg.query<{ id: string }>(`insert into workspaces (name, slug) values ('h', 'ws-historico') returning id`);
+    const ws = scopeDb(db, rows[0]!.id);
+    await ingestEvent(ws, { kind: 'connection', state: 'conectado', phone: '5511900000000' } as WhatsAppEvent, now);
+    await importHistory(ws, [msg({ phoneE164: p, fromMe: true, text: 'antiga' })], now);
+    await ingestEvent(ws, msg({ phoneE164: p, fromMe: true, text: 'nova' }), now);
+    const list = await listMessages(ws, (await findContactByPhone(ws, p))!.id);
+    expect(list.find((m) => m.body === 'antiga')!.connection_phone).toBeNull();
+    expect(list.find((m) => m.body === 'nova')!.connection_phone).toBe('5511900000000');
+  });
+
   it('contato que já existia também termina fechado', async () => {
     const c = await mk('contatado', { chat_state: 'aberto' });
     await importHistory(db, [msg({ phoneE164: c.phone_e164, text: 'voltei' })], now);

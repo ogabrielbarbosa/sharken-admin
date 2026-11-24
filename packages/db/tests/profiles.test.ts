@@ -4,7 +4,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createContact } from '../src/contacts';
 import { insertMessage, listMessages } from '../src/messages';
-import { listProfiles, saveProfile, uploadAvatar } from '../src/profiles';
+import { listProfiles, profilesOrEmpty, saveProfile, uploadAvatar } from '../src/profiles';
 import { scopeDb } from '../src/scope';
 import { setConnection } from '../src/whatsapp-ingest';
 import { fakeDb } from './fake-db';
@@ -42,6 +42,11 @@ describe('perfil do usuário', () => {
     await saveProfile(db, ana, { name: 'Ana Lima' });
     expect((await listProfiles(db, [ana, ana])).get(ana)).toEqual({ userId: ana, name: 'Ana Lima', avatarUrl: 'https://x/a/1' });
     expect((await listProfiles(db, [])).size).toBe(0);
+  });
+  it('falha na leitura não derruba quem só quer mostrar a foto', async () => {
+    const broken = { from: () => ({ select: () => ({ in: async () => ({ data: null, error: { message: 'sem tabela' } }) }) }) } as unknown as typeof db;
+    await expect(listProfiles(broken, [ana])).rejects.toThrow('sem tabela');
+    expect((await profilesOrEmpty(broken, [ana])).size).toBe(0);
   });
   it('sobe só imagem de verdade e até 2 MB', async () => {
     const path = await uploadAvatar(db, ana, png);

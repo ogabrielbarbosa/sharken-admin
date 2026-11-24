@@ -18,6 +18,16 @@ export async function listProfiles(db: Db, userIds: string[]): Promise<Map<strin
   return new Map(rows.map((r) => [r.user_id, { userId: r.user_id, name: r.name, avatarUrl: (r.avatar_path && urls.get(r.avatar_path)) || null }]));
 }
 
+/** Para telas em que o perfil é só enfeite: sem ele, aparecem o e-mail e as iniciais. */
+export async function profilesOrEmpty(db: Db, userIds: string[]): Promise<Map<string, MemberProfile>> {
+  try {
+    return await listProfiles(db, userIds);
+  } catch (err) {
+    console.error('perfis_falharam', (err as Error).message);
+    return new Map();
+  }
+}
+
 /** Grava só o que veio: salvar o nome não mexe na foto. */
 export async function saveProfile(db: Db, userId: string, patch: { name?: string; avatarPath?: string | null }): Promise<void> {
   const row: Record<string, unknown> = { user_id: userId, updated_at: new Date().toISOString() };

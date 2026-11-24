@@ -23,7 +23,8 @@ declare
   conn_phone text;
   conn_name text;
 begin
-  if p->>'direction' = 'saida' then
+  -- Histórico importado pode ter saído por outro número: fica sem conexão.
+  if p->>'direction' = 'saida' and not coalesce((p->>'history')::boolean, false) then
     select w.phone, w.profile_name into conn_phone, conn_name
     from contacts c join whatsapp_connection w on w.workspace_id = c.workspace_id
     where c.id = (p->>'contact_id')::uuid;

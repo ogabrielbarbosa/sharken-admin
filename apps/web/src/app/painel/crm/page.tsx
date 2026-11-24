@@ -9,7 +9,8 @@ import {
   listChats,
   listEvents,
   listCatalog,
-  listMessages, listProfiles,
+  listMessages,
+  profilesOrEmpty,
   listQuickReplies,
   markStalePending,
   outreachCount,
@@ -102,7 +103,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     selected.lead_id ? listEvents(db, selected.lead_id) : [],
     selected.batch_id ? getBatch(db, selected.batch_id) : null,
     mediaUrls(db, messages as ThreadMessage[]),
-    listProfiles(db, [user.id, ...messages.flatMap((m) => (m.sent_by ? [m.sent_by] : []))]),
+    profilesOrEmpty(db, [user.id, ...messages.flatMap((m) => (m.sent_by ? [m.sent_by] : []))]),
   ]);
 
   const link = lead?.page_url ?? null;

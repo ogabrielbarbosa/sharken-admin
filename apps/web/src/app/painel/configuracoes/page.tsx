@@ -5,6 +5,7 @@ import { Archive, ArchiveRestore, Building2, Radar, Check, Clock, CreditCard, Lo
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { WhatsAppConnection, whatsappIntro } from '@/components/connections/whatsapp-connection';
+import { AvatarInput } from '@/components/settings/avatar-input';
 import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
 import { Avatar } from '@/components/crm/avatar';
 import { Topbar } from '@/components/layout/topbar';
@@ -154,7 +155,7 @@ function ProfileForm({ userId, profile }: { userId: string; profile?: MemberProf
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Nome"><Input name="name" defaultValue={profile?.name ?? ''} minLength={2} maxLength={80} required /></Field>
         <Field label="Foto" hint="JPG, PNG ou WebP, até 2 MB">
-          <input name="avatar" type="file" accept="image/jpeg,image/png,image/webp" className="block w-full text-sm text-muted-foreground file:mr-3 file:h-9 file:cursor-pointer file:rounded-md file:border-0 file:bg-secondary file:px-3 file:text-sm file:text-foreground" />
+          <AvatarInput />
         </Field>
       </div>
       {profile?.avatarUrl && <label className="flex items-center gap-2 text-sm text-muted-foreground"><input type="checkbox" name="remove_avatar" />Remover a foto atual</label>}

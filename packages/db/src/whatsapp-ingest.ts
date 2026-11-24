@@ -179,6 +179,7 @@ async function ingestMessage(db: Db, e: MessageEvent, now: Date, history = false
     at: e.at.toISOString(),
     quoted_external_id: e.quoted?.externalId ?? null,
     quoted_preview: quotedPreview,
+    history,
   });
   if (!row) {
     // Já estava no CRM: no histórico, completa os detalhes de mensagens gravadas antes de existirem (meta vazio).
