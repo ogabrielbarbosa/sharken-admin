@@ -26,7 +26,8 @@ export type ApifyPlace = {
 export type LeadReview = { text: string; stars: number };
 
 export type NewLead = {
-  batch_id: string;
+  /** Null no lead cadastrado sem batch. */
+  batch_id: string | null;
   /** Null quando o lead veio do Instagram (sem lugar no Google Maps). */
   place_id: string | null;
   name: string;
@@ -44,12 +45,13 @@ export type NewLead = {
   photos: string[];
   reviews: LeadReview[];
   website_url: string | null;
+  maps_url?: string | null;
   instagram_url?: string | null;
   instagram_last_post_at?: string | null;
   email?: string | null;
 };
 
-export function mapPlaceToLead(place: ApifyPlace, batchId: string, country = 'BR'): NewLead {
+export function mapPlaceToLead(place: ApifyPlace, batchId: string | null, country = 'BR'): NewLead {
   const phone = place.phone ?? place.phoneUnformatted ?? null;
   return {
     batch_id: batchId,

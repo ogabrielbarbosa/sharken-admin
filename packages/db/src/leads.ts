@@ -23,8 +23,17 @@ export async function getLeadsByIds(db: Db, ids: string[]): Promise<Lead[]> {
   return out;
 }
 
+/** "Leads sem batch": a linha fixa de Batches, com quadro próprio. */
+export const NO_BATCH = 'sem';
+
+/** Leads que não estão em nenhum batch, com a etapa de cada um. */
+export function listNoBatchStages(db: Db): Promise<{ id: string; stage: LeadStage }[]> {
+  return fetchAll((from, to) => db.from('leads').select('id, stage, found:batch_leads(batch_id)').is('found', null).order('id').range(from, to)) as unknown as Promise<{ id: string; stage: LeadStage }[]>;
+}
+
 /** Ids dos leads que o batch encontrou (os novos e os que já eram conhecidos). */
 export async function batchLeadIds(db: Db, batchId: string): Promise<string[]> {
+  if (batchId === NO_BATCH) return (await listNoBatchStages(db)).map((l) => l.id);
   const rows = await fetchAll<{ lead_id: string }>((from, to) => db.from('batch_leads').select('lead_id').eq('batch_id', batchId).order('lead_id').range(from, to));
   return rows.map((r) => r.lead_id);
 }
@@ -122,9 +131,10 @@ const withKeys = (l: Lead) => ({ ...l, ...keysOf(l) });
  * Grava o que uma busca achou, cruzando com os leads do workspace por place_id, @ do Instagram, domínio e telefone.
  * Quem já existe ganha o que faltava (sem mudar de etapa) e passa a aparecer também neste batch, como já conhecido.
  */
-export async function importLeads(db: Db, leads: NewLead[]): Promise<{ inserted: number; updated: number; known: number }> {
+export async function importLeads(db: Db, leads: NewLead[], event: object = {}): Promise<{ inserted: number; updated: number; known: number; ids: string[] }> {
   const unique = dedupeLeads(leads);
-  if (!unique.length) return { inserted: 0, updated: 0, known: 0 };
+  if (!unique.length) return { inserted: 0, updated: 0, known: 0, ids: [] };
+  const ids: string[] = [];
   const pool = (await matchCandidates(db, unique)).map(withKeys);
   const shared = sharedPhonesOf(pool);
   const createdNow = new Set<string>();
@@ -140,6 +150,8 @@ export async function importLeads(db: Db, leads: NewLead[]): Promise<{ inserted:
       if (Object.keys(patch).length) await updateLead(db, current.id, patch);
       Object.assign(current, patch, keysOf({ ...current, ...patch }));
       updated += 1;
+      ids.push(current.id);
+      if (!lead.batch_id) continue;
       const alreadyKnown = !createdNow.has(current.id) && current.batch_id !== lead.batch_id;
       if (alreadyKnown) {
         known += 1;
@@ -155,15 +167,16 @@ export async function importLeads(db: Db, leads: NewLead[]): Promise<{ inserted:
     createdNow.add(created.id);
     pool.push(withKeys(created));
     inserted += 1;
-    await logEvent(db, created.id, 'encontrado', { batch_id: lead.batch_id });
-    links.push({ batch_id: lead.batch_id, lead_id: created.id, already_known: false });
+    ids.push(created.id);
+    await logEvent(db, created.id, lead.batch_id ? 'encontrado' : 'cadastrado', { ...event, batch_id: lead.batch_id });
+    if (lead.batch_id) links.push({ batch_id: lead.batch_id, lead_id: created.id, already_known: false });
   }
   await linkLeadsToBatch(db, links);
-  return { inserted, updated, known };
+  return { inserted, updated, known, ids };
 }
 
 /** Lead cadastrado à mão: grava (ou liga ao batch, se já existe) e põe na fila da análise. */
-export async function addManualLead(db: Db, lead: NewLead): Promise<{ known: boolean }> {
+export async function addManualLead(db: Db, lead: NewLead & { batch_id: string }): Promise<{ known: boolean }> {
   const { inserted } = await importLeads(db, [lead]);
   const waiting = await listLeads(db, lead.batch_id, ['analisando']);
   if (waiting.length) {

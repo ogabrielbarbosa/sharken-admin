@@ -1,4 +1,4 @@
-import { listBatches, listBatchStages } from '@lps/db';
+import { listBatches, listBatchStages, listNoBatchStages, NO_BATCH } from '@lps/db';
 import { PIPELINE_COLUMNS, summarizeBatch, type Batch, type LeadStage, type PipelineColumn } from '@lps/domain';
 import { ChevronRight, Copy, Layers, Map as MapIcon, Plus, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
@@ -7,6 +7,7 @@ import { Topbar } from '@/components/layout/topbar';
 import { LeadsHeader } from '@/components/leads/leads-header';
 import { Button, Card, EmptyState, LinkButton, Status, Table, type Tone, Select } from '@/components/ui';
 import { AutoRefresh } from '@/components/ui/auto-refresh';
+import { NO_BATCH_LABEL } from '@/lib/batch-context';
 import { workspaceHasApify } from '@lps/integrations';
 import { authedDb, getSession } from '@/lib/auth';
 import { prospectedRows } from '@/lib/prospected';
@@ -19,7 +20,22 @@ const STATUS: Record<Batch['status'], { label: string; tone: Tone; detail: strin
   erro: { label: 'Erro', tone: 'danger', detail: '' },
 };
 
+const NO_BATCH_HREF = `/painel/batches/${NO_BATCH}`;
 const ABBR: Record<PipelineColumn, string> = { novo: 'NOV', qualificado: 'QUA', pagina: 'PÁG', video: 'VÍD', pronto: 'PRO', descartados: 'DES' };
+
+/** Quantos leads há em cada coluna do quadro. */
+function StageCounts({ counts }: { counts: Record<PipelineColumn, number> }) {
+  return (
+    <div className="flex gap-3">
+      {PIPELINE_COLUMNS.map((c) => (
+        <span key={c.key} data-tip={c.label} className="text-center">
+          <span className={`block text-sm tabular-nums ${counts[c.key] > 0 ? 'font-medium text-brand-light' : 'text-subtle-foreground'}`}>{counts[c.key]}</span>
+          <span className="block font-mono text-[10px] text-muted-foreground">{ABBR[c.key]}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 /** `etapa` aceita a coluna (`qualificado`) ou um estágio (`revisar`, dos links da visão geral). */
 const columnFor = (etapa: string) => PIPELINE_COLUMNS.find((c) => c.key === etapa || c.stages.includes(etapa as LeadStage));
@@ -28,7 +44,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
   const { novo, local, etapa } = await searchParams;
   const db = await authedDb();
   const { workspace } = await getSession();
-  const [batches, stages, apifyConnected] = await Promise.all([listBatches(db), listBatchStages(db), novo ? workspaceHasApify(workspace.id) : true]);
+  const [batches, stages, looseLeads, apifyConnected] = await Promise.all([listBatches(db), listBatchStages(db), listNoBatchStages(db), novo ? workspaceHasApify(workspace.id) : true]);
   const locations = [...new Map(batches.map((b) => [b.location_key, b.location])).entries()];
 
   const column = etapa ? columnFor(etapa) : undefined;
@@ -39,6 +55,10 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
       return stages.some((s) => s.batch_id === b.id && column.stages.includes(s.stage));
     })
     .map((batch) => ({ batch, summary: summarizeBatch(stages.filter((s) => s.batch_id === batch.id)) }));
+
+  const loose = { total: looseLeads.length, summary: summarizeBatch(looseLeads) };
+  // Fixo no topo; os filtros de local e etapa só o escondem quando não há lead dele.
+  const showLoose = !local && (!column || loose.summary.counts[column.key] > 0);
 
   return (
     <>
@@ -65,15 +85,22 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
             <Link href="/painel/batches" className="text-brand-soft hover:underline">Ver todos</Link>
           </p>
         )}
-        {rows.length === 0 ? (
+        {column && !rows.length && !loose.total ? (
           <EmptyState icon={<Layers />} title="Nenhum batch por aqui" description="Crie um batch para buscar negócios de uma região." actions={<LinkButton href="/painel/batches?novo=1"><Plus />Novo batch</LinkButton>} />
         ) : (
           <Card>
-            <div className="flex items-center justify-between px-4 py-3 text-sm">
-              <h2 className="font-medium">Todos os batches</h2>
-              <span className="text-muted-foreground">{rows.length} {rows.length === 1 ? 'batch' : 'batches'}</span>
-            </div>
             <Table head={['Localização', 'Tipo de negócio', 'Quantidade', 'Status', 'Leads por etapa', 'Próxima ação', '']}>
+              {showLoose && (
+                <tr className="group/row">
+                  <td className="px-4 py-3 font-medium"><Link href={NO_BATCH_HREF}>{NO_BATCH_LABEL}</Link></td>
+                  <td className="px-4 py-3 text-muted-foreground">—</td>
+                  <td className="px-4 py-3">{loose.total}</td>
+                  <td className="px-4 py-3 text-muted-foreground">—</td>
+                  <td className="px-4 py-3"><StageCounts counts={loose.summary.counts} /></td>
+                  <td className="px-4 py-3 text-muted-foreground">Manual</td>
+                  <td className="px-4 py-3 text-right"><Link href={NO_BATCH_HREF} aria-label={`Abrir ${NO_BATCH_LABEL}`}><ChevronRight className="ml-auto size-4 text-muted-foreground transition-[translate,color] duration-200 group-hover/row:translate-x-0.5 group-hover/row:text-brand-soft" /></Link></td>
+                </tr>
+              )}
               {rows.map(({ batch, summary }) => {
                 const status = STATUS[batch.status];
                 const href = `/painel/batches/${batch.id}`;
@@ -86,14 +113,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                     <td className="px-4 py-3"><Status tone={status.tone} live={batch.status === 'buscando' || batch.status === 'analisando'}>{status.label}</Status></td>
                     <td className="px-4 py-3">
                       {started ? (
-                        <div className="flex gap-3">
-                          {PIPELINE_COLUMNS.map((c) => (
-                            <span key={c.key} data-tip={c.label} className="text-center">
-                              <span className={`block text-sm tabular-nums ${summary.counts[c.key] > 0 ? 'font-medium text-brand-light' : 'text-subtle-foreground'}`}>{summary.counts[c.key]}</span>
-                              <span className="block font-mono text-[10px] text-muted-foreground">{ABBR[c.key]}</span>
-                            </span>
-                          ))}
-                        </div>
+                        <StageCounts counts={summary.counts} />
                       ) : '—'}
                     </td>
                     <td className="px-4 py-3">

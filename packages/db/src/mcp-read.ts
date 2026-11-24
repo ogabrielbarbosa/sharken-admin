@@ -26,7 +26,16 @@ export type Access = { userId: string; isAdmin: boolean; workspaces: Pick<Worksp
 export type LeadSummary = {
   id: string;
   workspace: string;
+  /** Batch de origem; null quando o lead não tem um. */
   batch_id: string | null;
+  /** Todos os batches em que o lead aparece; vazio = lead sem batch. */
+  batches: { id: string; label: string }[];
+  source: 'google' | 'instagram' | 'manual';
+  email: string | null;
+  rating: number | null;
+  reviews_count: number;
+  site_status: string | null;
+  maps_url: string | null;
   name: string;
   column: PipelineColumn;
   stage: LeadStage;
@@ -41,6 +50,7 @@ export type LeadSummary = {
   page_url: string | null;
   loom_url: string | null;
   contacts: number;
+  created_at: string;
   stage_changed_at: string;
 };
 
@@ -52,9 +62,9 @@ const MESSAGES_MAX = 500;
 const IN_CHUNK = 100;
 
 const SUMMARY_COLUMNS =
-  'id, workspace_id, batch_id, name, stage, flow, score, city, business_type, phone_e164, phone_raw, website_url, instagram_url, instagram_media, page_url, loom_url, stage_changed_at';
+  'id, workspace_id, batch_id, name, stage, flow, score, city, business_type, phone_e164, phone_raw, website_url, instagram_url, instagram_media, page_url, loom_url, stage_changed_at, email, rating, reviews_count, site_status, maps_url, place_id, created_at';
 
-type SummaryRow = Pick<Lead, 'id' | 'batch_id' | 'name' | 'stage' | 'flow' | 'score' | 'city' | 'business_type' | 'phone_e164' | 'phone_raw' | 'website_url' | 'instagram_url' | 'instagram_media' | 'page_url' | 'loom_url' | 'stage_changed_at'> & { workspace_id: string };
+type SummaryRow = Pick<Lead, 'id' | 'batch_id' | 'name' | 'stage' | 'flow' | 'score' | 'city' | 'business_type' | 'phone_e164' | 'phone_raw' | 'website_url' | 'instagram_url' | 'instagram_media' | 'page_url' | 'loom_url' | 'stage_changed_at' | 'email' | 'rating' | 'reviews_count' | 'site_status' | 'maps_url' | 'place_id' | 'created_at'> & { workspace_id: string };
 
 /** Restringe ao workspace pedido (id ou slug) ou devolve todos os acessíveis; pedido fora do acesso → []. */
 export function workspaceFilter(access: Access, workspace?: string): string[] {
@@ -110,12 +120,40 @@ async function contactCounts(db: Db, ids: string[], leadIds: string[]): Promise<
   return counts;
 }
 
+/** Batches em que cada lead aparece, só nos workspaces acessíveis. */
+async function batchesOf(db: Db, ids: string[], leadIds: string[]): Promise<Map<string, { id: string; label: string; source: string }[]>> {
+  const links: { lead_id: string; batch_id: string }[] = [];
+  for (const part of chunks(leadIds)) {
+    links.push(...await fetchAll<{ lead_id: string; batch_id: string }>((from, to) =>
+      db.from('batch_leads').select('lead_id, batch_id').in('workspace_id', ids).in('lead_id', part).order('lead_id').order('batch_id').range(from, to)));
+  }
+  const batches = new Map<string, { id: string; label: string; source: string }>();
+  for (const part of chunks([...new Set(links.map((l) => l.batch_id))])) {
+    for (const b of check<{ id: string; location: string; business_type: string; source: string }[]>(await db.from('batches').select('id, location, business_type, source').in('workspace_id', ids).in('id', part))) {
+      batches.set(b.id, { id: b.id, label: `${b.location} · ${b.business_type}`, source: b.source });
+    }
+  }
+  const out = new Map<string, { id: string; label: string; source: string }[]>();
+  for (const l of links) {
+    const b = batches.get(l.batch_id);
+    if (b) out.set(l.lead_id, [...(out.get(l.lead_id) ?? []), b]);
+  }
+  return out;
+}
+
 async function summarize(db: Db, access: Access, ids: string[], rows: SummaryRow[]): Promise<LeadSummary[]> {
-  const counts = await contactCounts(db, ids, rows.map((r) => r.id));
+  const [counts, batches] = await Promise.all([contactCounts(db, ids, rows.map((r) => r.id)), batchesOf(db, ids, rows.map((r) => r.id))]);
   return rows.map((r) => ({
     id: r.id,
     workspace: nameOf(access, r.workspace_id),
     batch_id: r.batch_id,
+    batches: (batches.get(r.id) ?? []).map(({ id, label }) => ({ id, label })),
+    source: sourceOf(batches.get(r.id)?.find((b) => b.id === r.batch_id)?.source),
+    email: r.email,
+    rating: r.rating,
+    reviews_count: r.reviews_count,
+    site_status: r.site_status,
+    maps_url: r.maps_url ?? null,
     name: r.name,
     column: columnOf(r.stage),
     stage: r.stage,
@@ -130,9 +168,13 @@ async function summarize(db: Db, access: Access, ids: string[], rows: SummaryRow
     page_url: r.page_url,
     loom_url: r.loom_url,
     contacts: counts.get(r.id) ?? 0,
+    created_at: r.created_at,
     stage_changed_at: r.stage_changed_at,
   }));
 }
+
+/** De onde o lead veio: a fonte do batch de origem; sem batch, foi cadastrado à mão. */
+const sourceOf = (batchSource?: string): LeadSummary['source'] => (batchSource === 'maps' ? 'google' : batchSource === 'instagram' ? 'instagram' : 'manual');
 
 /** Vírgula, parênteses e curingas têm sentido na sintaxe do filtro; saem da busca. */
 const cleanSearch = (s?: string) => s?.replace(/[,()%*"\\]/g, ' ').trim();
@@ -190,7 +232,7 @@ export async function mcpGetBatch(
 export async function mcpListLeads(
   db: Db,
   access: Access,
-  o: { batchId?: string; column?: PipelineColumn; workspace?: string; search?: string; limit?: number; cursor?: string },
+  o: { batchId?: string; noBatch?: boolean; column?: PipelineColumn; workspace?: string; search?: string; limit?: number; cursor?: string },
 ): Promise<{ leads: LeadSummary[]; next: string | null }> {
   const ids = workspaceFilter(access, o.workspace);
   if (!ids.length) return { leads: [], next: null };
@@ -207,11 +249,12 @@ export async function mcpListLeads(
     const { items, next } = page(all.slice(offset, offset + limit + 1), offset, limit);
     return { leads: await summarize(db, access, ids, items), next };
   }
-  let query = db.from('leads').select(SUMMARY_COLUMNS).in('workspace_id', ids);
+  let query = db.from('leads').select(o.noBatch ? `${SUMMARY_COLUMNS}, found:batch_leads(batch_id)` : SUMMARY_COLUMNS).in('workspace_id', ids);
+  if (o.noBatch) query = query.is('found', null);
   if (o.column) query = query.in('stage', PIPELINE_COLUMNS.find((c) => c.key === o.column)?.stages ?? []);
   if (term) query = query.or(`name.ilike.%${term}%,city.ilike.%${term}%`);
-  const rows = check<SummaryRow[]>(await query
-    .order('score', { ascending: false, nullsFirst: false }).order('id').range(offset, offset + limit));
+  const rows = check<SummaryRow[]>((await query
+    .order('score', { ascending: false, nullsFirst: false }).order('id').range(offset, offset + limit)) as never);
   const { items, next } = page(rows, offset, limit);
   return { leads: await summarize(db, access, ids, items), next };
 }
@@ -220,14 +263,16 @@ export async function mcpGetLead(
   db: Db,
   access: Access,
   leadId: string,
-): Promise<{ lead: Lead; workspace: string; assets: LeadAsset[]; contacts: Contact[] } | null> {
+): Promise<{ lead: Lead; workspace: string; assets: LeadAsset[]; contacts: Contact[]; batches: { id: string; label: string }[]; history: { created_at: string; type: string; data: unknown }[] } | null> {
   const ids = workspaceFilter(access);
   if (!ids.length) return null;
   const lead = check<(Lead & { workspace_id: string }) | null>(await db.from('leads').select('*').in('workspace_id', ids).eq('id', leadId).maybeSingle());
   if (!lead) return null;
   const assets = check<LeadAsset[]>(await db.from('lead_assets').select('*').in('workspace_id', ids).eq('lead_id', leadId).eq('status', 'pronto').order('created_at'));
   const contacts = check<Contact[]>(await db.from('contacts').select('*').in('workspace_id', ids).eq('lead_id', leadId).order('created_at'));
-  return { lead, workspace: nameOf(access, lead.workspace_id), assets, contacts };
+  const batches = ((await batchesOf(db, ids, [leadId])).get(leadId) ?? []).map(({ id, label }) => ({ id, label }));
+  const history = check<{ created_at: string; type: string; data: unknown }[]>(await db.from('events').select('created_at, type, data').in('workspace_id', ids).eq('lead_id', leadId).order('created_at', { ascending: false }).limit(50));
+  return { lead, workspace: nameOf(access, lead.workspace_id), assets, contacts, batches, history };
 }
 
 export async function mcpListChats(

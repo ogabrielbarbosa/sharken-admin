@@ -25,7 +25,7 @@ export async function deleteWorkspaceApify(db: Db, workspaceId: string) {
 
 // Execuções iniciadas pelo Sharken. O custo vem do Apify; aqui fica só de quem é cada execução.
 
-export type ApifyRunPurpose = 'maps' | 'google' | 'profiles' | 'instagram' | 'instagram_post' | 'instagram_media' | 'extract';
+export type ApifyRunPurpose = 'maps' | 'google' | 'profiles' | 'instagram' | 'instagram_post' | 'instagram_media' | 'extract' | 'lead_maps';
 export type ApifyRunRecord = { run_id: string; created_at: string; workspace_id: string; actor: string; purpose: ApifyRunPurpose; batch_id: string | null; lead_id: string | null; backfilled: boolean };
 
 /** Nunca lança: a busca já foi paga e não pode parar porque o controle de custo falhou. */

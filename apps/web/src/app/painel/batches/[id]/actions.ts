@@ -2,7 +2,7 @@
 
 import {
   addAsset, addContactToLead, addManualLead, completeInfo, deleteAsset, deleteBatch, enqueueJob, getAsset, getBatch, getLead, listAssets, moveLead, qualifyLeads,
-  savePageUrl, saveLoomUrl, STALE, setResponsible, stepBack, updateAsset, updateLead, type Db, type PipelineResult,
+  savePageUrl, saveLoomUrl, STALE, setResponsible, stepBack, saveLeadNote, updateAsset, type Db, type PipelineResult,
 } from '@lps/db';
 import { canTransition, isAcceptedMime, manualLead, toMobileE164, MAX_ASSET_BYTES, normalizeLinkUrl, sanitizeFileName, type Lead } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
@@ -198,7 +198,7 @@ export async function saveLeadFieldAction(leadId: string, field: 'reason' | 'com
   if (field !== 'reason' && field !== 'comment') return { error: 'Campo inválido.' };
   const db = await authedDb();
   if (!(await completing(db, leadId))) return gone;
-  await updateLead(db, leadId, { [field]: value });
+  await saveLeadNote(db, leadId, field, value, (await getSession()).user.id);
   refresh();
   return {};
 }

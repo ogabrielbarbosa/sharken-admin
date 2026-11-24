@@ -1,3 +1,4 @@
+import { describeChange, type LeadChange } from './lead-edit';
 import { canTransition, type LeadStage } from './stages';
 
 export type LeadAction = 'descartar' | 'nao_contatar';
@@ -16,6 +17,11 @@ const LABELS: Record<string, string> = {
   reencontrado: 'Encontrado de novo em outro batch',
   instagram_atualizado: 'Instagram analisado',
   encontrado: 'Encontrado no batch',
+  cadastrado: 'Cadastrado à mão',
+  google_lido: 'Dados puxados do Google',
+  site_lido: 'Site lido de novo',
+  erro_google: 'Não foi possível ler o Google',
+  juntado: 'Juntado com um lead duplicado',
   etapa_revisar: 'Análise concluída',
   etapa_gerando_material: 'Avançado na revisão',
   etapa_revisar_material: 'Material pronto para revisão',
@@ -46,5 +52,6 @@ const LABELS: Record<string, string> = {
 };
 
 export function describeEvent(event: { type: string; data?: unknown }): string {
+  if (event.type === 'dados_editados') return describeChange(event.data as LeadChange);
   return LABELS[event.type] ?? event.type.replace(/_/g, ' ');
 }

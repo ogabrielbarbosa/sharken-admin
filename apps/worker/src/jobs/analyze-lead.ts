@@ -1,11 +1,12 @@
 import { countOpenJobs, createAdminClient, getApifyToken, getBatch, getContactContext, getLead, logEvent, moveLead, updateBatch, updateLead, type Db, type Job } from '@lps/db';
 import { batchCountry, bestContacts, checkEliminatory, looksLikeFranchise, classifyLink, instagramProfileFromLinks, flowFromSiteStatus, nextCheckStep, scoreLead, DEFAULT_CRITERIA, type Lead, type SiteStatus } from '@lps/domain';
 import { analyzeLead, defaultEnrichDeps, enrichLead, instagramLastPostAt, RateLimited } from '@lps/integrations';
+import { fillFromMaps, fillFromSite } from './lead-sources';
 import { probeSite } from '../site-probe';
 import { trackApifyRun } from './apify-token';
 import { Reschedule, type Handler } from './types';
 
-async function resolveSite(db: Db, lead: Lead): Promise<Lead> {
+export async function resolveSite(db: Db, lead: Lead): Promise<Lead> {
   if (lead.site_status) return lead;
   const link = classifyLink(lead.website_url);
   let site_status: SiteStatus;
@@ -117,23 +118,34 @@ export const analyzeLeadJob: Handler = async (db, job: Job) => {
     return;
   }
 
-  const enriched = await resolveEnrichment(db, await resolveSiteInstagram(db, await resolveSite(db, current), job.workspace_id));
-  const lead = await resolveManualInstagram(db, enriched, job.workspace_id);
+  let lead: Lead;
+  let mapsError: string | null = null;
+  if (job.payload.manual === '1') {
+    // Lead digitado: Google e site preenchem o que falta. O Instagram só é guardado (a leitura é paga e fica para Qualificado).
+    const provisional = job.payload.provisional === '1';
+    const maps = await fillFromMaps(db, current, job.workspace_id, provisional);
+    mapsError = maps.error;
+    const site = await resolveSite(db, maps.lead);
+    lead = await resolveEnrichment(db, await resolveSiteInstagram(db, await fillFromSite(db, site, provisional && !site.place_id), null));
+  } else {
+    const enriched = await resolveEnrichment(db, await resolveSiteInstagram(db, await resolveSite(db, current), job.workspace_id));
+    lead = await resolveManualInstagram(db, enriched, job.workspace_id);
+  }
 
   // Uma falha da IA é repetida pelo worker. Depois das tentativas, onFailure segue sem o resumo.
   const analysis = await analyzeLead(lead);
-  const patch = { summary: analysis.summary, reason: lead.flow === 'melhorar_site' ? analysis.reason : null, franchise: analysis.franchise || looksLikeFranchise(lead.enrichment), error: null };
+  const patch = { summary: analysis.summary, reason: lead.flow === 'melhorar_site' ? analysis.reason : null, franchise: analysis.franchise || looksLikeFranchise(lead.enrichment), error: mapsError };
   await updateLead(db, lead.id, patch);
-  await qualify(db, { ...lead, ...patch });
+  await qualify(db, { ...lead, ...patch }, job.payload.manual === '1');
   await finishBatchIfDone(db, job.payload.batch_id);
 };
 
-async function qualify(db: Db, lead: Lead) {
+async function qualify(db: Db, lead: Lead, manual = false) {
   const batch = lead.batch_id ? await getBatch(db, lead.batch_id) : null;
   const criteria = batch?.criteria ?? DEFAULT_CRITERIA;
   const now = new Date();
   const ctx = await getContactContext(db, lead);
-  const eliminated = checkEliminatory(lead, { ...ctx, now }, criteria, batch?.source === 'manual');
+  const eliminated = checkEliminatory(lead, { ...ctx, now }, criteria, manual || batch?.source === 'manual');
   if (!eliminated.passed) {
     await moveLead(db, lead, 'descartado', { exit_reason: eliminated.reasons.join('; ') }, { reasons: eliminated.reasons });
     return;
@@ -147,6 +159,6 @@ analyzeLeadJob.onFailure = async (db, job, message) => {
   if (!lead || lead.stage !== 'analisando') return;
   await updateLead(db, lead.id, { error: `Análise sem resumo: ${message}` });
   await logEvent(db, lead.id, 'erro_analise', { message });
-  if (lead.site_status) await qualify(db, lead);
+  if (lead.site_status) await qualify(db, lead, job.payload.manual === '1');
   await finishBatchIfDone(db, job.payload.batch_id, 0);
 };

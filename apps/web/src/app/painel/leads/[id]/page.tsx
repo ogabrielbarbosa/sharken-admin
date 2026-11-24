@@ -1,20 +1,21 @@
-import { clientsByLead, getBatch, getContactByLead, getLead, INSTAGRAM_MEDIA_JOB, lastLeadJob, listEvents } from '@lps/db';
+import { batchIdsOfLead, clientsByLead, getContactByLead, getLead, INSTAGRAM_MEDIA_JOB, lastLeadJob, listBatches, listEvents, NO_BATCH, REFRESH_LEAD_JOB } from '@lps/db';
 import { availableActions, columnOf, describeEvent, formatPhone, instagramHandle, PIPELINE_COLUMNS } from '@lps/domain';
 import { workspaceHasApify } from '@lps/integrations';
-import { AtSign, Briefcase, Building2, Check, FolderSearch, Globe, LayoutDashboard, Mail, MapPin, MessageCircle, Phone, Smartphone, Star, X } from 'lucide-react';
+import { AtSign, Briefcase, Building2, Check, FileText, FolderSearch, Globe, LayoutDashboard, Loader2, Mail, MapPin, MessageCircle, PanelTop, Smartphone, Star, Store, Trash2, Video, X } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { Avatar } from '@/components/crm/avatar';
-import { Value } from '@/components/crm/panel-parts';
 import { Topbar } from '@/components/layout/topbar';
 import { EnrichmentInfo } from '@/components/leads/enrichment-info';
-import { ExitButtons } from '@/components/leads/exit-buttons';
+import { BlockLeadButton, InlineEdit, LeadBatchField, LinkSquare } from '@/components/leads/editable';
 import { InstagramCard } from '@/components/leads/instagram-card';
 import { NoteField } from '@/components/leads/note-field';
-import { siteUrl } from '@/components/leads/lead-links';
-import { QuickLinks } from '@/components/leads/quick-links';
-import { Badge, Card, LinkButton } from '@/components/ui';
+import { InstagramIcon, instagramUrl, mapsUrl, siteUrl, withProtocol } from '@/components/leads/lead-links';
+import { Badge, Button, Card, LinkButton } from '@/components/ui';
+import { AutoRefresh } from '@/components/ui/auto-refresh';
+import { discardLeadAction } from '@/lib/common-lead-actions';
+import { listMembers } from '@/lib/members';
 import { authedDb, getSession } from '@/lib/auth';
 import { batchLabel } from '@/lib/batch-context';
 import { STATUS_LABEL } from '@/lib/crm';
@@ -43,20 +44,27 @@ function Stat({ label, value, sub }: { label: string; value: ReactNode; sub?: st
 }
 
 /** Ficha do lead: identificação e atalhos no topo, análise e imagens à esquerda, dados e histórico à direita. */
-export default async function LeadPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function LeadPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ aviso?: string }> }) {
   const { id } = await params;
+  const { aviso } = await searchParams;
   const db = await authedDb();
   const lead = await getLead(db, id);
   if (!lead) notFound();
   const { workspace } = await getSession();
-  const [batch, events, clients, contact, job, apify] = await Promise.all([
-    lead.batch_id ? getBatch(db, lead.batch_id) : null,
+  const [batches, batchIds, events, clients, contact, job, refreshJob, apify, members] = await Promise.all([
+    listBatches(db),
+    batchIdsOfLead(db, id),
     listEvents(db, id),
     clientsByLead(db, [id]),
     getContactByLead(db, id),
     lastLeadJob(db, INSTAGRAM_MEDIA_JOB, id),
+    lastLeadJob(db, REFRESH_LEAD_JOB, id),
     workspaceHasApify(workspace.id),
+    listMembers(workspace.id),
   ]);
+  const option = (b: (typeof batches)[number]) => ({ value: b.id, label: batchLabel(b) });
+  const reading = lead.stage === 'analisando' || refreshJob?.status === 'pendente' || refreshJob?.status === 'executando';
+  const author = (data: unknown) => members.find((m) => m.id === (data as { por?: string } | null)?.por)?.name;
   const actions = availableActions(lead);
   const clientId = clients.get(id);
   const flow = flowLabel(lead);
@@ -65,22 +73,39 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const handle = instagramHandle(lead.instagram_url);
   const ig = instagramLabel(lead, lead.score_reasons?.find((r) => r.label.startsWith('Instagram'))?.met);
   const crmHref = contact ? `/painel/crm?contato=${contact.id}` : null;
-  const boardHref = batch ? `/painel/batches/${batch.id}?lead=${id}` : null;
+  const boardHref = `/painel/batches/${lead.batch_id ?? batchIds[0] ?? NO_BATCH}?lead=${id}`;
   const media = lead.instagram_media ?? [];
   const profilePic = media.find((m) => m.kind === 'perfil')?.url ?? null;
-  const mobile = lead.phone_e164 ? phoneText(lead.phone_e164) : null;
-  // O telefone do cadastro só aparece quando é outro número.
-  const landline = lead.phone_raw && lead.phone_raw.replace(/\D/g, '').slice(-8) !== lead.phone_e164?.slice(-8) ? lead.phone_raw : null;
+  const phone = lead.phone_raw ?? (lead.phone_e164 ? phoneText(lead.phone_e164) : null);
+  const mapsHref = lead.maps_url ?? (lead.place_id ? mapsUrl(lead) : null);
+  const made = [
+    { label: 'Página', href: lead.page_url, icon: <PanelTop /> },
+    { label: 'Vídeo', href: lead.loom_url, icon: <Video /> },
+  ].filter((m): m is typeof m & { href: string } => !!m.href);
 
   return (
     <>
-      <Topbar crumbs={[{ label: 'Leads', href: '/painel/leads' }, { label: lead.name }]} />
+      <Topbar
+        crumbs={[{ label: 'Leads', href: '/painel/leads' }, { label: lead.name }]}
+        actions={
+          <>
+            {actions.includes('descartar') && (
+              <form action={discardLeadAction}>
+                <input type="hidden" name="leadId" value={id} />
+                <Button type="submit" variant="danger"><Trash2 />Descartar</Button>
+              </form>
+            )}
+            {actions.includes('nao_contatar') && <BlockLeadButton leadId={id} />}
+          </>
+        }
+      />
+      {reading && <AutoRefresh ms={4000} />}
       <main className="space-y-4 p-4 lg:p-6">
         <header className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-4">
+          <div className="flex min-w-0 flex-1 basis-80 items-center gap-4">
             <Avatar name={lead.name} src={profilePic} seed={lead.id} size={64} />
-            <div className="min-w-0">
-              <h1 className="text-2xl font-semibold tracking-tight text-balance lg:text-3xl">{lead.name}</h1>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl font-semibold tracking-tight lg:text-3xl"><InlineEdit leadId={id} field="name" value={lead.name} label="Nome" /></h1>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <Badge tone="brand">{PIPELINE_COLUMNS.find((c) => c.key === columnOf(lead.stage))!.label}</Badge>
                 {lead.flow && <Badge tone={flow.tone}>{flow.label}</Badge>}
@@ -91,11 +116,19 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <QuickLinks lead={lead} large />
-            {boardHref && <LinkButton href={boardHref} variant="outline" className="h-9"><LayoutDashboard />Abrir no quadro</LinkButton>}
+            <span className="flex gap-1.5">
+              {made.map((m) => <a key={m.label} href={withProtocol(m.href)} target="_blank" rel="noreferrer" aria-label={m.label} data-tip={m.label} className="flex size-9 items-center justify-center rounded-md border border-border bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 [&_svg]:size-4">{m.icon}</a>)}
+              <LinkSquare leadId={id} field="instagram_url" label="Instagram" href={instagramUrl(lead)} text={handle ? `@${handle}` : lead.instagram_url} icon={<InstagramIcon />} placeholder="@perfil ou link" hint="Só fica guardado. Para ler o perfil, use Analisar Instagram." />
+              <LinkSquare leadId={id} field="maps_url" label="Google Meu Negócio" href={mapsHref} text={lead.maps_url ?? null} icon={<MapPin />} placeholder="https://maps.app.goo.gl/…" hint="Ao salvar, o sistema puxa os dados do Google." />
+              <LinkSquare leadId={id} field="website_url" label="Site" href={siteHref} text={lead.website_url} icon={<Globe />} placeholder="clinica.com.br" hint="Ao salvar, o sistema lê o site de novo." />
+            </span>
+            <LinkButton href={boardHref} variant="outline" className="h-9"><LayoutDashboard />Abrir no quadro</LinkButton>
             {crmHref && <LinkButton href={crmHref} className="h-9"><MessageCircle />Abrir no CRM</LinkButton>}
           </div>
         </header>
+        {aviso === 'existente' && <p role="status" className="rounded-md bg-warning-subtle px-3 py-2 text-sm text-warning">Esse negócio já existia: esta é a ficha dele, com os dados que faltavam.</p>}
+        {reading && <p role="status" className="flex items-center gap-2 rounded-md bg-brand-muted px-3 py-2 text-sm text-brand-light"><Loader2 className="size-4 animate-spin" />Puxando e analisando os dados…</p>}
+        {!reading && refreshJob?.status === 'erro' && <p className="rounded-md bg-warning-subtle px-3 py-2 text-sm text-warning">A última leitura falhou: {refreshJob.error}</p>}
         {lead.exit_reason && <p className="rounded-md bg-warning-subtle px-3 py-2 text-sm text-warning">Saiu da pipeline: {lead.exit_reason}</p>}
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -147,13 +180,15 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             <Card className="p-5">
               <h2 className="mb-1 font-medium">Dados do negócio</h2>
               <dl className="divide-y divide-border">
-                <Datum icon={<Smartphone />} label="Celular">{mobile ? <Value copy={lead.phone_e164!}>{mobile}</Value> : '—'}</Datum>
-                {landline && <Datum icon={<Phone />} label="Telefone"><Value copy={landline}>{landline}</Value></Datum>}
-                <Datum icon={<Mail />} label="E-mail">{lead.email ? <Value copy={lead.email}><a href={`mailto:${lead.email}`} className="hover:underline">{lead.email}</a></Value> : '—'}</Datum>
-                {handle && <Datum icon={<AtSign />} label="Instagram"><Value copy={`@${handle}`}>@{handle}</Value></Datum>}
-                {siteHref && <Datum icon={<Globe />} label="Site"><a href={siteHref} target="_blank" rel="noreferrer" className="hover:underline">{siteHref.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '')}</a></Datum>}
-                <Datum icon={<MapPin />} label="Endereço">{lead.address ?? '—'}</Datum>
-                <Datum icon={<FolderSearch />} label="Batch">{batch ? <Link href={boardHref!} className="text-brand-soft hover:underline">{batchLabel(batch)}</Link> : 'Sem batch'}</Datum>
+                <Datum icon={<Smartphone />} label="Celular"><InlineEdit leadId={id} field="phone" value={phone} label="Celular" /></Datum>
+                <Datum icon={<Mail />} label="E-mail"><InlineEdit leadId={id} field="email" value={lead.email} label="E-mail" /></Datum>
+                <Datum icon={<Briefcase />} label="Tipo"><InlineEdit leadId={id} field="business_type" value={lead.business_type} label="Tipo de negócio" /></Datum>
+                <Datum icon={<Store />} label="Cidade"><InlineEdit leadId={id} field="city" value={lead.city} label="Cidade" /></Datum>
+                <Datum icon={<MapPin />} label="Endereço"><InlineEdit leadId={id} field="address" value={lead.address} label="Endereço" multiline /></Datum>
+                <Datum icon={<AtSign />} label="Instagram"><InlineEdit leadId={id} field="instagram_url" value={handle ? `@${handle}` : lead.instagram_url} label="Instagram" /></Datum>
+                <Datum icon={<Globe />} label="Site"><InlineEdit leadId={id} field="website_url" value={lead.website_url} label="Site" display={lead.website_url?.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '')} /></Datum>
+                <Datum icon={<FileText />} label="Descrição"><InlineEdit leadId={id} field="description" value={lead.description} label="Descrição" multiline display={lead.description ? <span className="line-clamp-4">{lead.description}</span> : undefined} /></Datum>
+                <Datum icon={<FolderSearch />} label="Batch"><LeadBatchField leadId={id} current={lead.batch_id} options={batches.map(option)} others={batches.filter((b) => b.id !== lead.batch_id && batchIds.includes(b.id)).map(option)} /></Datum>
                 {clientId && <Datum icon={<Building2 />} label="Cliente"><Link href={`/painel/clientes/${clientId}`} className="text-brand-soft hover:underline">Ver cliente</Link></Datum>}
               </dl>
             </Card>
@@ -168,16 +203,13 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                 {events.map((e, i) => (
                   <li key={e.id} className="relative flex justify-between gap-3 pl-5 text-sm">
                     <span aria-hidden className={`absolute top-1.5 left-0 size-[7px] rounded-full ${i === 0 ? 'bg-brand-bright shadow-[0_0_8px_#1f88c0]' : 'bg-zinc-600'}`} />
-                    <span>{describeEvent(e)}</span>
+                    <span className="min-w-0 [overflow-wrap:anywhere]">{describeEvent(e)}{author(e.data) && <span className="block text-xs text-muted-foreground">{author(e.data)}</span>}</span>
                     <span className="shrink-0 text-xs text-muted-foreground">{formatDateTime(e.created_at)}</span>
                   </li>
                 ))}
                 {events.length === 0 && <li className="text-sm text-muted-foreground">Sem eventos ainda.</li>}
               </ol>
             </Card>
-            {actions.includes('nao_contatar') && (
-              <ExitButtons leadId={id} className={`flex flex-wrap justify-end gap-1 ${actions.includes('descartar') ? '' : '[&>form:first-child]:hidden'}`} />
-            )}
           </aside>
         </div>
       </main>

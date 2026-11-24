@@ -107,7 +107,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                     <span className="text-sm">{p.label}</span>
                     <span className="mt-1 block text-2xl font-semibold text-foreground tabular-nums">{p.count}</span>
                     <span className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                      {p.kind === 'cobranca' ? 'em Clientes' : !p.step ? 'no CRM' : p.batchIds.length === 1 ? 'em 1 batch' : `em ${p.batchIds.length} batches`}<ArrowRight className="size-3.5 transition-[translate,color] duration-200 group-hover/p:translate-x-0.5 group-hover/p:text-brand-soft" />
+                      {p.kind === 'cobranca' ? 'em Clientes' : !p.step ? 'no CRM' : !p.batchIds.length ? 'sem batch' : p.batchIds.length === 1 ? 'em 1 batch' : `em ${p.batchIds.length} batches`}<ArrowRight className="size-3.5 transition-[translate,color] duration-200 group-hover/p:translate-x-0.5 group-hover/p:text-brand-soft" />
                     </span>
                   </Link>
                 </li>

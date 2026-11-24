@@ -13,3 +13,4 @@ export * from './abacatepay';
 export * from './r2';
 export * from './search-variants';
 export * from './apify-costs';
+export * from './site-facts';

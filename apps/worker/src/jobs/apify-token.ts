@@ -20,6 +20,6 @@ export async function withApifyCredit<T>(run: () => Promise<T>): Promise<T> {
 }
 
 /** Registra de quem é a execução, para a tela de custos. */
-export function trackApifyRun(workspaceId: string, purpose: ApifyRunPurpose, lead?: { id: string; batch_id: string | null } | null): OnRun {
-  return (runId) => recordApifyRun(createAdminClient(), { run_id: runId, workspace_id: workspaceId, actor: INSTAGRAM_ACTOR, purpose, lead_id: lead?.id ?? null, batch_id: lead?.batch_id ?? null });
+export function trackApifyRun(workspaceId: string, purpose: ApifyRunPurpose, lead?: { id: string; batch_id: string | null } | null, actor: string = INSTAGRAM_ACTOR): OnRun {
+  return (runId) => recordApifyRun(createAdminClient(), { run_id: runId, workspace_id: workspaceId, actor, purpose, lead_id: lead?.id ?? null, batch_id: lead?.batch_id ?? null });
 }

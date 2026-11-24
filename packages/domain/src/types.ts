@@ -87,6 +87,8 @@ export type Lead = {
   photos: string[];
   reviews: LeadReview[];
   website_url: string | null;
+  /** Link do Google Meu Negócio colado à mão (migração 0034). */
+  maps_url?: string | null;
   instagram_url: string | null;
   instagram_last_post_at: string | null;
   instagram_media: InstagramMedia[];

@@ -1,9 +1,9 @@
-import { listContactsOfLeads, listKnownLeads, listLeads, OTHER_LEAD_CONTACT, STALE, type Db } from '@lps/db';
+import { listContactsOfLeads, listKnownLeads, listLeads, NO_BATCH, OTHER_LEAD_CONTACT, STALE, type Db } from '@lps/db';
 import {
   applyReviewFilter, columnOf, countByOption, parseReviewFilter, phoneMatchCandidates, serializeReviewFilter,
   type Contact, type Lead, type LeadAsset, type PipelineColumn,
 } from '@lps/domain';
-import { ExternalLink, Loader2, Phone, Star } from 'lucide-react';
+import { ExternalLink, Loader2, Phone, Plus, Star } from 'lucide-react';
 import { AddLeadButton } from '@/components/batches/add-lead-button';
 import { BatchMenu } from '@/components/batches/batch-menu';
 import { ActiveFilters, ReviewFilters } from '@/components/batches/review-filters';
@@ -13,7 +13,7 @@ import { CompleteModal } from '@/components/pipeline/complete-modal';
 import { LinkModal } from '@/components/pipeline/link-modal';
 import { LeadChatsModal } from '@/components/pipeline/lead-chats-modal';
 import { Topbar } from '@/components/layout/topbar';
-import { Card } from '@/components/ui';
+import { Card, LinkButton } from '@/components/ui';
 import { AutoRefresh } from '@/components/ui/auto-refresh';
 import { batchLabel, loadBatchContext } from '@/lib/batch-context';
 import { boardHref } from '@/lib/board-href';
@@ -114,7 +114,8 @@ export default async function PipelinePage({ params, searchParams }: { params: P
   const query = await searchParams;
   const filter = parseReviewFilter(query);
   const { db, batch } = await loadBatchContext(id);
-  const running = batch.status === 'buscando' || batch.status === 'analisando';
+  const loose = id === NO_BATCH;
+  const running = !loose && (batch.status === 'buscando' || batch.status === 'analisando');
 
   const all = await listLeads(db, id, undefined, 'stage_changed_at');
   const members = await listMembers((await getSession()).workspace.id);
@@ -127,7 +128,7 @@ export default async function PipelinePage({ params, searchParams }: { params: P
 
   const qualified = rest.filter((l) => l.stage === 'completar');
   const ready = rest.filter((l) => columnOf(l.stage) === 'pronto');
-  const [assets, contacts, knownBatches] = await Promise.all([assetsByLead(db, qualified.map((l) => l.id)), contactsByLead(db, ready), listKnownLeads(db, id)]);
+  const [assets, contacts, knownBatches] = await Promise.all([assetsByLead(db, qualified.map((l) => l.id)), contactsByLead(db, ready), loose ? ({} as Awaited<ReturnType<typeof listKnownLeads>>) : listKnownLeads(db, id)]);
   const known = Object.fromEntries(Object.entries(knownBatches).map(([leadId, list]) => [leadId, list.map(batchLabel)]));
   const phase = batch.profiles_run_id ? 'Lendo os perfis do Instagram' : batch.google_run_id ? 'Buscando perfis do Instagram no Google' : 'Buscando no Google Maps';
   const manual = batch.source === 'manual';
@@ -165,17 +166,18 @@ export default async function PipelinePage({ params, searchParams }: { params: P
     <>
       <Topbar
         crumbs={[{ label: 'Leads', href: '/painel/leads' }, { label: 'Batches', href: '/painel/batches' }, { label: batchLabel(batch) }]}
-        menu={<BatchMenu batchId={id} label={batchLabel(batch)} sources={[...otherSources]} />}
+        menu={loose ? undefined : <BatchMenu batchId={id} label={batchLabel(batch)} sources={[...otherSources]} />}
         actions={
           <>
             {toReview.length > 0 && <ReviewFilters batchId={id} filter={filter} counts={countByOption(toReview, now)} shown={reviewed.length} total={toReview.length} />}
-            {manual && <AddLeadButton batchId={id} businessType={batch.business_type} />}
+            {loose && <LinkButton href="/painel/leads?novo=1"><Plus /><span className="max-sm:sr-only">Novo lead</span></LinkButton>}
+            {manual && !loose && <AddLeadButton batchId={id} businessType={batch.business_type} />}
           </>
         }
       />
       {/* No desktop o quadro ocupa o resto da tela e cada coluna rola por dentro. */}
       <main className="p-4 md:flex md:h-[calc(100dvh-4.5rem)] md:flex-col lg:p-6">
-        {running && <AutoRefresh />}
+        {(running || (loose && analyzing.length > 0)) && <AutoRefresh />}
         {running && <Arriving leads={analyzing} searching={batch.status === 'buscando'} quantity={batch.quantity} phase={phase} />}
         <ActiveFilters batchId={id} filter={filter} shown={reviewed.length} total={toReview.length} />
         {notice && <p role="status" className="mb-4 rounded-md bg-warning-subtle px-3 py-2 text-sm text-warning">{notice}</p>}

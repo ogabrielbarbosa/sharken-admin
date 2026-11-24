@@ -59,7 +59,7 @@ describe('Instagram primeiro, Maps em cima', () => {
       base(maps, { place_id: 'P2', name: 'Ana Odontologia', website_url: 'https://www.draana.com.br/', phone_e164: '5512999990002' }),
       base(maps, { place_id: 'P3', name: 'Dente de Ouro', phone_e164: '5512999990003' }),
     ]);
-    expect(result).toEqual({ inserted: 1, updated: 2, known: 2 });
+    expect(result).toEqual({ inserted: 1, updated: 2, known: 2, ids: expect.any(Array) });
 
     const inMaps = await listLeads(db, maps);
     expect(inMaps).toHaveLength(3);
@@ -75,7 +75,7 @@ describe('Instagram primeiro, Maps em cima', () => {
   it('não cruza com outro workspace', async () => {
     const b = ((await pg.query<{ id: string }>(
       `insert into batches (location, location_key, business_type, quantity, criteria, workspace_id) values ('SJC', 'sjc', 'x', 10, '{}', (select id from workspaces where slug = 'primo')) returning id`)).rows[0]).id;
-    expect(await importLeads(other, [base(b, { place_id: 'P1', name: 'Clínica Sorriso' })])).toEqual({ inserted: 1, updated: 0, known: 0 });
+    expect(await importLeads(other, [base(b, { place_id: 'P1', name: 'Clínica Sorriso' })])).toMatchObject({ inserted: 1, updated: 0, known: 0 });
   });
 });
 
@@ -133,8 +133,8 @@ describe('batch manual', () => {
     const b = await createManualBatch(db, 'Advocacia');
     expect(b).toMatchObject({ source: 'manual', location: 'Leads manuais' });
     const lead = base(b.id, { name: 'Silva Adv', instagram_url: 'https://www.instagram.com/silva.adv/' });
-    expect(await addManualLead(db, lead)).toEqual({ known: false });
-    expect(await addManualLead(db, lead)).toEqual({ known: true });
+    expect(await addManualLead(db, { ...lead, batch_id: lead.batch_id! })).toEqual({ known: false });
+    expect(await addManualLead(db, { ...lead, batch_id: lead.batch_id! })).toEqual({ known: true });
     const [saved, ...rest] = await listLeads(db, b.id);
     expect(rest).toHaveLength(0);
     expect((await pg.query(`select 1 from jobs where type = 'analyze_lead' and payload->>'lead_id' = $1`, [saved.id])).rows).toHaveLength(1);

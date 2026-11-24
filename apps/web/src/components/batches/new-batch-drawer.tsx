@@ -4,7 +4,7 @@ import { buildInstagramQueries, cityName, DEFAULT_CRITERIA, formatMunicipio, mun
 import { ArrowLeft, ArrowRight, Check, Loader2, MapPin, Plus, Search, Sparkles, X } from 'lucide-react';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { ProspectMap } from '@/components/map/prospect-map';
-import { createBatchAction, createManualBatchAction, suggestManyVariantsAction, worldCitiesNearAction } from '@/app/painel/batches/actions';
+import { createBatchAction, suggestManyVariantsAction, worldCitiesNearAction } from '@/app/painel/batches/actions';
 import { Button, Drawer, ErrorNote, Field, Input, LinkButton, Select } from '@/components/ui';
 import { CityPicker } from './city-picker';
 
@@ -19,27 +19,11 @@ const criteriaFields = [
 const SITE_LABEL: Record<SiteRequirement, string> = { qualquer: 'Tanto faz', sem_site: 'Só quem não tem site', com_site: 'Só quem tem site' };
 const SOURCE_LABEL: Record<BatchSource, string> = { instagram: 'Instagram', maps: 'Google Maps' };
 
-/** Batch sem busca: só o nicho; os leads são adicionados dentro dele. Não depende do Apify. */
-function ManualBatch({ onBack, closeHref }: { onBack: () => void; closeHref: string }) {
-  return (
-    <Drawer title="Novo batch manual" subtitle="Você cadastra os leads e o sistema analisa" closeHref={closeHref}>
-      <form action={createManualBatchAction} className="flex flex-1 flex-col gap-4">
-        <Field label="Nicho" hint="Dá nome ao batch. Cada lead pode ter outro tipo de negócio."><Input name="businessType" required autoFocus placeholder="advocacia" /></Field>
-        <div className="mt-auto flex justify-between gap-2 pt-4">
-          <Button type="button" variant="outline" onClick={onBack}><ArrowLeft />Voltar</Button>
-          <Button type="submit"><Plus />Criar batch</Button>
-        </div>
-      </form>
-    </Drawer>
-  );
-}
-
 type Variants = { options: string[]; chosen: string[]; saved: boolean };
 export type ProspectedRow = { id: string; location: string; locations: string[]; places?: Place[]; business_type: string; created_at: string; leads: number };
 const RADII = [0, 15, 30, 50, 80];
 
 export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/painel/batches' }: { apifyConnected: boolean; closeHref?: string; prospected?: ProspectedRow[] }) {
-  const [manual, setManual] = useState(false);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<BatchSource>('instagram');
@@ -136,8 +120,6 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
     setStep(step + 1);
   }
 
-  if (manual) return <ManualBatch onBack={() => setManual(false)} closeHref={closeHref} />;
-
   if (!apifyConnected) {
     return (
       <Drawer title="Novo batch" closeHref={closeHref}>
@@ -145,7 +127,6 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
           <ErrorNote>Conecte sua conta do Apify em Configurações › Apify.</ErrorNote>
           <p className="text-sm text-muted-foreground">A busca no Google Maps e no Instagram roda na conta do Apify deste workspace. A conta gratuita traz US$ 5 de crédito por mês, uns 7 batches de 50 lugares.</p>
           <LinkButton href="/painel/configuracoes?aba=apify">Conectar o Apify</LinkButton>
-          <Button type="button" variant="outline" onClick={() => setManual(true)}><Plus />Criar batch manual (sem busca)</Button>
         </div>
       </Drawer>
     );
@@ -183,7 +164,6 @@ export function NewBatchDrawer({ apifyConnected, prospected = [], closeHref = '/
                 ))}
               </div>
             </Field>
-            <Button type="button" variant="outline" onClick={() => setManual(true)}><Plus />Cadastrar leads à mão (sem busca)</Button>
             <p className="text-xs text-muted-foreground">Depois dá para rodar a outra fonte em cima do mesmo batch: os resultados cruzam com os leads que já estão nele.</p>
             <Field label="Cidades" hint="Do Brasil ou de qualquer país (um país por batch). Com raio, as cidades em volta da primeira entram junto.">
               <div className="flex flex-col gap-2">

@@ -18,7 +18,7 @@ export type ManualLeadInput = {
 };
 
 /** Dados digitados → lead. Só o nome é obrigatório; o que foi preenchido precisa ser válido. */
-export function manualLead(input: ManualLeadInput, batch: { id: string; business_type: string }): { lead: NewLead } | { error: string } {
+export function manualLead(input: ManualLeadInput, batch: { id: string; business_type: string }): { lead: NewLead & { batch_id: string } } | { error: string } {
   const text = (v?: string) => v?.trim() || null;
   const name = text(input.name);
   if (!name) return { error: 'Informe o nome do negócio.' };

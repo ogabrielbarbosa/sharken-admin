@@ -1,6 +1,6 @@
 'use server';
 
-import { createBatch, createManualBatch, dismissDuplicate, findSearchTerm, getBatch, mergeLeads, saveSearchTerm } from '@lps/db';
+import { createBatch, dismissDuplicate, findSearchTerm, getBatch, mergeLeads, saveSearchTerm } from '@lps/db';
 import { cityName, findMunicipio, findWorldCity, formatMunicipio, searchWorldCities, worldCitiesNear, type BatchSource, type Place, type SiteRequirement, type WorldCity } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -78,15 +78,6 @@ export async function createBatchAction(form: FormData) {
   revalidatePath('/painel/batches');
   revalidatePath('/painel/leads');
   redirect('/painel/batches');
-}
-
-/** Batch manual: não usa o Apify. Abre já nele, para adicionar os leads. */
-export async function createManualBatchAction(form: FormData) {
-  const businessType = String(form.get('businessType') ?? '').trim();
-  if (!businessType) throw new Error('Preencha o nicho.');
-  const batch = await createManualBatch(await authedDb(), businessType);
-  revalidatePath('/painel/batches');
-  redirect(`/painel/batches/${batch.id}`);
 }
 
 /**

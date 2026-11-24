@@ -63,7 +63,8 @@ export const instagramMediaJob: Handler = async (db, job) => {
   const [profile] = await withApifyCredit(() => runActorSync<InstagramMediaProfile & InstagramProfileData>(token, INSTAGRAM_ACTOR, input, { onRun: trackApifyRun(job.workspace_id!, 'instagram_media', lead) }));
   if (!profile) throw new JobFailure('Não encontrei esse perfil do Instagram.');
 
-  if (refresh) await updateFromProfile(db, lead, profile);
+  // A leitura já foi paga: aproveita o último post e os contatos que faltavam.
+  await updateFromProfile(db, lead, profile);
 
   const items = pickInstagramMedia(profile);
   if (!items.length) return;

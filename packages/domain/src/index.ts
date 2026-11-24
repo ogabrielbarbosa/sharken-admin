@@ -42,3 +42,4 @@ export * from './manual-lead';
 export * from './quick-replies';
 export * from './profile';
 export * from './apify-costs';
+export * from './lead-edit';

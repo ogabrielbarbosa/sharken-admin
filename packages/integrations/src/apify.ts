@@ -41,6 +41,15 @@ export function buildMapsInput(b: { location?: string; locations?: string[]; bus
   };
 }
 
+/** Um lugar só, pelo link (cadastro manual). */
+export function buildPlaceInput(mapsUrl: string) {
+  const placeId = /place_id[:=]([\w-]{20,})/.exec(mapsUrl)?.[1];
+  return {
+    ...(placeId ? { placeIds: [placeId] } : { startUrls: [{ url: mapsUrl }] }),
+    maxCrawledPlacesPerSearch: 1, language: 'pt-BR', maxImages: 8, maxReviews: 5, reviewsSort: 'highestRanking', reviewsOrigin: 'google', scrapeReviewsPersonalData: false,
+  };
+}
+
 /** Países do GeoNames que o ator não aceita como país da busca (sem ele, vale o padrão). */
 const GOOGLE_UNSUPPORTED = new Set(['AX', 'BL', 'BQ', 'CW', 'GG', 'IM', 'JE', 'MF', 'SS', 'SX', 'XK']);
 

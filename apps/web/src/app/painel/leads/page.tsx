@@ -1,9 +1,9 @@
-import { LEADS_PAGE, listAllLeads, listBatches, listBatchStages } from '@lps/db';
+import { LEADS_PAGE, listAllLeads, listBatches, NO_BATCH } from '@lps/db';
 import { columnOf, formatPhone, MANUAL_LOCATION, PIPELINE_COLUMNS, prospectedNiches, sameNiche, type Batch } from '@lps/domain';
 import { workspaceHasApify } from '@lps/integrations';
 import { ChevronLeft, ChevronRight, Plus, Search, Users } from 'lucide-react';
 import Link from 'next/link';
-import { NewBatchDrawer } from '@/components/batches/new-batch-drawer';
+import { NewLeadDrawer } from '@/components/leads/new-lead-drawer';
 import { Topbar } from '@/components/layout/topbar';
 import { LeadsHeader } from '@/components/leads/leads-header';
 import { QuickLinks } from '@/components/leads/quick-links';
@@ -11,11 +11,8 @@ import { Badge, Card, EmptyState, Input, LinkButton, Select, Table } from '@/com
 import { authedDb, getSession } from '@/lib/auth';
 import { batchLabel } from '@/lib/batch-context';
 import { formatDate } from '@/lib/lead-labels';
-import { prospectedRows } from '@/lib/prospected';
 
 type Params = { q?: string; batch?: string; nicho?: string; fonte?: string; etapa?: string; pagina?: string; novo?: string };
-const NO_BATCH = 'sem';
-const MANUAL = 'manuais';
 const HERE = '/painel/leads';
 const SOURCE: Record<Batch['source'], string> = { instagram: 'Instagram', maps: 'Google Maps', manual: 'Manual' };
 
@@ -35,12 +32,11 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const noBatch = params.batch === NO_BATCH;
   const filtered = !!(params.batch || params.nicho || params.fonte);
   const batchIds = batches
-    .filter((b) => (!params.batch || (params.batch === MANUAL ? sourceOf(b) === 'manual' : b.id === params.batch)) && (!params.nicho || sameNiche(b.business_type, params.nicho)) && (!params.fonte || sourceOf(b) === params.fonte))
+    .filter((b) => (!params.batch || b.id === params.batch) && (!params.nicho || sameNiche(b.business_type, params.nicho)) && (!params.fonte || sourceOf(b) === params.fonte))
     .map((b) => b.id);
   const { workspace } = await getSession();
-  const [{ leads, total }, stages, apifyConnected] = await Promise.all([
+  const [{ leads, total }, apifyConnected] = await Promise.all([
     listAllLeads(db, { q, noBatch: noBatch && !params.nicho && !params.fonte, batchIds: filtered && !(noBatch && !params.nicho && !params.fonte) ? batchIds : undefined, stages: column?.stages, page }),
-    params.novo ? listBatchStages(db) : [],
     params.novo ? workspaceHasApify(workspace.id) : true,
   ]);
   const pages = Math.max(1, Math.ceil(total / LEADS_PAGE));
@@ -51,7 +47,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <Topbar crumbs={[{ label: 'Leads' }]} actions={<LinkButton href={href({ novo: '1' })}><Plus /><span className="max-sm:sr-only">Novo batch</span></LinkButton>} />
+      <Topbar crumbs={[{ label: 'Leads' }]} actions={<LinkButton href={href({ novo: '1' })}><Plus /><span className="max-sm:sr-only">Novo lead</span></LinkButton>} />
       <LeadsHeader current="leads" />
       <main className="p-4 lg:p-6">
         <form className="mb-4 flex flex-col gap-2 xl:flex-row">
@@ -69,8 +65,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
               options={[
                 { value: '', label: 'Todos os batches' },
                 { value: NO_BATCH, label: 'Sem batch' },
-                { value: MANUAL, label: 'Leads manuais' },
-                ...batches.filter((b) => sourceOf(b) !== 'manual').map((b) => ({ value: b.id, label: `${batchLabel(b)} · ${formatDate(b.created_at)}` })),
+                ...batches.map((b) => ({ value: b.id, label: `${batchLabel(b)} · ${formatDate(b.created_at)}` })),
               ]}
             />
             <Select autoSubmit name="nicho" aria-label="Nicho buscado" defaultValue={params.nicho ?? ''} className="w-full sm:w-40" options={[{ value: '', label: 'Todos os nichos' }, ...prospectedNiches(batches).map((n) => ({ value: n, label: n }))]} />
@@ -79,7 +74,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           </div>
         </form>
         {leads.length === 0 ? (
-          <EmptyState icon={<Users />} title="Nenhum lead por aqui" description={q || filtered || column ? 'Nenhum lead com esses filtros.' : 'Crie um batch para buscar negócios.'} actions={<LinkButton href={q || filtered || column ? HERE : `${HERE}?novo=1`}>{q || filtered || column ? 'Limpar filtros' : 'Novo batch'}</LinkButton>} />
+          <EmptyState icon={<Users />} title="Nenhum lead por aqui" description={q || filtered || column ? 'Nenhum lead com esses filtros.' : 'Cadastre um lead ou crie um batch para buscar negócios.'} actions={<LinkButton href={q || filtered || column ? HERE : `${HERE}?novo=1`}>{q || filtered || column ? 'Limpar filtros' : 'Novo lead'}</LinkButton>} />
         ) : (
           <Card>
             <Table head={['Lead', 'Links', 'Tipo de negócio', <span key="f" className="whitespace-nowrap">Encontrado em</span>, 'Batch', 'Etapa']}>
@@ -98,9 +93,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     <td className="px-4 py-3 text-muted-foreground">
                       {niches.length ? <span tabIndex={0} data-tip={`Nicho buscado: ${niches.join(', ')}`} className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/60">{lead.business_type ?? '—'}</span> : (lead.business_type ?? '—')}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{origin ? SOURCE[sourceOf(origin)] : lead.place_id ? 'Google Maps' : lead.instagram_url ? 'Instagram' : '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{origin ? SOURCE[sourceOf(origin)] : 'Manual'}</td>
                     <td className="min-w-44 px-4 py-3">
-                      {found.length ? found.map((b) => <Link key={b.id} href={`/painel/batches/${b.id}?lead=${lead.id}`} className="block text-brand-soft hover:underline">{batchLabel(b)} <span className="text-xs text-muted-foreground">{formatDate(b.created_at)}</span></Link>) : '—'}
+                      {found.length ? found.map((b) => <Link key={b.id} href={`/painel/batches/${b.id}?lead=${lead.id}`} className="block text-brand-soft hover:underline">{batchLabel(b)} <span className="text-xs text-muted-foreground">{formatDate(b.created_at)}</span></Link>) : <span className="text-muted-foreground">Sem batch</span>}
                     </td>
                     <td className="px-4 py-3"><Badge>{PIPELINE_COLUMNS.find((c) => c.key === columnOf(lead.stage))!.label}</Badge></td>
                   </tr>
@@ -117,7 +112,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           </div>
         )}
       </main>
-      {params.novo && <NewBatchDrawer apifyConnected={apifyConnected} closeHref={href({})} prospected={prospectedRows(batches, stages)} />}
+      {params.novo && <NewLeadDrawer apifyConnected={apifyConnected} closeHref={href({})} batches={batches.map((b) => ({ value: b.id, label: `${batchLabel(b)} · ${formatDate(b.created_at)}` }))} />}
     </>
   );
 }
