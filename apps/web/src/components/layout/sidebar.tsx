@@ -4,6 +4,7 @@ import { BookOpen, FilePenLine, Layers, LayoutGrid, LogOut, MessageCircle, Setti
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from '@/app/login/actions';
+import { Avatar } from '@/components/crm/avatar';
 import { Logo } from './logo';
 import { useShell } from './shell';
 import { WorkspaceSwitcher, type WorkspaceItem } from './workspace-switcher';
@@ -52,7 +53,7 @@ function AtendimentoLink({ whatsapp, pathname, collapsed, fade }: { whatsapp: Si
   );
 }
 
-export function Sidebar({ email, whatsapp, workspaces, current, isAdmin }: { email: string; whatsapp: SidebarWhatsApp; workspaces: WorkspaceItem[]; current: string; isAdmin: boolean }) {
+export function Sidebar({ user, whatsapp, workspaces, current, isAdmin }: { user: { id: string; name: string; avatarUrl: string | null }; whatsapp: SidebarWhatsApp; workspaces: WorkspaceItem[]; current: string; isAdmin: boolean }) {
   const pathname = usePathname();
   const { collapsed, mobileOpen, closeMobile } = useShell();
   const onBatch = pathname.startsWith('/painel/leads');
@@ -98,10 +99,9 @@ export function Sidebar({ email, whatsapp, workspaces, current, isAdmin }: { ema
 
         <div className="relative mt-auto space-y-3">
           <div className="flex items-center gap-2.5 p-1.5">
-            <span className="size-8 shrink-0 rounded-full bg-brand" />
+            <Avatar name={user.name} src={user.avatarUrl} seed={user.id} size={32} />
             <div className={`min-w-0 flex-1 ${fade}`}>
-              <p className="truncate text-sm font-medium">{email.split('@')[0]}</p>
-              <p className="truncate text-xs text-muted-foreground">{email}</p>
+              <p className="truncate text-sm font-medium">{user.name}</p>
             </div>
             <form action={signOut} className={fade}>
               <button aria-label="Sair" className="press grid size-7 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-white/5 hover:text-foreground"><LogOut className="size-4" /></button>

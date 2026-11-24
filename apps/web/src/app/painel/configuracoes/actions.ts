@@ -95,19 +95,19 @@ export async function removeMemberAction(formData: FormData) {
   back('membros', { ok: 'Membro removido.' });
 }
 
-/** Nome e foto de um usuário: o próprio, ou um membro do workspace quando quem pede é o dono. */
-export async function saveProfileAction(formData: FormData) {
+/** Nome e foto de um usuário: o próprio, ou um membro do workspace quando quem pede é o dono. Grava só o que veio. */
+export async function saveProfileAction(formData: FormData): Promise<{ error: string | null }> {
   const { workspace, user, isAdmin } = await getSession();
   const target = text(formData, 'user_id');
   const db = createAdminClient();
   const { data, error } = await db.from('workspace_members').select('user_id').eq('workspace_id', workspace.id);
-  if (error) back('membros', { erro: error.message });
+  if (error) return { error: error.message };
   const memberIds = ((data ?? []) as { user_id: string }[]).map((m) => m.user_id);
-  if (!canEditProfile({ me: user.id, target, canManage: isAdmin || workspace.role === 'owner', memberIds })) back('membros', { erro: 'Você não pode alterar esse perfil.' });
+  if (!canEditProfile({ me: user.id, target, canManage: isAdmin || workspace.role === 'owner', memberIds })) return { error: 'Você não pode alterar esse perfil.' };
   const file = formData.get('avatar');
   let uploaded: string | null = null;
   try {
-    const name = parseProfileName(text(formData, 'name'));
+    const name = formData.has('name') ? parseProfileName(text(formData, 'name')) : undefined;
     const old = await avatarPathOf(db, target);
     if (file instanceof File && file.size) {
       if (file.size > AVATAR_MAX_BYTES) throw new Error('Envie uma imagem JPG, PNG ou WebP de até 2 MB.');
@@ -119,10 +119,10 @@ export async function saveProfileAction(formData: FormData) {
   } catch (err) {
     // O envio da foto pode ter passado e o perfil não: não deixa o arquivo solto.
     if (uploaded && (await avatarPathOf(db, target).catch(() => uploaded)) !== uploaded) await removeAvatar(db, uploaded).catch(() => {});
-    back('membros', { erro: (err as Error).message });
+    return { error: (err as Error).message };
   }
   revalidatePath('/painel', 'layout');
-  back('membros', { ok: 'Perfil salvo.' });
+  return { error: null };
 }
 
 /** Admin: troca o workspace em uso. */

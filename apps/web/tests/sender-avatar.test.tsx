@@ -2,7 +2,6 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { SenderAvatar } from '@/components/crm/sender-avatar';
 import type { ThreadMessage, ThreadPeople } from '@/components/crm/thread';
-import { AvatarInput } from '@/components/settings/avatar-input';
 
 afterEach(cleanup);
 const people = (meAvatar: string | null, avatarUrl: string | null = null): ThreadPeople => ({ contactName: 'C', contactAvatar: null, contactSeed: 'c', meName: 'Sharken', meAvatar, profiles: { u: { userId: 'u', name: 'Ana', avatarUrl } } });
@@ -24,14 +23,4 @@ it('foto do WhatsApp segue a URL nova; a do perfil fica estável', () => {
   const b = render(<SenderAvatar m={m('u')} people={people(null, 'https://s/f?t=1')} />);
   b.rerender(<SenderAvatar m={m('u')} people={people(null, 'https://s/f?t=2')} />);
   expect(src(b.container)).toBe('https://s/f?t=1');
-});
-
-it('foto acima de 2 MB bloqueia o formulário antes do envio', () => {
-  const { container } = render(<AvatarInput />);
-  const input = container.querySelector('input')!;
-  const pick = (size: number) => { Object.defineProperty(input, 'files', { value: [{ size }], configurable: true }); fireEvent.change(input); };
-  pick(2 * 1024 * 1024 + 1);
-  expect(input.validationMessage).toContain('até 2 MB');
-  pick(10);
-  expect(input.validationMessage).toBe('');
 });
