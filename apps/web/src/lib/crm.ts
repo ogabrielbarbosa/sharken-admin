@@ -119,6 +119,12 @@ export function eventLabel(e: CrmEvent): string | null {
   return null;
 }
 
+/** Troca de responsável no Histórico, com quem trocou. */
+export function responsibleLabel(e: { to_id: string | null; by_id: string | null }, nameOf: (id: string) => string): string {
+  const to = e.to_id ? `Responsável: ${nameOf(e.to_id)}` : 'Sem responsável';
+  return `${to} · ${e.by_id ? `por ${nameOf(e.by_id)}` : 'automático'}`;
+}
+
 /** Duração curta: 12 min, 9 h 54, 3 d 4 h. */
 export function duration(ms: number): string {
   const min = Math.max(0, Math.floor(ms / 60_000));

@@ -42,7 +42,7 @@ export async function savePageUrl(db: Db, leadId: string, raw: string): Promise<
   return { ok: true };
 }
 
-export async function saveLoomUrl(db: Db, leadId: string, raw: string): Promise<PipelineResult> {
+export async function saveLoomUrl(db: Db, leadId: string, raw: string, actor?: string): Promise<PipelineResult> {
   const lead = await getLead(db, leadId);
   if (!lead || !['video', 'crm'].includes(lead.stage)) return stale();
   const url = parseLoomUrl(raw);
@@ -56,7 +56,7 @@ export async function saveLoomUrl(db: Db, leadId: string, raw: string): Promise<
     await moveLead(db, lead, 'crm');
     return { ok: true };
   }
-  const contact = await createContactFromLead(db, { ...lead, loom_url: url });
+  const contact = await createContactFromLead(db, { ...lead, loom_url: url }, actor);
   await moveLead(db, lead, 'crm', {}, { contact_id: contact.id });
   return contact.lead_id && contact.lead_id !== lead.id ? { ok: true, warning: OTHER_LEAD_CONTACT } : { ok: true };
 }

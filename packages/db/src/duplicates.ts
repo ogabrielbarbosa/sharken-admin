@@ -55,6 +55,8 @@ export async function mergeLeads(db: Db, aId: string, bId: string): Promise<{ ke
   const patch = mergeIncoming(keep, { ...drop, batch_id: drop.batch_id ?? '' } as unknown as NewLead);
   // O place_id é único por workspace: sai do que vai ser apagado antes de passar para o que fica.
   if (patch.place_id) await updateLead(db, drop.id, { place_id: null });
+  // O responsável do que sai só vale se o que fica não tem um.
+  if (!keep.responsible_id && drop.responsible_id) patch.responsible_id = drop.responsible_id;
   if (Object.keys(patch).length) await updateLead(db, keep.id, patch);
 
   const { data: links } = await db.from('batch_leads').select('batch_id, found_at, already_known').eq('lead_id', drop.id);

@@ -4,8 +4,10 @@ import Link, { useLinkStatus } from 'next/link';
 import { createContext, useContext, type ReactNode } from 'react';
 import { InstagramIcon, instagramUrl, mapsUrl, siteUrl, withProtocol } from '@/components/leads/lead-links';
 import { Status } from '@/components/ui';
+import type { Member } from '@/lib/members';
 import { crmHref, STATUS_LABEL } from '@/lib/crm';
 import { leadMeta, siteLabel } from '@/lib/lead-labels';
+import { ResponsiblePicker } from './responsible-picker';
 
 export type CardContact = { id: string; status: ContactStatus; chat_state?: ChatState };
 
@@ -18,6 +20,9 @@ export type CardDrag = { onStart: () => void; onEnd: () => void };
 /** Batches anteriores em que o lead já tinha aparecido (só nos leads já conhecidos deste batch). */
 const KnownFrom = createContext<string[] | undefined>(undefined);
 
+/** Membros e troca do responsável, vindos do quadro. */
+export const ResponsibleContext = createContext<{ members: Member[]; pending: boolean; assign: (leadId: string, userId: string | null) => void }>({ members: [], pending: false, assign: () => {} });
+
 /** `drag`: o cartão pode ser arrastado (até Descartados). */
 function Shell({ lead, active, drag, children }: { lead: Lead; active?: boolean; drag?: CardDrag; children: ReactNode }) {
   return (
@@ -26,16 +31,28 @@ function Shell({ lead, active, drag, children }: { lead: Lead; active?: boolean;
       draggable={!!drag}
       onDragStart={drag && ((e) => { e.dataTransfer.setData('text/plain', lead.id); e.dataTransfer.effectAllowed = 'move'; drag.onStart(); })}
       onDragEnd={drag?.onEnd}
-      className={`relative rounded-md border bg-card p-3 text-sm ${drag ? 'cursor-grab active:cursor-grabbing' : ''} ${active ? 'border-neutral-400' : 'border-border'}`}
+      className={`relative rounded-md border bg-card p-3 pb-3.5 text-sm ${drag ? 'cursor-grab active:cursor-grabbing' : ''} ${active ? 'border-neutral-400' : 'border-border'}`}
     >
       {children}
+      {lead.score != null && <ScoreBar score={lead.score} />}
     </li>
   );
 }
 
-function ScoreBadge({ score }: { score: number }) {
-  const tone = score >= 70 ? 'border-success text-success' : score >= 50 ? 'border-warning text-warning' : 'border-destructive text-destructive';
-  return <span aria-label={`Pontuação ${score}`} title="Pontuação" className={`flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold tabular-nums ${tone}`}>{score}</span>;
+/** Pontuação em barra, de ponta a ponta na base do cartão. */
+function ScoreBar({ score }: { score: number }) {
+  const value = Math.min(100, Math.max(0, score));
+  const tone = value >= 70 ? 'bg-success' : value >= 50 ? 'bg-warning' : 'bg-destructive';
+  return (
+    <span role="meter" aria-label={`Pontuação ${score}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} className="pointer-events-none absolute inset-x-0 bottom-0 h-1 overflow-hidden rounded-b-[5px] bg-white/5">
+      <span className={`block h-full ${tone}`} style={{ width: `${value}%` }} />
+    </span>
+  );
+}
+
+function Responsible({ lead }: { lead: Lead }) {
+  const { members, pending, assign } = useContext(ResponsibleContext);
+  return <ResponsiblePicker leadName={lead.name} value={lead.responsible_id ?? null} members={members} disabled={pending} onChange={(id) => assign(lead.id, id)} />;
 }
 
 /** Botõezinhos para abrir o negócio por fora (Instagram, Maps e site), sempre na mesma posição; o que falta fica apagado. */
@@ -91,7 +108,7 @@ function QuickLinks({ lead }: { lead: Lead }) {
   );
 }
 
-/** Mesmo formato em todas as colunas: nome, bolinha com a pontuação, status do site, atalhos e o que falta na etapa. */
+/** Mesmo formato em todas as colunas: nome, responsável, status do site, atalhos e o que falta na etapa. */
 function CardBody({ lead, children }: { lead: Lead; children?: ReactNode }) {
   const site = siteLabel(lead);
   return (
@@ -101,7 +118,7 @@ function CardBody({ lead, children }: { lead: Lead; children?: ReactNode }) {
           <span className="block truncate font-medium">{lead.name}</span>
           <span className="block truncate text-xs text-muted-foreground">{leadMeta(lead)}</span>
         </span>
-        {lead.score != null && <ScoreBadge score={lead.score} />}
+        <Responsible lead={lead} />
       </span>
       <span className="mt-2 flex items-center justify-between gap-2 text-xs">
         <span className="min-w-0"><Status tone={site.tone}>{site.label}</Status></span>

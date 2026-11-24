@@ -8,6 +8,7 @@ import {
   getLead,
   listChats,
   listEvents,
+  listResponsibleEvents,
   listCatalog,
   listMessages,
   profilesOrEmpty,
@@ -28,7 +29,8 @@ import { NewContactDialog } from '@/components/crm/new-contact-dialog';
 import { CrmRealtime } from '@/components/crm/use-crm-realtime';
 import { Topbar } from '@/components/layout/topbar';
 import { authedDb, getSession, workspaceProfile } from '@/lib/auth';
-import { composerDraft, crmHref, duration, eventLabel, stopRequestPending } from '@/lib/crm';
+import { composerDraft, crmHref, duration, eventLabel, responsibleLabel, stopRequestPending } from '@/lib/crm';
+import { listMembers } from '@/lib/members';
 import { flowLabel } from '@/lib/lead-labels';
 
 const TABS: ChatState[] = ['aberto', 'pendente', 'fechado'];
@@ -64,10 +66,11 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
   const base = crmHref(tab, { q: search });
   const { user, workspace } = await getSession();
   const profile = workspaceProfile(workspace);
+  const members = await listMembers(workspace.id);
   const dailyLimit = profile.dailyLimit;
 
   const list = (
-    <ContactList contacts={contacts} counts={counts} tab={tab} selectedId={selected?.id ?? null} search={search} now={now} connection={connectionInfo} />
+    <ContactList contacts={contacts} counts={counts} tab={tab} selectedId={selected?.id ?? null} search={search} now={now} connection={connectionInfo} members={members} />
   );
   const shell = (children: React.ReactNode) => (
     <div className="flex h-[calc(100vh-1rem)] flex-col max-lg:h-screen">
@@ -99,12 +102,17 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     db.from('do_not_contact').select('phone_e164').in('phone_e164', phoneMatchCandidates(selected.phone_e164)).limit(1),
     closing ? clientByContact(db, selected.id) : null,
   ]);
-  const [events, batch, urls, profiles] = await Promise.all([
+  const [events, responsibleEvents, batch, urls, profiles] = await Promise.all([
     selected.lead_id ? listEvents(db, selected.lead_id) : [],
+    listResponsibleEvents(db, selected.id),
     selected.batch_id ? getBatch(db, selected.batch_id) : null,
     mediaUrls(db, messages as ThreadMessage[]),
     profilesOrEmpty(db, [user.id, ...messages.flatMap((m) => (m.sent_by ? [m.sent_by] : []))]),
   ]);
+
+  const gone = responsibleEvents.flatMap((e) => [e.to_id, e.by_id]).filter((id): id is string => !!id && !members.some((m) => m.id === id));
+  const past = await profilesOrEmpty(db, gone);
+  const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? past.get(id)?.name ?? 'ex-membro';
 
   const link = lead?.page_url ?? null;
 
@@ -113,7 +121,10 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
   const legacy: LegacyLine[] = firstAt
     ? events.filter((e) => e.created_at < firstAt && e.type !== 'abertura').flatMap((e) => { const label = eventLabel(e); return label ? [{ at: e.created_at, label }] : []; }).reverse().slice(-12)
     : [];
-  const history: HistoryItem[] = events.flatMap((e) => { const label = eventLabel(e); return label ? [{ at: e.created_at, label }] : []; }).slice(0, 8);
+  const history: HistoryItem[] = [
+    ...events.flatMap((e) => { const label = eventLabel(e); return label ? [{ at: e.created_at, label }] : []; }),
+    ...responsibleEvents.map((e) => ({ at: e.created_at, label: responsibleLabel(e, nameOf) })),
+  ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20);
 
   const templates: Template[] = [];
   if (lead && link) {
@@ -197,6 +208,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           media={mediaMessages}
           notes={notes}
           now={now.toISOString()}
+          members={members}
         />
       </div>
     </>,

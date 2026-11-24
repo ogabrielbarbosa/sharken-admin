@@ -70,7 +70,7 @@ export const inlineFieldTriggerClass = [
   'disabled:cursor-default disabled:hover:border-transparent disabled:hover:bg-transparent',
 ].join(' ');
 
-export type InlineOption<T extends string> = { value: T; label: string; dot?: string };
+export type InlineOption<T extends string> = { value: T; label: string; dot?: string; icon?: ReactNode };
 
 const LIST_GAP = 4;
 const LIST_MIN_WIDTH = 208;
@@ -79,7 +79,7 @@ const LIST_MIN_WIDTH = 208;
  * Seletor em linha: parece texto, abre uma lista com ✓ na opção atual. A lista vai para o body (portal,
  * posição fixa): a linha e a seção recolhível têm overflow-hidden e cortariam uma lista absoluta.
  */
-export function InlineSelect<T extends string>({ value, options, onChange, disabled, label }: { value: T; options: InlineOption<T>[]; onChange: (v: T) => void; disabled?: boolean; label: string }) {
+export function InlineSelect<T extends string>({ value, options, onChange, disabled, label, trigger: customTrigger, triggerTitle }: { value: T; options: InlineOption<T>[]; onChange: (v: T) => void; disabled?: boolean; label: string; /** Troca o gatilho de texto por outro conteúdo (ex.: uma foto). */ trigger?: ReactNode; triggerTitle?: string }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number; width: number; up: boolean } | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -138,11 +138,14 @@ export function InlineSelect<T extends string>({ value, options, onChange, disab
   }
 
   return (
-    <div className="relative flex min-w-0 flex-1 self-stretch">
-      <button ref={trigger} type="button" aria-label={label} aria-haspopup="listbox" aria-expanded={open} disabled={disabled} onClick={() => setOpen((v) => !v)} className={inlineFieldTriggerClass}>
+    <div className={customTrigger ? 'relative flex' : 'relative flex min-w-0 flex-1 self-stretch'}>
+      <button ref={trigger} type="button" aria-label={label} aria-haspopup="listbox" aria-expanded={open} disabled={disabled} onClick={() => setOpen((v) => !v)} title={triggerTitle} className={customTrigger ? 'group/trigger cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default' : inlineFieldTriggerClass}>
+        {customTrigger ?? <>
+        {current?.icon}
         {current?.dot && <span className={`size-1.5 shrink-0 rounded-full ${current.dot}`} aria-hidden />}
         <span className="min-w-0 flex-1 truncate">{current?.label ?? '—'}</span>
         {!disabled && <ChevronDown className={`ml-auto size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : ''}`} aria-hidden />}
+        </>}
       </button>
       {open && typeof document !== 'undefined' && createPortal(
         <ul
@@ -151,13 +154,14 @@ export function InlineSelect<T extends string>({ value, options, onChange, disab
           aria-label={label}
           onKeyDown={onListKey}
           style={{ position: 'fixed', left: pos?.left ?? -9999, top: pos?.top ?? -9999, width: pos?.width ?? LIST_MIN_WIDTH, visibility: pos ? 'visible' : 'hidden' }}
-          className={`z-[100] ${pos?.up ? 'origin-bottom' : 'origin-top'} animate-pop-in rounded-md border border-border bg-card p-1 shadow-overlay`}
+          className={`z-[100] ${pos?.up ? 'origin-bottom' : 'origin-top'} max-h-72 overflow-y-auto animate-pop-in rounded-md border border-border bg-card p-1 shadow-overlay`}
         >
           {options.map((o) => {
             const selected = o.value === value;
             return (
               <li key={o.value}>
                 <button type="button" role="option" aria-selected={selected} onClick={() => pick(o.value)} className="flex min-h-7 w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left text-[13px] outline-none transition-colors hover:bg-accent focus-visible:bg-accent">
+                  {o.icon}
                   {o.dot && <span className={`size-1.5 shrink-0 rounded-full ${o.dot}`} aria-hidden />}
                   <span className="min-w-0 flex-1 truncate">{o.label}</span>
                   {selected ? <Check className="size-3.5 shrink-0 text-brand-soft" aria-hidden /> : <span className="size-3.5 shrink-0" aria-hidden />}

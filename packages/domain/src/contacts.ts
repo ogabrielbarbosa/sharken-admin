@@ -30,6 +30,10 @@ export type Contact = {
   comment: string | null;
   chat_state: ChatState;
   chat_state_at: string;
+  /** Membro responsável pelo atendimento. Aberto sempre tem um (garantido pelo banco, 0029). */
+  responsible_id: string | null;
+  /** Quem definiu o responsável; nulo quando foi automático. */
+  responsible_by: string | null;
   avatar_url: string | null;
   avatar_checked_at: string | null;
 };

@@ -3,7 +3,9 @@ import type { ChatCounts } from '@lps/db';
 import { Check, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { crmHref, isFollowUpDue, listTime } from '@/lib/crm';
+import type { Member } from '@/lib/members';
 import { Avatar } from './avatar';
+import { ResponsibleAvatar } from './member-avatar';
 
 export const TABS: { key: ChatState; label: string }[] = [
   { key: 'aberto', label: 'Abertos' },
@@ -40,7 +42,7 @@ function Preview({ contact, now }: { contact: Contact; now: Date }) {
   );
 }
 
-export function ContactList({ contacts, counts, tab, selectedId, search, now, connection }: {
+export function ContactList({ contacts, counts, tab, selectedId, search, now, connection, members }: {
   contacts: Contact[];
   counts: ChatCounts;
   tab: ChatState;
@@ -48,6 +50,7 @@ export function ContactList({ contacts, counts, tab, selectedId, search, now, co
   search: string;
   now: Date;
   connection: ConnectionInfo;
+  members: Member[];
 }) {
   return (
     <section aria-label="Conversas" className="flex min-h-0 flex-col border-r border-border">
@@ -84,6 +87,7 @@ export function ContactList({ contacts, counts, tab, selectedId, search, now, co
           </li>
         )}
         {contacts.map((c) => {
+          const responsible = members.find((m) => m.id === c.responsible_id);
           const selected = c.id === selectedId;
           return (
             <li key={c.id}>
@@ -100,7 +104,10 @@ export function ContactList({ contacts, counts, tab, selectedId, search, now, co
                   </span>
                   <span className="mt-0.5 flex items-center justify-between gap-2">
                     <Preview contact={c} now={now} />
+                    <span className="flex shrink-0 items-center gap-1.5">
                     {c.unread_count > 0 && <span aria-label={`${c.unread_count} não lidas`} className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-success px-1.5 text-[11px] font-semibold text-background">{c.unread_count > 99 ? '99+' : c.unread_count}</span>}
+                    {responsible && <ResponsibleAvatar member={responsible} />}
+                    </span>
                   </span>
                 </span>
               </Link>

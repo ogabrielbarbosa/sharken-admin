@@ -10,7 +10,7 @@ vi.mock('next/link', () => ({
   default: ({ href, children, replace: _r, scroll: _s, ...rest }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children: ReactNode; replace?: boolean; scroll?: boolean }) => <a href={href} {...rest}>{children}</a>,
   useLinkStatus: () => ({ pending: false }),
 }));
-vi.mock('@/app/painel/batches/[id]/actions', () => ({ qualifyAction: vi.fn(), discardAction: vi.fn(), completeInfoAction: vi.fn(), stepBackAction: vi.fn() }));
+vi.mock('@/app/painel/batches/[id]/actions', () => ({ qualifyAction: vi.fn(), discardAction: vi.fn(), completeInfoAction: vi.fn(), stepBackAction: vi.fn(), setLeadResponsibleAction: vi.fn() }));
 
 afterEach(cleanup);
 
@@ -71,16 +71,25 @@ describe('Board', () => {
     expect(within(screen.getByTestId('card-l-analisando')).getByText('Analisando…')).toBeTruthy();
   });
 
-  it('todos os cartões têm o mesmo formato: pontuação na bolinha e status do site, sem avaliação nem botões', () => {
+  it('todos os cartões têm o mesmo formato: pontuação na barra, responsável e status do site, sem avaliação', () => {
     render(<Board batchId="b1" leads={leads} contacts={contacts} />);
     fireEvent.click(within(column('Descartados')).getByRole('button', { name: 'Descartados (2)' }));
     for (const stage of STAGES) {
       const card = screen.getByTestId(`card-l-${stage}`);
-      expect(within(card).getByLabelText('Pontuação 70').textContent).toBe('70');
+      expect(within(card).getByRole('meter', { name: 'Pontuação 70' }).getAttribute('aria-valuenow')).toBe('70');
       expect(within(card).getByText('Sem site')).toBeTruthy();
       expect(within(card).queryByText(/4\.8/)).toBeNull();
-      expect(within(card).queryAllByRole('button')).toHaveLength(0);
+      expect(within(card).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([`Responsável por Negócio ${stage}: ninguém`]);
     }
+  });
+
+  it('escolher um membro na bolinha define o responsável', async () => {
+    const { setLeadResponsibleAction } = await import('@/app/painel/batches/[id]/actions');
+    vi.mocked(setLeadResponsibleAction).mockResolvedValue({ ok: true });
+    render(<Board batchId="b1" leads={leads} contacts={contacts} members={[{ id: 'u1', name: 'Ana', avatarUrl: null }]} />);
+    fireEvent.click(within(screen.getByTestId('card-l-revisar')).getByRole('button'));
+    fireEvent.click(screen.getByRole('option', { name: /Ana/ }));
+    expect(setLeadResponsibleAction).toHaveBeenCalledWith('l-revisar', 'u1');
   });
 
   it('o cartão revisar abre ao clicar em qualquer parte', () => {

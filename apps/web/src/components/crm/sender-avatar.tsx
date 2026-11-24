@@ -2,19 +2,15 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { createUrlCache } from '@/lib/media-cache';
+import { stableAvatar } from '@/lib/avatar-url';
 import { senderInfo } from '@/lib/sender-info';
 import { Avatar } from './avatar';
 import type { ThreadMessage, ThreadPeople } from './thread';
 
-// A URL assinada muda a cada refresh: guardar a primeira evita a foto piscar.
-const urlCache = createUrlCache(20 * 3600_000);
-const stable = (url: string | null) => (url ? urlCache.resolve(url.split('?')[0]!, url) : null);
-
 export function senderOf(m: ThreadMessage, people: ThreadPeople) {
   const info = senderInfo(m, people.profiles, { name: people.meName, avatar: people.meAvatar });
   // A foto do WhatsApp expira pela própria URL: essa segue a mais nova.
-  return m.sent_by ? { ...info, avatar: stable(info.avatar) } : info;
+  return m.sent_by ? { ...info, avatar: stableAvatar(info.avatar) } : info;
 }
 
 const sentAt = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });

@@ -17,6 +17,8 @@ import { Card } from '@/components/ui';
 import { AutoRefresh } from '@/components/ui/auto-refresh';
 import { batchLabel, loadBatchContext } from '@/lib/batch-context';
 import { boardHref } from '@/lib/board-href';
+import { getSession } from '@/lib/auth';
+import { listMembers } from '@/lib/members';
 import { leadMeta } from '@/lib/lead-labels';
 
 const shortUrl = (url: string) => url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
@@ -115,6 +117,7 @@ export default async function PipelinePage({ params, searchParams }: { params: P
   const running = batch.status === 'buscando' || batch.status === 'analisando';
 
   const all = await listLeads(db, id, undefined, 'stage_changed_at');
+  const members = await listMembers((await getSession()).workspace.id);
   const now = new Date();
   const toReview = all.filter((l) => l.stage === 'revisar');
   const analyzing = all.filter((l) => l.stage === 'analisando');
@@ -176,7 +179,7 @@ export default async function PipelinePage({ params, searchParams }: { params: P
         {running && <Arriving leads={analyzing} searching={batch.status === 'buscando'} quantity={batch.quantity} phase={phase} />}
         <ActiveFilters batchId={id} filter={filter} shown={reviewed.length} total={toReview.length} />
         {notice && <p role="status" className="mb-4 rounded-md bg-warning-subtle px-3 py-2 text-sm text-warning">{notice}</p>}
-        <Board batchId={id} leads={leads} contacts={contacts} query={filterQs} openId={open?.id} known={known} />
+        <Board batchId={id} leads={leads} contacts={contacts} query={filterQs} openId={open?.id} known={known} members={members} />
         {modal}
         <div className="h-20 md:hidden" />
       </main>

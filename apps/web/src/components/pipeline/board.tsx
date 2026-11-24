@@ -3,11 +3,12 @@
 import type { PipelineResult } from '@lps/db';
 import { columnOf, dropMove, PIPELINE_COLUMNS, type Lead, type PipelineColumn } from '@lps/domain';
 import { useRouter } from 'next/navigation';
-import { completeInfoAction, discardAction, qualifyAction, stepBackAction } from '@/app/painel/batches/[id]/actions';
+import { completeInfoAction, discardAction, qualifyAction, setLeadResponsibleAction, stepBackAction } from '@/app/painel/batches/[id]/actions';
 import { useState, useTransition } from 'react';
 import { boardHref } from '@/lib/board-href';
+import type { Member } from '@/lib/members';
 import { Column } from './column';
-import { LeadCard, type CardContact } from './lead-card';
+import { LeadCard, ResponsibleContext, type CardContact } from './lead-card';
 
 const EMPTY: Partial<Record<PipelineColumn, string>> = {
   novo: 'Nenhum lead aqui.',
@@ -61,15 +62,17 @@ export function Notice({ notice }: { notice: { tone: 'error' | 'warning'; text: 
  * Quadro da pipeline. Recebe os leads já na ordem de cada coluna
  * (Novo lead filtrado e por pontuação, as outras por tempo na etapa).
  */
-export function Board({ batchId, leads, contacts, query = '', openId, known = {} }: {
+export function Board({ batchId, leads, contacts, query = '', openId, known = {}, members = [] }: {
   batchId: string; leads: Lead[]; contacts: Record<string, CardContact[]>; query?: string; openId?: string;
   /** Leads que já eram conhecidos, com os batches anteriores. */
   known?: Record<string, string[]>;
+  /** Quem pode ser responsável pelos leads. */
+  members?: Member[];
 }) {
   const [tab, setTab] = useState<PipelineColumn>('novo');
   const [showDiscarded, setShowDiscarded] = useState(false);
   const router = useRouter();
-  const { notice, run } = useStageAction();
+  const { notice, run, pending } = useStageAction();
   // Cartão sendo arrastado: as colunas uma etapa antes ou depois aceitam o cartão, e Descartados vira lixeira.
   const [dragging, setDragging] = useState<Lead | null>(null);
 
@@ -92,7 +95,7 @@ export function Board({ batchId, leads, contacts, query = '', openId, known = {}
   for (const lead of leads) byColumn[columnOf(lead.stage)].push(lead);
 
   return (
-    <>
+    <ResponsibleContext.Provider value={{ members, pending, assign: (leadId, userId) => run(() => setLeadResponsibleAction(leadId, userId)) }}>
       <div role="tablist" aria-label="Etapas" className="mb-3 flex gap-1 overflow-x-auto md:hidden">
         {PIPELINE_COLUMNS.map((c) => (
           <button
@@ -142,6 +145,6 @@ export function Board({ batchId, leads, contacts, query = '', openId, known = {}
           );
         })}
       </div>
-    </>
+    </ResponsibleContext.Provider>
   );
 }

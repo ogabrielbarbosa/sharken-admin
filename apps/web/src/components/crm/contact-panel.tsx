@@ -3,17 +3,19 @@
 import { canSetStatus, type ChatState, type Contact, type ContactStatus, type Lead } from '@lps/domain';
 import {
   Ban, CalendarDays, Check, CircleDot, Clock3, Copy, Gauge, Handshake, History, Image as ImageIcon, Layers, MessageCircle, MessageSquareText,
-  Phone, Plug, Route, StickyNote, Tag, ThumbsDown, Timer, User,
+  Phone, Plug, Route, StickyNote, Tag, ThumbsDown, Timer, User, UserCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
-import { closeChatAction, renameContactAction, reopenChatAction, saveLeadCommentAction, setStatusAction } from '@/app/painel/crm/actions';
+import { closeChatAction, renameContactAction, reopenChatAction, setChatResponsibleAction, saveLeadCommentAction, setStatusAction } from '@/app/painel/crm/actions';
 import { ErrorNote, type Tone } from '@/components/ui';
 import { ago, crmHref, formatPhone, STATUS_LABEL } from '@/lib/crm';
+import type { Member } from '@/lib/members';
 import { Avatar } from './avatar';
 import { FollowUpBlock } from './follow-up-block';
 import { LinksBlock } from './links-block';
+import { MemberAvatar } from './member-avatar';
 import { InlineSelect, Row, Section, Value } from './panel-parts';
 import type { ThreadMessage } from './thread';
 
@@ -29,6 +31,7 @@ export type PanelProps = {
   media: ThreadMessage[];
   notes: ThreadMessage[];
   now: string;
+  members: Member[];
 };
 
 type Tab = 'contato' | 'historico' | 'midia' | 'notas';
@@ -121,7 +124,7 @@ function EditableName({ contactId, name }: { contactId: string; name: string }) 
   );
 }
 
-export function ContactPanel({ contact, lead, origin, flowLabel, history, closeHref, firstResponse, media, notes, now: nowIso }: PanelProps) {
+export function ContactPanel({ contact, lead, origin, flowLabel, history, closeHref, firstResponse, media, notes, now: nowIso, members }: PanelProps) {
   const router = useRouter();
   const now = new Date(nowIso);
   const [tab, setTab] = useState<Tab>('contato');
@@ -180,6 +183,15 @@ export function ContactPanel({ contact, lead, origin, flowLabel, history, closeH
             <Section title="Atendimento">
               <Row icon={<CircleDot />} label="Estado">
                 <InlineSelect label="Estado do atendimento" value={contact.chat_state} options={chatOptions} disabled={pending} onChange={changeChat} />
+              </Row>
+              <Row icon={<UserCheck />} label="Responsável">
+                <InlineSelect
+                  label="Responsável pelo atendimento"
+                  value={contact.responsible_id ?? ''}
+                  options={members.map((m) => ({ value: m.id, label: m.name, icon: <MemberAvatar member={m} size={18} /> }))}
+                  disabled={pending}
+                  onChange={(id) => run(() => setChatResponsibleAction(contact.id, id))}
+                />
               </Row>
               <Row icon={<Tag />} label="Status">
                 <InlineSelect label="Status comercial" value={contact.status} options={statusOptions} disabled={pending || ended || contact.status === 'fechado'} onChange={changeStatus} />

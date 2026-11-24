@@ -64,6 +64,8 @@ export type Lead = {
   /** Calculados pelo banco a partir de instagram_url e website_url (migração 0023). */
   instagram_handle?: string | null;
   site_domain?: string | null;
+  /** Membro responsável pelo lead (independente do responsável do atendimento). */
+  responsible_id?: string | null;
   name: string;
   business_type: string | null;
   phone_raw: string | null;

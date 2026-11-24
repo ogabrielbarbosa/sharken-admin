@@ -121,7 +121,7 @@ export const CLIENT_NO_PHONE_MESSAGE = 'O cliente não tem celular válido. Corr
  * Contato do CRM de um cliente, para mandar mensagem. Usa o contato ligado; senão acha pelo celular
  * (sem religar se já é de outro cliente) ou cria um manual e liga. Não cria nada para quem pediu para parar.
  */
-export async function resolveClientContact(db: Db, client: Pick<ClientRecord, 'id' | 'legal_name' | 'contact_name' | 'phone' | 'contact_id'>): Promise<{ contactId: string } | { blocked: string }> {
+export async function resolveClientContact(db: Db, client: Pick<ClientRecord, 'id' | 'legal_name' | 'contact_name' | 'phone' | 'contact_id'>, actor?: string): Promise<{ contactId: string } | { blocked: string }> {
   const linked = client.contact_id ? await getContact(db, client.contact_id) : null;
   const phone = linked?.phone_e164 ?? toMobileE164(client.phone);
   if (!phone) return { blocked: CLIENT_NO_PHONE_MESSAGE };
@@ -136,7 +136,7 @@ export async function resolveClientContact(db: Db, client: Pick<ClientRecord, 'i
     if (!owner) await updateClient(db, client.id, { contact_id: existing.id });
     return { contactId: existing.id };
   }
-  const created = await createContact(db, { name: client.contact_name || client.legal_name, phone_e164: phone, origin: 'manual', status: 'fechado' });
+  const created = await createContact(db, { name: client.contact_name || client.legal_name, phone_e164: phone, origin: 'manual', status: 'fechado', ...(actor ? { responsible_id: actor, responsible_by: actor } : {}) });
   await updateClient(db, client.id, { contact_id: created.id });
   return { contactId: created.id };
 }

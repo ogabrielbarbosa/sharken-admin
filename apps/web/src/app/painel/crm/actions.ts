@@ -20,7 +20,9 @@ import {
   saveLoomUrl,
   savePageUrl,
   sendMessage,
+  openChat,
   setChatState,
+  setResponsible,
   setContactStatus,
   updateContact,
   updateLead,
@@ -110,7 +112,7 @@ export async function updateContactLinkAction(contactId: string, kind: 'pagina' 
     if (kind !== 'pagina' && kind !== 'video') throw new Error('Tipo de link inválido.');
     const db = await authedDb();
     const leadId = await leadOf(db, contactId);
-    const out = kind === 'pagina' ? await savePageUrl(db, leadId, url) : await saveLoomUrl(db, leadId, url);
+    const out = kind === 'pagina' ? await savePageUrl(db, leadId, url) : await saveLoomUrl(db, leadId, url, (await getSession()).user.id);
     if (!out.ok) throw new Error(out.error);
     return out.warning ? { warning: out.warning } : {};
   });
@@ -153,7 +155,8 @@ export async function createContactAction(name: string, phone: string): Promise<
     const db = await authedDb();
     const other = await findContactByPhone(db, mobile);
     if (other) throw new Error(`Este número já é do contato ${other.name}.`);
-    const created = await createContact(db, { name: cleanName, phone_e164: mobile, origin: 'manual', status: 'novo' });
+    const { user } = await getSession();
+    const created = await createContact(db, { name: cleanName, phone_e164: mobile, origin: 'manual', status: 'novo', responsible_id: user.id, responsible_by: user.id });
     refresh();
     return { ok: true, contactId: created.id };
   } catch (err) {
@@ -263,7 +266,7 @@ export async function closeDealAction(input: CloseDealInput): Promise<CloseDealR
 
 /** Abrir um atendimento pendente: passa para aberto. Só muda se ainda estiver pendente. */
 export async function attendChatAction(contactId: string): Promise<Result> {
-  return guarded(async () => { await setChatState(await authedDb(), contactId, 'aberto', 'pendente'); });
+  return guarded(async () => { await openChat(await authedDb(), contactId, (await getSession()).user.id, 'pendente'); });
 }
 
 export async function closeChatAction(contactId: string): Promise<Result> {
@@ -271,7 +274,11 @@ export async function closeChatAction(contactId: string): Promise<Result> {
 }
 
 export async function reopenChatAction(contactId: string): Promise<Result> {
-  return guarded(async () => { await setChatState(await authedDb(), contactId, 'aberto'); });
+  return guarded(async () => { await openChat(await authedDb(), contactId, (await getSession()).user.id); });
+}
+
+export async function setChatResponsibleAction(contactId: string, userId: string): Promise<Result> {
+  return guarded(async () => { await setResponsible(await authedDb(), 'contacts', contactId, userId, (await getSession()).user.id); });
 }
 
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024;

@@ -1,6 +1,6 @@
 import { getClient, resolveClientContact } from '@lps/db';
 import { redirect, unstable_rethrow } from 'next/navigation';
-import { authedDb } from '@/lib/auth';
+import { authedDb, getSession } from '@/lib/auth';
 
 /**
  * Leva ao CRM, na conversa do cliente, com o texto já no campo. Cria o contato manual quando o cliente
@@ -14,7 +14,7 @@ export async function openClientConversation(opts: { clientId: string; back: str
     const db = await authedDb();
     const client = await getClient(db, opts.clientId);
     if (!client) redirect(withError('Cliente não encontrado.'));
-    const out = await resolveClientContact(db, client);
+    const out = await resolveClientContact(db, client, (await getSession()).user.id);
     if ('blocked' in out) redirect(withError(out.blocked));
     const link = opts.href(out.contactId);
     if (!link) redirect(withError(opts.missing));

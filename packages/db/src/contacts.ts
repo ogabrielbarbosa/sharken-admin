@@ -11,11 +11,16 @@ async function findOne(db: Db, column: string, values: string[]): Promise<Contac
   return ((data as Contact[] | null) ?? [])[0] ?? null;
 }
 
+/** Conversa nova de um lead: herda o responsável dele; sem um, fica com quem a criou (sem ninguém, o banco usa o dono). */
+function responsibleOf(lead: Lead, actor?: string) {
+  return actor ? { responsible_id: lead.responsible_id ?? actor, responsible_by: actor } : {};
+}
+
 /**
  * Contato de um lead aprovado. Se o telefone já é contato (mesmo sem o nono dígito), liga o lead a ele
  * só quando o contato ainda não tem lead; senão mantém o vínculo e registra o evento.
  */
-export async function createContactFromLead(db: Db, lead: Lead): Promise<Contact> {
+export async function createContactFromLead(db: Db, lead: Lead, actor?: string): Promise<Contact> {
   if (!lead.phone_e164) throw new Error(NO_PHONE_MESSAGE);
 
   const linked = await findOne(db, 'lead_id', [lead.id]);
@@ -36,7 +41,7 @@ export async function createContactFromLead(db: Db, lead: Lead): Promise<Contact
 
   const { data, error } = await db
     .from('contacts')
-    .insert({ name: lead.name, phone_e164: lead.phone_e164, lead_id: lead.id, origin: 'batch', status: 'novo', batch_id: lead.batch_id })
+    .insert({ name: lead.name, phone_e164: lead.phone_e164, lead_id: lead.id, origin: 'batch', status: 'novo', batch_id: lead.batch_id, ...responsibleOf(lead, actor) })
     .select()
     .single();
   if (error) {
@@ -152,7 +157,7 @@ export async function findContactByLid(db: Db, lid: string): Promise<Contact | n
   return findOne(db, 'whatsapp_lid', [lid]);
 }
 
-export type NewContact = Pick<Contact, 'name' | 'phone_e164' | 'origin'> & Partial<Pick<Contact, 'whatsapp_lid' | 'lead_id' | 'batch_id' | 'status' | 'comment' | 'chat_state' | 'avatar_url'>>;
+export type NewContact = Pick<Contact, 'name' | 'phone_e164' | 'origin'> & Partial<Pick<Contact, 'whatsapp_lid' | 'lead_id' | 'batch_id' | 'status' | 'comment' | 'chat_state' | 'avatar_url' | 'responsible_id' | 'responsible_by'>>;
 
 export async function createContact(db: Db, row: NewContact): Promise<Contact> {
   const { data, error } = await db.from('contacts').insert(row).select().single();
@@ -241,7 +246,7 @@ export async function linkContactToLead(db: Db, contactId: string, leadId: strin
  * Mais um número para o lead. Se o número já é contato sem lead, só liga; se é de outro lead, recusa.
  * Número novo vira contato manual, já ligado ao lead e ao batch dele.
  */
-export async function addContactToLead(db: Db, leadId: string, input: { name: string; phone_e164: string }): Promise<Contact> {
+export async function addContactToLead(db: Db, leadId: string, input: { name: string; phone_e164: string }, actor?: string): Promise<Contact> {
   const lead = await getLead(db, leadId);
   if (!lead) throw new Error('Lead não encontrado.');
   const existing = await findContactByPhone(db, input.phone_e164);
@@ -251,7 +256,7 @@ export async function addContactToLead(db: Db, leadId: string, input: { name: st
     await linkContactToLead(db, existing.id, lead.id);
     return { ...existing, lead_id: lead.id };
   }
-  const created = await createContact(db, { name: input.name, phone_e164: input.phone_e164, origin: 'manual', status: 'novo', lead_id: lead.id, batch_id: lead.batch_id });
+  const created = await createContact(db, { name: input.name, phone_e164: input.phone_e164, origin: 'manual', status: 'novo', lead_id: lead.id, batch_id: lead.batch_id, ...responsibleOf(lead, actor) });
   await logEvent(db, lead.id, 'contato_criado', { contact_id: created.id, manual: true });
   return created;
 }

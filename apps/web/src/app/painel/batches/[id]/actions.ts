@@ -2,12 +2,12 @@
 
 import {
   addAsset, addContactToLead, addManualLead, completeInfo, deleteAsset, deleteBatch, enqueueJob, getAsset, getBatch, getLead, listAssets, moveLead, qualifyLeads,
-  savePageUrl, saveLoomUrl, STALE, stepBack, updateAsset, updateLead, type Db, type PipelineResult,
+  savePageUrl, saveLoomUrl, STALE, setResponsible, stepBack, updateAsset, updateLead, type Db, type PipelineResult,
 } from '@lps/db';
 import { canTransition, isAcceptedMime, manualLead, toMobileE164, MAX_ASSET_BYTES, normalizeLinkUrl, sanitizeFileName, type Lead } from '@lps/domain';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { authedDb } from '@/lib/auth';
+import { authedDb, getSession } from '@/lib/auth';
 
 const BUCKET = 'lead-assets';
 type Result = { error?: string };
@@ -96,7 +96,7 @@ export async function savePageUrlAction(leadId: string, url: string): Promise<Pi
 }
 
 export async function saveLoomUrlAction(leadId: string, url: string): Promise<PipelineResult> {
-  const result = await saveLoomUrl(await authedDb(), leadId, url);
+  const result = await saveLoomUrl(await authedDb(), leadId, url, (await getSession()).user.id);
   refresh();
   return result;
 }
@@ -106,6 +106,19 @@ export async function stepBackAction(leadId: string, from: 'pagina' | 'video'): 
   const result = await stepBack(await authedDb(), leadId, from);
   refresh();
   return result;
+}
+
+/** Responsável pelo lead; nulo deixa sem ninguém. */
+export async function setLeadResponsibleAction(leadId: string, userId: string | null): Promise<PipelineResult> {
+  const db = await authedDb();
+  const { user } = await getSession();
+  try {
+    await setResponsible(db, 'leads', leadId, userId, user.id);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Não foi possível trocar o responsável.' };
+  }
+  refresh();
+  return { ok: true };
 }
 
 // ── Itens do lead em Qualificado ────────────────────────────────────────
@@ -200,7 +213,7 @@ export async function addLeadContactAction(leadId: string, name: string, phone: 
   const mobile = toMobileE164(phone);
   if (!mobile) return { ok: false, error: 'Informe um celular válido, com DDD.' };
   try {
-    const contact = await addContactToLead(db, leadId, { name: cleanName, phone_e164: mobile });
+    const contact = await addContactToLead(db, leadId, { name: cleanName, phone_e164: mobile }, (await getSession()).user.id);
     refresh();
     return { ok: true, contactId: contact.id };
   } catch (err) {
