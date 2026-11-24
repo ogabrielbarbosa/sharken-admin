@@ -1,10 +1,11 @@
 import { getEnv } from '@lps/config';
 import { createAdminClient, getWorkspaceApify, getWorkspaceBilling, listCatalog, listProfiles, listQuickReplies, pendingInvites, scopeDb, type Workspace } from '@lps/db';
 import { CYCLES, formatBRL, QUICK_REPLY_VARIABLES, maskApiKey, maskApifyToken } from '@lps/domain';
-import { Archive, ArchiveRestore, Building2, Radar, Check, Clock, CreditCard, LogIn, MessageSquareText, Package, Plug, Plus, Trash2, Unplug, UserPlus, Users, X } from 'lucide-react';
+import { Archive, ArchiveRestore, Building2, Radar, ChartColumn, Check, Clock, CreditCard, LogIn, MessageSquareText, Package, Plug, Plus, Trash2, Unplug, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { WhatsAppConnection, whatsappIntro } from '@/components/connections/whatsapp-connection';
+import { CostsTab } from '@/components/settings/costs-tab';
 import { ProfileEditor } from '@/components/settings/profile-editor';
 import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
 import { Topbar } from '@/components/layout/topbar';
@@ -19,7 +20,7 @@ import {
   saveCatalogItemAction, saveWorkspaceAction, switchWorkspaceAction, toggleCatalogItemAction,
 } from './actions';
 
-type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'apify' | 'servicos' | 'mensagens' | 'mcp' | 'workspaces';
+type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'apify' | 'custos' | 'servicos' | 'mensagens' | 'mcp' | 'workspaces';
 const ROLE = { owner: 'Dono', member: 'Membro' } as const;
 const HERE = '/painel/configuracoes';
 
@@ -59,6 +60,7 @@ const initial = (name: string) => name.trim().slice(0, 1).toUpperCase() || 'W';
 export default async function ConfiguracoesPage({ searchParams }: { searchParams: Promise<{ aba?: string; erro?: string; ok?: string }> }) {
   const params = await searchParams;
   const { user, isAdmin, workspaces, workspace } = await getSession();
+  const canEdit = isAdmin || workspace.role === 'owner';
   const tabs: { key: Tab; label: string; icon: (props: { className?: string }) => ReactNode }[] = [
     { key: 'workspace', label: 'Workspace', icon: Building2 },
     { key: 'membros', label: 'Membros', icon: Users },
@@ -67,11 +69,11 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
     { key: 'servicos', label: 'Serviços', icon: Package },
     { key: 'pagamentos', label: 'Pagamentos', icon: CreditCard },
     { key: 'apify', label: 'Apify', icon: Radar },
+    ...(canEdit ? [{ key: 'custos' as const, label: 'Custos', icon: ChartColumn }] : []),
     { key: 'mcp', label: 'MCP (Claude)', icon: Plug },
     ...(isAdmin ? [{ key: 'workspaces' as const, label: 'Todos os workspaces', icon: LogIn }] : []),
   ];
   const tab = tabs.find((t) => t.key === params.aba)?.key ?? 'workspace';
-  const canEdit = isAdmin || workspace.role === 'owner';
   const env = getEnv();
 
   return (
@@ -137,6 +139,8 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
           {tab === 'pagamentos' && <BillingTab workspaceId={workspace.id} canEdit={canEdit} />}
 
           {tab === 'apify' && <ApifyTab workspaceId={workspace.id} canEdit={canEdit} />}
+
+          {tab === 'custos' && canEdit && <CostsTab workspaceId={workspace.id} />}
 
           {tab === 'mcp' && <McpTab endpoint={mcpEndpoint(env.APP_URL)} />}
 

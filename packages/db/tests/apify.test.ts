@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { deleteWorkspaceApify, getApifyToken, getWorkspaceApify, saveWorkspaceApify } from '../src/apify';
+import { deleteWorkspaceApify, getApifyToken, getWorkspaceApify, listApifyRuns, recordApifyRun, saveWorkspaceApify } from '../src/apify';
 import { fakeDb } from './fake-db';
 import { TEST_WORKSPACE_DEFAULTS } from './test-defaults';
 
@@ -43,5 +43,18 @@ describe('token do Apify por workspace', () => {
   it('remover volta a null', async () => {
     await deleteWorkspaceApify(raw, wsA);
     expect(await getApifyToken(raw, wsA)).toBeNull();
+  });
+});
+
+describe('execuções do Apify', () => {
+  it('cada workspace lista só as suas, e registrar de novo não duplica', async () => {
+    const run = { run_id: 'r1', workspace_id: wsA, actor: 'a/b', purpose: 'maps' as const };
+    await recordApifyRun(raw, run);
+    await recordApifyRun(raw, run);
+    expect((await listApifyRuns(raw, wsA)).map((r) => [r.run_id, r.backfilled])).toEqual([['r1', false]]);
+    expect(await listApifyRuns(raw, wsB)).toEqual([]);
+  });
+  it('falha ao registrar não lança', async () => {
+    await expect(recordApifyRun(raw, { run_id: 'r2', workspace_id: '00000000-0000-0000-0000-000000000000', actor: 'a/b', purpose: 'maps' })).resolves.toBeUndefined();
   });
 });

@@ -1,8 +1,8 @@
-import { getAsset, updateAsset, type Db } from '@lps/db';
-import { APIFY_NOT_CONNECTED, APIFY_OUT_OF_CREDIT, buildInstagramInput, extractHtmlText, extractPdfText, INSTAGRAM_ACTOR, instagramToExtract, runActorSync, truncateText, type InstagramExtractProfile } from '@lps/integrations';
+import { getAsset, getLead, updateAsset, type Db } from '@lps/db';
+import { APIFY_NOT_CONNECTED, APIFY_OUT_OF_CREDIT, buildInstagramInput, extractHtmlText, extractPdfText, INSTAGRAM_ACTOR, instagramToExtract, runActorSync, truncateText, type InstagramExtractProfile, type OnRun } from '@lps/integrations';
 import type { LeadAsset } from '@lps/domain';
 import { newContext } from '../browser';
-import { apifyTokenFor, withApifyCredit } from './apify-token';
+import { apifyTokenFor, trackApifyRun, withApifyCredit } from './apify-token';
 import { JobFailure, type Handler } from './types';
 
 const BUCKET = 'lead-assets';
@@ -47,8 +47,8 @@ function isInstagram(url: string): boolean {
   }
 }
 
-async function extractInstagram(url: string, token: string) {
-  const [profile] = await withApifyCredit(() => runActorSync<InstagramExtractProfile>(token, INSTAGRAM_ACTOR, buildInstagramInput([url])));
+async function extractInstagram(url: string, token: string, onRun: OnRun) {
+  const [profile] = await withApifyCredit(() => runActorSync<InstagramExtractProfile>(token, INSTAGRAM_ACTOR, buildInstagramInput([url]), { onRun }));
   if (!profile) throw new JobFailure('Não encontrei esse perfil do Instagram.');
   return instagramToExtract(profile);
 }
@@ -90,7 +90,7 @@ export const extractAssetJob: Handler = async (db, job) => {
   if (asset.kind === 'link') {
     if (!asset.url) throw new JobFailure('Link sem endereço.');
     if (!isHttpUrl(asset.url)) throw new JobFailure('Link inválido: use um endereço http ou https.');
-    const found = isInstagram(asset.url) ? await extractInstagram(asset.url, await apifyTokenFor(job)) : await extractWebPage(asset.url);
+    const found = isInstagram(asset.url) ? await extractInstagram(asset.url, await apifyTokenFor(job), trackApifyRun(job.workspace_id!, 'extract', { id: asset.lead_id, batch_id: (await getLead(db, asset.lead_id))?.batch_id ?? null })) : await extractWebPage(asset.url);
     text = found.text;
     images = await copyImages(db, asset.lead_id, asset.id, found.images);
   } else if (asset.kind === 'arquivo') {

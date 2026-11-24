@@ -10,6 +10,7 @@ const db = vi.hoisted(() => ({
   known: [] as { id: string; batch_id: string; instagram_handle: string }[],
   linkExistingLeads: vi.fn(async () => undefined),
   importLeads: vi.fn(async () => undefined),
+  recordApifyRun: vi.fn(async () => undefined),
 }));
 
 vi.mock('@lps/config', () => ({
@@ -33,6 +34,7 @@ vi.mock('@lps/db', () => ({
   listKnownPlaceIds: async () => new Set(),
   enqueueJob: db.enqueueJob,
   countJobs: async () => 0,
+  recordApifyRun: db.recordApifyRun,
   updateLead: async () => undefined,
 }));
 
@@ -75,6 +77,7 @@ describe('captura com o token do workspace', () => {
     db.tokens.wsA = 't1';
     await startMapsSearch(b);
     expect(String(fetchMock.mock.calls[0][0])).toContain('token=t1');
+    expect(db.recordApifyRun).toHaveBeenCalledWith(expect.anything(), { run_id: 'run1', workspace_id: 'wsA', actor: 'compass/crawler-google-places', purpose: 'maps', batch_id: 'b1' });
   });
 
   it('retorno do Maps para workspace que tirou o token: erro sem exceção', async () => {

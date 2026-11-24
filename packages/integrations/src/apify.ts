@@ -6,6 +6,8 @@ export const INSTAGRAM_ACTOR = 'apify/instagram-profile-scraper';
 const FINAL_EVENTS = ['ACTOR.RUN.SUCCEEDED', 'ACTOR.RUN.FAILED', 'ACTOR.RUN.TIMED_OUT', 'ACTOR.RUN.ABORTED'];
 
 export const GOOGLE_ACTOR = 'apify/google-search-scraper';
+/** Atores que o Sharken usa; os outros da conta são de outros projetos. */
+export const SHARKEN_ACTORS = [MAPS_ACTOR, INSTAGRAM_ACTOR, GOOGLE_ACTOR] as const;
 
 /** "Cidade, UF" → "Cidade, Estado, Brasil": o nome do estado por extenso evita que o Apify ache a cidade errada. */
 const mapsPlace = (location: string) => {
@@ -133,10 +135,10 @@ export function latestPostDate(profile: InstagramProfile): string | null {
 }
 
 /** Data do último post de um perfil. Usado quando o Instagram aparece depois da busca do batch (no site do lead). */
-export async function instagramLastPostAt(token: string, instagramUrl: string): Promise<string | null> {
+export async function instagramLastPostAt(token: string, instagramUrl: string, onRun?: OnRun): Promise<string | null> {
   const input = buildInstagramInput([instagramUrl]);
   if (!input.usernames.length) return null;
-  const [profile] = await runActorSync<InstagramProfile>(token, INSTAGRAM_ACTOR, input);
+  const [profile] = await runActorSync<InstagramProfile>(token, INSTAGRAM_ACTOR, input, { onRun });
   return profile ? latestPostDate(profile) : null;
 }
 
@@ -159,17 +161,28 @@ export async function getRun(token: string, runId: string): Promise<{ status: st
   return { status: data.status, defaultDatasetId: data.defaultDatasetId ?? null };
 }
 
-/** Roda o ator e espera o resultado na mesma chamada (usado na extração de um link do Instagram). */
-export async function runActorSync<T>(token: string, actor: string, input: object, timeoutMs = 120_000): Promise<T[]> {
-  const url = new URL(`${BASE}/acts/${actor.replace('/', '~')}/run-sync-get-dataset-items`);
-  url.searchParams.set('clean', 'true');
+/** Avisa o id da execução assim que ela começa (para registrar de quem é o gasto). */
+export type OnRun = (runId: string) => Promise<void>;
+
+/** Roda o ator e espera o resultado (usado na extração de um link do Instagram). */
+export async function runActorSync<T>(token: string, actor: string, input: object, { timeoutMs = 120_000, onRun }: { timeoutMs?: number; onRun?: OnRun } = {}): Promise<T[]> {
+  const signal = AbortSignal.timeout(timeoutMs);
+  const headers = { authorization: `Bearer ${token}` };
+  const url = new URL(`${BASE}/acts/${actor.replace('/', '~')}/runs`);
   url.searchParams.set('timeout', String(Math.ceil(timeoutMs / 1000)));
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify(input),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  let res = await fetch(url, { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(input), signal });
   if (!res.ok) throw await failure(res, 'O Apify recusou a leitura');
+  type Run = { id: string; status: string; defaultDatasetId?: string };
+  let run = ((await res.json()) as { data: Run }).data;
+  await onRun?.(run.id);
+  while (runOutcome(run.status) === 'pending') {
+    // waitForFinish segura a resposta até a execução terminar (no máximo 60 s por chamada).
+    res = await fetch(`${BASE}/actor-runs/${run.id}?waitForFinish=30`, { headers, signal });
+    if (!res.ok) throw await failure(res, 'O Apify recusou a leitura');
+    run = ((await res.json()) as { data: Run }).data;
+  }
+  if (runOutcome(run.status) === 'failed' || !run.defaultDatasetId) throw new Error(`O Apify não concluiu a leitura (${run.status}).`);
+  res = await fetch(`${BASE}/datasets/${run.defaultDatasetId}/items?clean=true`, { headers, signal });
+  if (!res.ok) throw await failure(res, 'Não foi possível ler os resultados do Apify');
   return (await res.json()) as T[];
 }

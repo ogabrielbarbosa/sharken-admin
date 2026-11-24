@@ -1,5 +1,5 @@
 import { getEnv, webhookBaseUrl } from '@lps/config';
-import { batchLocations, countJobs, createAdminClient, enqueueJob, getApifyToken, getBatch, importLeads, leadsByInstagramHandles, linkExistingLeads, listBatches, listKnownPlaceIds, listLeads, scopeDb, updateBatch, updateLead, workspaceOfRow, type Db } from '@lps/db';
+import { batchLocations, countJobs, createAdminClient, enqueueJob, getApifyToken, getBatch, importLeads, leadsByInstagramHandles, linkExistingLeads, listBatches, listKnownPlaceIds, listLeads, recordApifyRun, scopeDb, updateBatch, updateLead, workspaceOfRow, type Db } from '@lps/db';
 import { buildInstagramQueries, findMunicipio, handlesFromSearch, mapPlaceToLead, mapProfileToLead, searchPagesFor, type ApifyPlace, type Batch, type GoogleSearchPage, type InstagramProfileData } from '@lps/domain';
 import { APIFY_NOT_CONNECTED, buildGoogleInput, buildInstagramInput, buildMapsInput, fetchDataset, getRun, GOOGLE_ACTOR, INSTAGRAM_ACTOR, latestPostDate, MAPS_ACTOR, runOutcome, shouldPollRuns, startActorRun, usernameFromUrl, type InstagramProfile } from './apify';
 
@@ -44,6 +44,7 @@ export async function startMapsSearch(batch: Batch) {
     }
     const input = buildMapsInput({ locations: batchLocations(batch), businessType: batch.business_type, quantity: batch.quantity });
     const runId = await startActorRun(token, MAPS_ACTOR, input, webhookUrl(batch.id, 'maps'));
+    await recordApifyRun(createAdminClient(), { run_id: runId, workspace_id: batch.workspace_id, actor: MAPS_ACTOR, purpose: 'maps', batch_id: batch.id });
     // Só uma busca por vez no batch: as execuções da outra fonte já terminaram.
     await updateBatch(db, batch.id, { apify_run_id: runId, instagram_run_id: null, google_run_id: null, profiles_run_id: null, status: 'buscando', error: null });
   } catch (err) {
@@ -73,6 +74,7 @@ export async function startInstagramSearch(batch: Batch) {
     const queries = buildInstagramQueries(terms.niches, terms.locations);
     if (!queries.length) throw new Error('Informe o nicho para buscar no Instagram.');
     const runId = await startActorRun(token, GOOGLE_ACTOR, buildGoogleInput(queries, searchPagesFor(batch.quantity, queries.length)), webhookUrl(batch.id, 'google'));
+    await recordApifyRun(createAdminClient(), { run_id: runId, workspace_id: batch.workspace_id, actor: GOOGLE_ACTOR, purpose: 'google', batch_id: batch.id });
     await updateBatch(db, batch.id, { google_run_id: runId, profiles_run_id: null, apify_run_id: null, instagram_run_id: null, status: 'buscando', error: null });
   } catch (err) {
     await updateBatch(db, batch.id, { status: 'erro', error: (err as Error).message });
@@ -110,6 +112,7 @@ export async function handleGoogleResult(batchId: string, event: { succeeded: bo
       return;
     }
     const runId = await startActorRun(token, INSTAGRAM_ACTOR, { usernames: fresh }, webhookUrl(batchId, 'profiles'));
+    await recordApifyRun(createAdminClient(), { run_id: runId, workspace_id: batch.workspace_id, actor: INSTAGRAM_ACTOR, purpose: 'profiles', batch_id: batchId });
     await updateBatch(db, batchId, { profiles_run_id: runId, status: 'buscando' });
   } catch (err) {
     await updateBatch(db, batchId, { status: 'erro', error: (err as Error).message });
@@ -195,6 +198,7 @@ export async function handleMapsResult(batchId: string, event: { succeeded: bool
   if (usernames.length && !failure) {
     try {
       const runId = await startActorRun(token, INSTAGRAM_ACTOR, { usernames }, webhookUrl(batchId, 'instagram'));
+      await recordApifyRun(createAdminClient(), { run_id: runId, workspace_id: batch.workspace_id, actor: INSTAGRAM_ACTOR, purpose: 'instagram', batch_id: batchId });
       await updateBatch(db, batchId, { instagram_run_id: runId, status: 'analisando' });
       return;
     } catch {

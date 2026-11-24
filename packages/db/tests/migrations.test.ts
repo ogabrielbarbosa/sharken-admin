@@ -37,7 +37,7 @@ describe('migrações', () => {
        where n.nspname='public' and c.relkind='r' order by relname`,
     );
     expect(rows.map((r) => r.relname)).toEqual([
-      'batch_leads', 'batches', 'charges', 'clients', 'contacts', 'contracts', 'do_not_contact', 'events',
+      'apify_runs', 'batch_leads', 'batches', 'charges', 'clients', 'contacts', 'contracts', 'do_not_contact', 'events',
       'jobs', 'lead_assets', 'lead_duplicate_dismissals', 'leads', 'messages', 'pages', 'platform_admins', 'quick_replies', 'responsible_events', 'search_terms', 'service_catalog', 'services', 'sites', 'user_profiles', 'videos', 'whatsapp_connection',
       'workspace_apify', 'workspace_billing', 'workspace_invites', 'workspace_members', 'workspaces',
     ]);

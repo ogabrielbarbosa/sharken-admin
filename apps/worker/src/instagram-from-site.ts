@@ -1,5 +1,5 @@
 import './env';
-import { createAdminClient, enqueueJob, getApifyToken, getBatch, INSTAGRAM_MEDIA_JOB, logEvent, scopeDb, updateLead, workspaceOfRow, type Db } from '@lps/db';
+import { createAdminClient, enqueueJob, getApifyToken, getBatch, INSTAGRAM_MEDIA_JOB, logEvent, recordApifyRun, scopeDb, updateLead, workspaceOfRow, type Db } from '@lps/db';
 import { classifyLink, DEFAULT_CRITERIA, instagramProfileFromLinks, scoreLead, type Lead } from '@lps/domain';
 import { fetchDataset, getRun, INSTAGRAM_ACTOR, latestPostDate, runOutcome, startActorRun, usernameFromUrl, type InstagramProfile } from '@lps/integrations';
 import { closeBrowser } from './browser';
@@ -41,8 +41,9 @@ async function pool<T>(items: T[], size: number, run: (item: T) => Promise<void>
 }
 
 /** Uma busca no Apify para todos os perfis do workspace. Devolve usuário → data do último post. */
-async function lastPosts(token: string, usernames: string[]): Promise<Map<string, string>> {
+async function lastPosts(token: string, workspaceId: string, usernames: string[]): Promise<Map<string, string>> {
   const runId = await startActorRun(token, INSTAGRAM_ACTOR, { usernames }, null);
+  await recordApifyRun(admin, { run_id: runId, workspace_id: workspaceId, actor: INSTAGRAM_ACTOR, purpose: 'instagram_post' });
   for (;;) {
     await new Promise((r) => setTimeout(r, 10_000));
     const run = await getRun(token, runId);
@@ -104,7 +105,7 @@ for (const [workspaceId, items] of byWorkspace) {
   if (!token) console.log(`Workspace ${workspaceId} sem token do Apify: os links entram sem a data do último post.`);
   else {
     try {
-      dates = await lastPosts(token, [...new Set(items.map((i) => usernameFromUrl(i.instagram_url)!))]);
+      dates = await lastPosts(token, workspaceId, [...new Set(items.map((i) => usernameFromUrl(i.instagram_url)!))]);
     } catch (err) {
       console.log(`Workspace ${workspaceId}: ${(err as Error).message} Os links entram sem a data.`);
     }

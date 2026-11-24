@@ -77,6 +77,9 @@ Conversas de exemplo: `pnpm crm:demo` cria 8 contatos com DDD 00 (o envio para e
 
 ## Apify (conta de cada workspace)
 
+**Configurações › Custos** (só o dono) mostra o gasto do ciclo, por dia, ator e batch. O valor vem do Apify; `apify_runs` guarda
+quais execuções são do Sharken. Toda execução nova deve chamar `recordApifyRun`, senão aparece como de outro projeto.
+
 Não existe token do Apify no `.env`. Cada workspace cola o próprio em **Configurações › Apify** (tabela `workspace_apify`,
 só o servidor lê); o sistema confere no Apify de quem é a conta antes de salvar. A busca do batch, o Instagram dos leads,
 as imagens dos qualificados e a leitura de link do Instagram usam o token do workspace. Sem token, o Novo batch avisa

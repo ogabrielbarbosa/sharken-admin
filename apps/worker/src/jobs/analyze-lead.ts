@@ -2,6 +2,7 @@ import { countOpenJobs, createAdminClient, getApifyToken, getBatch, getContactCo
 import { bestContacts, checkEliminatory, looksLikeFranchise, classifyLink, instagramProfileFromLinks, flowFromSiteStatus, nextCheckStep, scoreLead, DEFAULT_CRITERIA, type Lead, type SiteStatus } from '@lps/domain';
 import { analyzeLead, defaultEnrichDeps, enrichLead, instagramLastPostAt, RateLimited } from '@lps/integrations';
 import { probeSite } from '../site-probe';
+import { trackApifyRun } from './apify-token';
 import { Reschedule, type Handler } from './types';
 
 async function resolveSite(db: Db, lead: Lead): Promise<Lead> {
@@ -45,7 +46,7 @@ export async function resolveSiteInstagram(db: Db, lead: Lead, workspaceId: stri
   const patch: Partial<Lead> = { instagram_url };
   try {
     const token = workspaceId ? await getApifyToken(createAdminClient(), workspaceId) : null;
-    if (token) patch.instagram_last_post_at = await instagramLastPostAt(token, instagram_url);
+    if (token) patch.instagram_last_post_at = await instagramLastPostAt(token, instagram_url, trackApifyRun(workspaceId!, 'instagram_post', lead));
   } catch {
     // Sem a data o lead só deixa de pontuar o critério do Instagram ativo.
   }
@@ -60,7 +61,7 @@ async function resolveManualInstagram(db: Db, lead: Lead, workspaceId: string | 
   if ((await getBatch(db, lead.batch_id))?.source !== 'manual') return lead;
   try {
     const token = await getApifyToken(createAdminClient(), workspaceId);
-    const date = token ? await instagramLastPostAt(token, lead.instagram_url) : null;
+    const date = token ? await instagramLastPostAt(token, lead.instagram_url, trackApifyRun(workspaceId, 'instagram_post', lead)) : null;
     if (!date) return lead;
     await updateLead(db, lead.id, { instagram_last_post_at: date });
     return { ...lead, instagram_last_post_at: date };
