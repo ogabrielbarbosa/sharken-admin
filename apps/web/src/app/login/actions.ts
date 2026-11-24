@@ -1,6 +1,7 @@
 'use server';
 
-import { acceptInvites, createAdminClient, findUserByEmail, normalizeEmail, pendingInvites } from '@lps/db';
+import { acceptInvites, createAdminClient, findUserByEmail, normalizeEmail, pendingInvites, saveProfile } from '@lps/db';
+import { parseProfileName } from '@lps/domain';
 import { redirect } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase/server';
 import { safeNext } from './safe-next';
@@ -33,6 +34,8 @@ export async function signUp(formData: FormData) {
   const dest = safeNext(formData.get('next'));
   const keep: Record<string, string> = formData.get('next') === dest ? { next: dest } : {};
   const back = (erro: string): never => redirect(`/cadastro?${new URLSearchParams({ erro, email, ...keep })}`);
+  let name = '';
+  try { name = parseProfileName(String(formData.get('name') ?? '')); } catch { back('nome'); }
   if (!/^\S+@\S+\.\S+$/.test(email)) back('email');
   if (password.length < 8) back('senha-curta');
   if (password !== confirm) back('senha-diferente');
@@ -44,6 +47,8 @@ export async function signUp(formData: FormData) {
   const { data, error } = await db.auth.admin.createUser({ email, password, email_confirm: true });
   if (error || !data.user) back('falhou');
   await acceptInvites(db, { id: data.user!.id, email });
+  // A conta já existe: falha no perfil não trava a entrada (dá para preencher em Configurações).
+  await saveProfile(db, data.user!.id, { name }).catch((err) => console.error('perfil do cadastro', err));
 
   const supabase = await createServerClient();
   const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });

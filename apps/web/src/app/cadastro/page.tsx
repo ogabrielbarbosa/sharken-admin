@@ -4,6 +4,7 @@ import { Button, Field, Input } from '@/components/ui';
 import { signUp } from '../login/actions';
 
 const messages: Record<string, string> = {
+  nome: 'O nome precisa ter entre 2 e 80 caracteres.',
   email: 'E-mail inválido.',
   'senha-curta': 'A senha precisa ter pelo menos 8 caracteres.',
   'senha-diferente': 'As senhas não são iguais.',
@@ -26,6 +27,7 @@ export default async function CadastroPage({ searchParams }: { searchParams: Pro
             <p className="mt-1 text-sm text-muted-foreground">Use o e-mail em que você foi convidado. Você entra direto no seu workspace.</p>
           </div>
           {erro && messages[erro] && <p className="text-sm text-destructive">{messages[erro]}</p>}
+          <Field label="Nome" hint="Aparece para a equipe no chat"><Input name="name" minLength={2} maxLength={80} autoComplete="name" required /></Field>
           <Field label="E-mail"><Input name="email" type="email" defaultValue={email ?? ''} placeholder="voce@email.com" required /></Field>
           <Field label="Senha" hint="Mínimo de 8 caracteres"><Input name="password" type="password" minLength={8} required /></Field>
           <Field label="Repita a senha"><Input name="confirm" type="password" minLength={8} required /></Field>

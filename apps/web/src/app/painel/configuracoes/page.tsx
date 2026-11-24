@@ -1,11 +1,12 @@
 import { getEnv } from '@lps/config';
-import { createAdminClient, getWorkspaceApify, getWorkspaceBilling, listCatalog, listQuickReplies, pendingInvites, scopeDb, type Workspace } from '@lps/db';
-import { CYCLES, formatBRL, QUICK_REPLY_VARIABLES, maskApiKey, maskApifyToken } from '@lps/domain';
+import { createAdminClient, getWorkspaceApify, getWorkspaceBilling, listCatalog, listProfiles, listQuickReplies, pendingInvites, scopeDb, type Workspace } from '@lps/db';
+import { CYCLES, formatBRL, QUICK_REPLY_VARIABLES, maskApiKey, maskApifyToken, type MemberProfile } from '@lps/domain';
 import { Archive, ArchiveRestore, Building2, Radar, Check, Clock, CreditCard, LogIn, MessageSquareText, Package, Plug, Plus, Trash2, Unplug, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { WhatsAppConnection, whatsappIntro } from '@/components/connections/whatsapp-connection';
 import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
+import { Avatar } from '@/components/crm/avatar';
 import { Topbar } from '@/components/layout/topbar';
 import { WhatsAppIcon } from '@/components/ui/whatsapp-icon';
 import { Badge, Button, Card, Field, Input, Select } from '@/components/ui';
@@ -15,7 +16,7 @@ import { formatDate } from '@/lib/lead-labels';
 import { listMcpConnections, mcpEndpoint } from '@/lib/mcp/connections';
 import {
   addMemberAction, cancelInviteAction, createWorkspaceAction, removeApifyAction, removeBillingAction, removeMemberAction, revokeMcpConnectionAction, saveApifyAction, saveBillingAction,
-  saveCatalogItemAction, saveWorkspaceAction, switchWorkspaceAction, toggleCatalogItemAction,
+  saveCatalogItemAction, saveProfileAction, saveWorkspaceAction, switchWorkspaceAction, toggleCatalogItemAction,
 } from './actions';
 
 type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'apify' | 'servicos' | 'mensagens' | 'mcp' | 'workspaces';
@@ -127,7 +128,7 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
             </>
           )}
 
-          {tab === 'membros' && <MembersTab workspaceId={workspace.id} me={user.id} canEdit={canEdit} />}
+          {tab === 'membros' && <MembersTab workspaceId={workspace.id} me={user} canEdit={canEdit} />}
 
           {tab === 'mensagens' && <QuickRepliesTab workspace={workspace} canEdit={canEdit} />}
 
@@ -146,24 +147,56 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
   );
 }
 
-async function MembersTab({ workspaceId, me, canEdit }: { workspaceId: string; me: string; canEdit: boolean }) {
+function ProfileForm({ userId, profile }: { userId: string; profile?: MemberProfile }) {
+  return (
+    <form action={saveProfileAction} className="space-y-3">
+      <input type="hidden" name="user_id" value={userId} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Nome"><Input name="name" defaultValue={profile?.name ?? ''} minLength={2} maxLength={80} required /></Field>
+        <Field label="Foto" hint="JPG, PNG ou WebP, até 2 MB">
+          <input name="avatar" type="file" accept="image/jpeg,image/png,image/webp" className="block w-full text-sm text-muted-foreground file:mr-3 file:h-9 file:cursor-pointer file:rounded-md file:border-0 file:bg-secondary file:px-3 file:text-sm file:text-foreground" />
+        </Field>
+      </div>
+      {profile?.avatarUrl && <label className="flex items-center gap-2 text-sm text-muted-foreground"><input type="checkbox" name="remove_avatar" />Remover a foto atual</label>}
+      <Button type="submit" variant="secondary">Salvar perfil</Button>
+    </form>
+  );
+}
+
+async function MembersTab({ workspaceId, me, canEdit }: { workspaceId: string; me: { id: string; email: string }; canEdit: boolean }) {
   const [members, invites] = await Promise.all([membersOf(workspaceId), pendingInvites(createAdminClient(), { workspaceId })]);
+  const profiles = await listProfiles(createAdminClient(), [me.id, ...members.map((m) => m.user_id)]);
   return (
     <>
+      {/* O administrador da plataforma pode não ser membro deste workspace. */}
+      {!members.some((m) => m.user_id === me.id) && (
+        <Section title="Meu perfil" description="Seu nome e sua foto no chat, em todos os workspaces.">
+          <ProfileForm userId={me.id} profile={profiles.get(me.id)} />
+        </Section>
+      )}
       <Section title="Membros" description="Quem trabalha neste workspace. Cada pessoa entra com o próprio e-mail e senha.">
         <ul className="-my-2 divide-y divide-border">
           {members.map((m) => (
-            <li key={m.user_id} className="flex items-center gap-3 py-2.5">
-              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-muted text-xs font-semibold text-brand-soft">{initial(m.email)}</span>
+            <li key={m.user_id} className="py-2.5">
+              <div className="flex items-center gap-3">
+              <Avatar name={profiles.get(m.user_id)?.name || m.email} src={profiles.get(m.user_id)?.avatarUrl} seed={m.user_id} size={32} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm">{m.email}{m.user_id === me && <span className="text-muted-foreground"> · você</span>}</p>
+                <p className="truncate text-sm">{profiles.get(m.user_id)?.name || m.email}{m.user_id === me.id && <span className="text-muted-foreground"> · você</span>}</p>
+                {profiles.get(m.user_id)?.name && <p className="truncate text-xs text-muted-foreground">{m.email}</p>}
               </div>
               <Badge tone={m.role === 'owner' ? 'brand' : 'neutral'}>{ROLE[m.role]}</Badge>
-              {canEdit && m.user_id !== me && (
+              {canEdit && m.user_id !== me.id && (
                 <form action={removeMemberAction}>
                   <input type="hidden" name="user_id" value={m.user_id} />
                   <Button type="submit" variant="ghost" aria-label={`Remover ${m.email}`}><Trash2 /></Button>
                 </form>
+              )}
+              </div>
+              {(canEdit || m.user_id === me.id) && (
+                <details className="mt-1 pl-11">
+                  <summary className="w-fit cursor-pointer text-xs text-muted-foreground hover:text-foreground">Editar nome e foto</summary>
+                  <div className="pt-3"><ProfileForm userId={m.user_id} profile={profiles.get(m.user_id)} /></div>
+                </details>
               )}
             </li>
           ))}

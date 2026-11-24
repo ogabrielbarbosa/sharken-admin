@@ -7,6 +7,7 @@ vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [], set: 
 const admin = vi.hoisted(() => ({
   auth: { admin: { createUser: async ({ email }: { email: string }) => ({ data: { user: { id: 'novo', email } }, error: null }) } },
 }));
+const saveProfile = vi.hoisted(() => vi.fn(async () => {}));
 const invites = vi.hoisted(() => ({ pending: [{ id: 'i' }] as unknown[] }));
 vi.mock('@lps/db', async (orig) => ({
   ...(await orig<typeof import('@lps/db')>()),
@@ -14,6 +15,7 @@ vi.mock('@lps/db', async (orig) => ({
   findUserByEmail: async () => null,
   pendingInvites: async () => invites.pending,
   acceptInvites: async () => {},
+  saveProfile,
 }));
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: async () => ({ auth: { signInWithPassword: async () => ({ data: { user: { id: 'novo' } }, error: null }) } }),
@@ -38,7 +40,7 @@ describe('signUp', () => {
     for (const [k, v] of Object.entries(fields)) f.set(k, v);
     return f;
   };
-  const base = { email: 'primo@exemplo.com', password: '12345678', confirm: '12345678' };
+  const base = { name: ' Ana Lima ', email: 'primo@exemplo.com', password: '12345678', confirm: '12345678' };
 
   it('volta para o next depois de criar a conta (ex.: consentimento OAuth)', async () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://supa.local';
@@ -47,6 +49,13 @@ describe('signUp', () => {
     await expect(signUp(form({ ...base, next: '/oauth/consent?authorization_id=abc' }))).rejects.toThrow('REDIRECT /oauth/consent?authorization_id=abc');
     await expect(signUp(form({ ...base, next: 'https://evil.com' }))).rejects.toThrow('REDIRECT /painel');
     await expect(signUp(form(base))).rejects.toThrow('REDIRECT /painel');
+  });
+
+  it('grava o nome e recusa cadastro sem nome', async () => {
+    invites.pending = [{ id: 'i' }];
+    await expect(signUp(form(base))).rejects.toThrow('REDIRECT /painel');
+    expect(saveProfile).toHaveBeenCalledWith(admin, 'novo', { name: 'Ana Lima' });
+    await expect(signUp(form({ ...base, name: '' }))).rejects.toThrow('erro=nome');
   });
 
   it('erro mantém o next na volta para o cadastro', async () => {

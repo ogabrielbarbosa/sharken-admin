@@ -1,14 +1,15 @@
 'use server';
 
 import { DEFAULT_QUICK_REPLIES } from '@lps/config';
-import { addDefaultQuickReplies, createQuickReply, deleteQuickReply, reorderQuickReplies, updateQuickReply, createAdminClient, createCatalogItem, deleteWorkspaceApify, deleteWorkspaceBilling, getWorkspaceBilling, inviteToWorkspace, saveWorkspaceApify, saveWorkspaceBilling, scopeDb, slugify, updateCatalogItem } from '@lps/db';
-import { abacateKeyMode, parseApifyToken, parseQuickReply, type QuickReplyFields, parseBRLToCents, CYCLES, type Cycle } from '@lps/domain';
+import { avatarPathOf, removeAvatar, saveProfile, uploadAvatar, addDefaultQuickReplies, createQuickReply, deleteQuickReply, reorderQuickReplies, updateQuickReply, createAdminClient, createCatalogItem, deleteWorkspaceApify, deleteWorkspaceBilling, getWorkspaceBilling, inviteToWorkspace, saveWorkspaceApify, saveWorkspaceBilling, scopeDb, slugify, updateCatalogItem } from '@lps/db';
+import { abacateKeyMode, AVATAR_MAX_BYTES, parseProfileName, parseApifyToken, parseQuickReply, type QuickReplyFields, parseBRLToCents, CYCLES, type Cycle } from '@lps/domain';
 import { abacatePay, apifyAccount } from '@lps/integrations';
 import { randomBytes } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getSession, WORKSPACE_COOKIE } from '@/lib/auth';
+import { canEditProfile } from '@/lib/profile-access';
 import { createServerClient } from '@/lib/supabase/server';
 import { abacateWebhookUrl } from '@/lib/billing';
 
@@ -92,6 +93,36 @@ export async function removeMemberAction(formData: FormData) {
   if (error) back('membros', { erro: error.message });
   revalidatePath(HERE);
   back('membros', { ok: 'Membro removido.' });
+}
+
+/** Nome e foto de um usuário: o próprio, ou um membro do workspace quando quem pede é o dono. */
+export async function saveProfileAction(formData: FormData) {
+  const { workspace, user, isAdmin } = await getSession();
+  const target = text(formData, 'user_id');
+  const db = createAdminClient();
+  const { data, error } = await db.from('workspace_members').select('user_id').eq('workspace_id', workspace.id);
+  if (error) back('membros', { erro: error.message });
+  const memberIds = ((data ?? []) as { user_id: string }[]).map((m) => m.user_id);
+  if (!canEditProfile({ me: user.id, target, canManage: isAdmin || workspace.role === 'owner', memberIds })) back('membros', { erro: 'Você não pode alterar esse perfil.' });
+  const file = formData.get('avatar');
+  let uploaded: string | null = null;
+  try {
+    const name = parseProfileName(text(formData, 'name'));
+    const old = await avatarPathOf(db, target);
+    if (file instanceof File && file.size) {
+      if (file.size > AVATAR_MAX_BYTES) throw new Error('Envie uma imagem JPG, PNG ou WebP de até 2 MB.');
+      uploaded = await uploadAvatar(db, target, new Uint8Array(await file.arrayBuffer()));
+    }
+    const remove = !uploaded && formData.get('remove_avatar') === 'on';
+    await saveProfile(db, target, { name, ...(uploaded ? { avatarPath: uploaded } : remove ? { avatarPath: null } : {}) });
+    if (old && (uploaded || remove)) await removeAvatar(db, old);
+  } catch (err) {
+    // O envio da foto pode ter passado e o perfil não: não deixa o arquivo solto.
+    if (uploaded && (await avatarPathOf(db, target).catch(() => uploaded)) !== uploaded) await removeAvatar(db, uploaded).catch(() => {});
+    back('membros', { erro: (err as Error).message });
+  }
+  revalidatePath('/painel', 'layout');
+  back('membros', { ok: 'Perfil salvo.' });
 }
 
 /** Admin: troca o workspace em uso. */
