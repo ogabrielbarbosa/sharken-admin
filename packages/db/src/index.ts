@@ -22,3 +22,4 @@ export * from './apify';
 export * from './duplicates';
 export * from './search-terms';
 export * from './quick-replies';
+export * from './profiles';

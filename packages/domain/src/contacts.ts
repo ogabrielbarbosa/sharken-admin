@@ -47,6 +47,9 @@ export type Message = {
   /** Usuário que enviou pelo painel. Nulo nas recebidas, nas do celular e nas anteriores à migração 0026. */
   sent_by: string | null;
   sent_by_email: string | null;
+  /** Conexão do WhatsApp no momento do envio. Nula nas recebidas, nas notas e nas anteriores à migração 0028. */
+  connection_phone: string | null;
+  connection_name: string | null;
   kind: MessageKind;
   body: string | null;
   media_path: string | null;
