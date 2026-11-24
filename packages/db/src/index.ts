@@ -21,3 +21,4 @@ export * from './pages';
 export * from './apify';
 export * from './duplicates';
 export * from './search-terms';
+export * from './quick-replies';

@@ -1,6 +1,8 @@
 'use client';
 
 import { ChevronDown, FileText, Image as ImageIcon, Loader2, Lock, LockOpen, Mic, Paperclip, PenLine, Reply, Send, Smile, Square, StickyNote, Trash2, X } from 'lucide-react';
+import { fillVariables, matchesQuickReply } from '@lps/domain';
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ErrorNote } from '@/components/ui';
 
@@ -37,11 +39,6 @@ type Props = {
 
 const EMOJIS = ['😀', '😁', '😂', '😊', '😉', '😍', '🤩', '😎', '🤔', '😅', '🙏', '👍', '👏', '🙌', '💪', '🤝', '👋', '👀', '✅', '❌', '⚠️', '🔥', '🚀', '💡', '🎉', '❤️', '💬', '📞', '📍', '📅', '⏰', '💰', '📈', '⭐', '✨', '😉'];
 const SIGNATURE_KEY = 'crm:assinatura';
-
-/** Troca as $variáveis conhecidas pelo valor do contato; as sem valor ficam como estão. */
-export function fillVariables(text: string, vars: Variable[]): string {
-  return text.replace(/\$([a-z_]+)/g, (all, key: string) => vars.find((v) => v.key === key)?.value ?? all);
-}
 
 function ToolButton({ label, onClick, active, disabled, children }: { label: string; onClick: () => void; active?: boolean; disabled?: boolean; children: ReactNode }) {
   return (
@@ -138,8 +135,7 @@ export function Composer(props: Props) {
   const dollar = /\$([a-z_]*)$/.exec(text.slice(0, caret))?.[1];
   const suggestions = useMemo(() => {
     if (slash !== undefined && slash !== false) {
-      const q = slash.toLowerCase();
-      return quickReplies.filter((r) => r.shortcut.includes(q) || r.title.toLowerCase().includes(q)).map((r) => ({ id: r.shortcut, title: `/${r.shortcut}`, hint: r.title, apply: () => setText(fillVariables(r.text, variables)) }));
+      return quickReplies.filter((r) => matchesQuickReply(r, slash)).map((r) => ({ id: r.shortcut, title: `/${r.shortcut}`, hint: r.title, apply: () => setText(fillVariables(r.text, variables)) }));
     }
     if (dollar !== undefined) {
       return variables.filter((v) => v.key.startsWith(dollar)).map((v) => ({
@@ -295,7 +291,7 @@ export function Composer(props: Props) {
           <div className="relative">
             {suggestions.length > 0 && (
               <Popover className="left-3 w-80">
-                <p className="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{slash !== undefined && slash !== false ? 'Respostas rápidas' : 'Variáveis'}</p>
+                <p className="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{slash !== undefined && slash !== false ? 'Mensagens rápidas' : 'Variáveis'}</p>
                 <ul className="max-h-60 overflow-y-auto">
                   {suggestions.map((s, i) => (
                     <li key={s.id}>
@@ -314,7 +310,7 @@ export function Composer(props: Props) {
               rows={2}
               disabled={blocked || closed}
               value={text}
-              placeholder={note ? 'Escreva uma nota interna. Só você vê.' : blocked ? '' : "'/' resposta rápida · '$' variável"}
+              placeholder={note ? 'Escreva uma nota interna. Só você vê.' : blocked ? '' : "'/' mensagem rápida · '$' variável"}
               onChange={(e) => { setText(e.target.value); setCaret(e.target.selectionStart); }}
               onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
               onPaste={(e) => {
@@ -384,7 +380,11 @@ export function Composer(props: Props) {
             )}
             {menu === 'prontas' && (
               <Popover className="left-0 w-80">
-                <p className="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Mensagens prontas</p>
+                <div className="flex items-baseline justify-between gap-2 px-2 pb-1 pt-1.5">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Mensagens rápidas</p>
+                  <Link href="/painel/configuracoes?aba=mensagens" className="text-xs text-brand-soft hover:underline">Gerenciar</Link>
+                </div>
+                {!templates.length && !quickReplies.length && <p className="px-2 py-3 text-xs text-muted-foreground">Nenhuma mensagem ainda. Crie em Gerenciar.</p>}
                 <ul className="max-h-72 overflow-y-auto">
                   {[...templates.map((t) => ({ id: t.label, title: t.label, text: t.text })), ...quickReplies.map((r) => ({ id: r.shortcut, title: r.title, text: fillVariables(r.text, variables) }))].map((t) => (
                     <li key={t.id}>

@@ -4,6 +4,7 @@ import type { Db } from './client';
 export const WORKSPACE_TABLES = new Set([
   'batches', 'batch_leads', 'leads', 'sites', 'videos', 'lead_assets', 'events', 'contacts', 'messages',
   'clients', 'services', 'contracts', 'charges', 'jobs', 'whatsapp_connection', 'service_catalog', 'pages', 'search_terms', 'lead_duplicate_dismissals',
+  'quick_replies',
 ]);
 
 const WORKSPACE = Symbol('workspace');

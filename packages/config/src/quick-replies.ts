@@ -1,13 +1,10 @@
-// Respostas rápidas do CRM: digite "/" no campo de mensagem para abrir a lista.
-// `atalho` é o que se digita depois da barra. Variáveis com $ são trocadas pelo valor do contato
-// ao inserir: $nome, $primeiro_nome, $telefone, $link, $cidade, $empresa, $meu_nome.
+// Mensagens rápidas com que um workspace novo começa. Depois disso, cada workspace edita as suas em
+// Configurações › Mensagens rápidas (tabela quick_replies); mudar aqui não altera as que já existem.
 // Sem preço, prazo ou condição: isso é decidido pelo Gabriel em cada conversa.
-export type QuickReply = { atalho: string; titulo: string; texto: string };
-
-export const QUICK_REPLIES: QuickReply[] = [
-  { atalho: 'oi', titulo: 'Cumprimento', texto: 'Oi, $primeiro_nome! Tudo bem? Aqui é o $meu_nome, da $empresa.' },
-  { atalho: 'link', titulo: 'Link da página', texto: 'Aqui está a página que preparei: $link' },
-  { atalho: 'ligar', titulo: 'Pedir um horário para ligar', texto: 'Posso te ligar rapidinho para explicar? Qual o melhor horário para você?' },
-  { atalho: 'obrigado', titulo: 'Agradecer', texto: 'Obrigado pelo retorno, $primeiro_nome! Qualquer dúvida, é só me chamar por aqui.' },
-  { atalho: 'parar', titulo: 'Confirmar que não vai mais mandar', texto: 'Sem problemas, não vou mais te mandar mensagem. Obrigado!' },
+export const DEFAULT_QUICK_REPLIES: { shortcut: string; title: string; body: string }[] = [
+  { shortcut: 'oi', title: 'Cumprimento', body: 'Oi, $primeiro_nome! Tudo bem? Aqui é o $meu_nome, da $empresa.' },
+  { shortcut: 'link', title: 'Link da página', body: 'Aqui está a página que preparei: $link' },
+  { shortcut: 'ligar', title: 'Pedir um horário para ligar', body: 'Posso te ligar rapidinho para explicar? Qual o melhor horário para você?' },
+  { shortcut: 'obrigado', title: 'Agradecer', body: 'Obrigado pelo retorno, $primeiro_nome! Qualquer dúvida, é só me chamar por aqui.' },
+  { shortcut: 'parar', title: 'Confirmar que não vai mais mandar', body: 'Sem problemas, não vou mais te mandar mensagem. Obrigado!' },
 ];

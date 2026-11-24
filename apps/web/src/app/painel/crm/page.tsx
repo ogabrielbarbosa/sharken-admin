@@ -1,4 +1,3 @@
-import { QUICK_REPLIES } from '@lps/config';
 import {
   clientByContact,
   FOLLOW_UP_LIMIT_MESSAGE,
@@ -11,6 +10,7 @@ import {
   listEvents,
   listCatalog,
   listMessages,
+  listQuickReplies,
   markStalePending,
   outreachCount,
 } from '@lps/db';
@@ -149,7 +149,7 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     { key: 'empresa', label: 'Nome comercial', value: profile.company },
     { key: 'meu_nome', label: 'Seu nome', value: profile.signer },
   ];
-  const quickReplies = QUICK_REPLIES.map((r) => ({ shortcut: r.atalho, title: r.titulo, text: r.texto }));
+  const quickReplies = (await listQuickReplies(db, { onlyActive: true })).map((r) => ({ shortcut: r.shortcut, title: r.title, text: r.body }));
   // 1ª resposta: da primeira mensagem recebida até a primeira enviada depois dela.
   const firstIn = messages.find((m) => m.direction === 'entrada');
   const replyAfter = firstIn ? messages.find((m) => m.direction === 'saida' && m.at > firstIn.at) : undefined;

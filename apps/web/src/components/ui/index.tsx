@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import Link from 'next/link';
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 
 export const cx = (...parts: (string | false | undefined | null)[]) => parts.filter(Boolean).join(' ');
 
@@ -47,7 +47,7 @@ const width = (className?: string) => (/(^|\s)w-/.test(className ?? '') ? '' : '
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cx(inputBase, width(props.className), 'h-9', props.className)} />;
 }
-export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement> & { ref?: Ref<HTMLTextAreaElement> }) {
   return <textarea {...props} className={cx(inputBase, width(props.className), 'py-2', props.className)} />;
 }
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {

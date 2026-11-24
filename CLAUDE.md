@@ -17,7 +17,7 @@ Sistema para encontrar negócios locais, montar uma página de exemplo e um víd
 - **Comentário e motivo:** o comentário é interno. O motivo é um campo próprio, que aparece para o lead na mensagem.
 - **Página:** feita pelo Gabriel fora do sistema. O sistema não gera página; o link é colado no lead.
 - **Vídeo:** gravado pelo Gabriel (Loom) fora do sistema. O link é colado no lead. Não há vídeo por IA.
-- **Configuração:** mensagens e prompts de análise e de sugestão de resposta ficam em arquivos do projeto (`packages/config`), sem tela.
+- **Configuração:** mensagens de primeiro contato e follow-up e prompts de análise e de sugestão de resposta ficam em arquivos do projeto (`packages/config`), sem tela. As mensagens rápidas do CRM (`/atalho`) são de cada workspace (`quick_replies`), editadas pelo dono em Configurações › Mensagens rápidas; `packages/config/src/quick-replies.ts` só guarda as iniciais de um workspace novo.
 - **Primeiro contato:** WhatsApp pela Evolution API (não oficial), com uma instância própria para o número de prospecção. O Gabriel conversa no CRM do app; cada mensagem sai de um clique dele, um contato por vez. Identificação clara, no máximo um follow-up para quem nunca respondeu (o agendado só avisa) e parar assim que a pessoa pedir.
 - **Modo de operação:** human in the loop. A IA propõe e o Gabriel aprova ou reprova.
 - **Contatos do lead:** um lead pode ter vários contatos (números), cada um com sua conversa no CRM; um contato tem no máximo um lead. No quadro, o card de Pronto para abordar abre direto a conversa quando o lead tem um contato só; com vários (ou nenhum), abre a lista de conversas, onde dá para adicionar número. Um número perdido só tira o lead quando nenhum outro segue ativo; Não contatar vale para o negócio todo.

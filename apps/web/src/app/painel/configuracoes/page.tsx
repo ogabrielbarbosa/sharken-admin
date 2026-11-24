@@ -1,15 +1,16 @@
 import { getEnv } from '@lps/config';
-import { createAdminClient, getWorkspaceApify, getWorkspaceBilling, listCatalog, pendingInvites, scopeDb } from '@lps/db';
-import { CYCLES, formatBRL, maskApiKey, maskApifyToken } from '@lps/domain';
-import { Archive, ArchiveRestore, Building2, Radar, Check, Clock, CreditCard, LogIn, Package, Plug, Plus, Trash2, Unplug, UserPlus, Users, X } from 'lucide-react';
+import { createAdminClient, getWorkspaceApify, getWorkspaceBilling, listCatalog, listQuickReplies, pendingInvites, scopeDb, type Workspace } from '@lps/db';
+import { CYCLES, formatBRL, QUICK_REPLY_VARIABLES, maskApiKey, maskApifyToken } from '@lps/domain';
+import { Archive, ArchiveRestore, Building2, Radar, Check, Clock, CreditCard, LogIn, MessageSquareText, Package, Plug, Plus, Trash2, Unplug, UserPlus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { WhatsAppConnection, whatsappIntro } from '@/components/connections/whatsapp-connection';
+import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
 import { Topbar } from '@/components/layout/topbar';
 import { WhatsAppIcon } from '@/components/ui/whatsapp-icon';
 import { Badge, Button, Card, Field, Input, Select } from '@/components/ui';
 import { CopyButton } from '@/components/ui/copy-button';
-import { getSession } from '@/lib/auth';
+import { getSession, workspaceProfile } from '@/lib/auth';
 import { formatDate } from '@/lib/lead-labels';
 import { listMcpConnections, mcpEndpoint } from '@/lib/mcp/connections';
 import {
@@ -17,7 +18,7 @@ import {
   saveCatalogItemAction, saveWorkspaceAction, switchWorkspaceAction, toggleCatalogItemAction,
 } from './actions';
 
-type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'apify' | 'servicos' | 'mcp' | 'workspaces';
+type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'apify' | 'servicos' | 'mensagens' | 'mcp' | 'workspaces';
 const ROLE = { owner: 'Dono', member: 'Membro' } as const;
 const HERE = '/painel/configuracoes';
 
@@ -61,6 +62,7 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
     { key: 'workspace', label: 'Workspace', icon: Building2 },
     { key: 'membros', label: 'Membros', icon: Users },
     { key: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon },
+    { key: 'mensagens', label: 'Mensagens rápidas', icon: MessageSquareText },
     { key: 'servicos', label: 'Serviços', icon: Package },
     { key: 'pagamentos', label: 'Pagamentos', icon: CreditCard },
     { key: 'apify', label: 'Apify', icon: Radar },
@@ -107,7 +109,7 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
                   <Field label="Seu nome nas mensagens" hint={`"Aqui é o ${workspace.signature_name || 'Fulano'}…" e a assinatura no CRM`}>
                     <Input name="signature_name" defaultValue={workspace.signature_name ?? ''} placeholder="Ex.: João" />
                   </Field>
-                  <Field label="Nome comercial" hint="Usado em $empresa nas respostas rápidas">
+                  <Field label="Nome comercial" hint="Usado em $empresa nas mensagens rápidas">
                     <Input name="commercial_name" defaultValue={workspace.commercial_name ?? ''} placeholder={env.COMMERCIAL_NAME} />
                   </Field>
                   <Field label="Primeiros contatos por dia" hint="Acima disso, o CRM pede confirmação antes de enviar">
@@ -126,6 +128,8 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
           )}
 
           {tab === 'membros' && <MembersTab workspaceId={workspace.id} me={user.id} canEdit={canEdit} />}
+
+          {tab === 'mensagens' && <QuickRepliesTab workspace={workspace} canEdit={canEdit} />}
 
           {tab === 'servicos' && <CatalogTab workspaceId={workspace.id} canEdit={canEdit} />}
 
@@ -413,6 +417,14 @@ async function CatalogTab({ workspaceId, canEdit }: { workspaceId: string; canEd
       )}
     </>
   );
+}
+
+async function QuickRepliesTab({ workspace, canEdit }: { workspace: Workspace; canEdit: boolean }) {
+  const items = await listQuickReplies(scopeDb(createAdminClient(), workspace.id));
+  const profile = workspaceProfile(workspace);
+  const mine: Record<string, string> = { empresa: profile.company, meu_nome: profile.signer };
+  const variables = QUICK_REPLY_VARIABLES.map((v) => ({ key: v.key, label: v.label, value: mine[v.key] ?? v.sample }));
+  return <QuickRepliesManager items={items} variables={variables} canEdit={canEdit} />;
 }
 
 function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {

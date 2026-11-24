@@ -1,7 +1,8 @@
 'use server';
 
-import { createAdminClient, createCatalogItem, deleteWorkspaceApify, deleteWorkspaceBilling, getWorkspaceBilling, inviteToWorkspace, saveWorkspaceApify, saveWorkspaceBilling, scopeDb, slugify, updateCatalogItem } from '@lps/db';
-import { abacateKeyMode, parseApifyToken, parseBRLToCents, CYCLES, type Cycle } from '@lps/domain';
+import { DEFAULT_QUICK_REPLIES } from '@lps/config';
+import { addDefaultQuickReplies, createQuickReply, deleteQuickReply, reorderQuickReplies, updateQuickReply, createAdminClient, createCatalogItem, deleteWorkspaceApify, deleteWorkspaceBilling, getWorkspaceBilling, inviteToWorkspace, saveWorkspaceApify, saveWorkspaceBilling, scopeDb, slugify, updateCatalogItem } from '@lps/db';
+import { abacateKeyMode, parseApifyToken, parseQuickReply, type QuickReplyFields, parseBRLToCents, CYCLES, type Cycle } from '@lps/domain';
 import { abacatePay, apifyAccount } from '@lps/integrations';
 import { randomBytes } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
@@ -12,7 +13,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { abacateWebhookUrl } from '@/lib/billing';
 
 const HERE = '/painel/configuracoes';
-type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'apify' | 'servicos' | 'mcp' | 'workspaces';
+type Tab = 'workspace' | 'membros' | 'whatsapp' | 'pagamentos' | 'apify' | 'servicos' | 'mensagens' | 'mcp' | 'workspaces';
 const back = (aba: Tab, msg: { erro?: string; ok?: string }): never =>
   redirect(`${HERE}?${new URLSearchParams({ aba, ...(msg.erro ? { erro: msg.erro } : {}), ...(msg.ok ? { ok: msg.ok } : {}) })}`);
 
@@ -118,6 +119,7 @@ export async function createWorkspaceAction(formData: FormData) {
     commercial_name: text(formData, 'commercial_name') || null,
   }).select('id').single();
   if (error || !data) back('workspaces', { erro: `Não foi possível criar: ${error?.message}` });
+  await addDefaultQuickReplies(scopeDb(db, data!.id), DEFAULT_QUICK_REPLIES);
   const email = text(formData, 'email').toLowerCase();
   const result = email ? await invite(data!.id, email, 'owner', user.id, 'workspaces') : null;
   revalidatePath('/painel', 'layout');
@@ -214,6 +216,60 @@ export async function toggleCatalogItemAction(formData: FormData) {
   await updateCatalogItem(scopeDb(createAdminClient(), workspace.id), text(formData, 'id'), { active });
   revalidatePath('/painel', 'layout');
   back('servicos', { ok: active ? 'Serviço reativado.' : 'Serviço arquivado: some do Fechar negócio, mas os clientes que já têm continuam iguais.' });
+}
+
+export type QuickReplyResult = { ok: true; message: string } | { ok: false; error: string };
+
+/** Mensagens rápidas: a tela mostra o resultado no lugar, sem redirecionar. Só o dono altera. */
+async function quickReplyWrite(run: (db: ReturnType<typeof scopeDb>) => Promise<string>): Promise<QuickReplyResult> {
+  const { workspace, isAdmin } = await getSession();
+  if (!isAdmin && workspace.role !== 'owner') return { ok: false, error: 'Só o dono do workspace pode fazer isso.' };
+  try {
+    const message = await run(scopeDb(createAdminClient(), workspace.id));
+    revalidatePath('/painel', 'layout');
+    return { ok: true, message };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+export async function saveQuickReplyAction(id: string | null, fields: QuickReplyFields): Promise<QuickReplyResult> {
+  const parsed = parseQuickReply(fields);
+  if (!parsed.ok) return parsed;
+  return quickReplyWrite(async (db) => {
+    if (id) await updateQuickReply(db, id, parsed.value);
+    else await createQuickReply(db, parsed.value);
+    return id ? 'Mensagem salva.' : `Mensagem criada. No atendimento, digite /${parsed.value.shortcut}.`;
+  });
+}
+
+export async function toggleQuickReplyAction(id: string, active: boolean): Promise<QuickReplyResult> {
+  return quickReplyWrite(async (db) => {
+    await updateQuickReply(db, id, { active });
+    return active ? 'Mensagem ativada.' : 'Mensagem desativada: não aparece mais no atendimento.';
+  });
+}
+
+export async function deleteQuickReplyAction(id: string): Promise<QuickReplyResult> {
+  return quickReplyWrite(async (db) => {
+    await deleteQuickReply(db, id);
+    return 'Mensagem excluída.';
+  });
+}
+
+export async function reorderQuickRepliesAction(ids: string[]): Promise<QuickReplyResult> {
+  return quickReplyWrite(async (db) => {
+    await reorderQuickReplies(db, ids);
+    return 'Ordem salva.';
+  });
+}
+
+export async function restoreQuickRepliesAction(): Promise<QuickReplyResult> {
+  return quickReplyWrite(async (db) => {
+    const added = await addDefaultQuickReplies(db, DEFAULT_QUICK_REPLIES);
+    if (!added) return 'As mensagens padrão já estão na lista.';
+    return added === 1 ? '1 mensagem padrão adicionada.' : `${added} mensagens padrão adicionadas.`;
+  });
 }
 
 /** Desconecta uma ferramenta (Claude, Cursor…) do MCP: revoga o consentimento e derruba as sessões dela. */
