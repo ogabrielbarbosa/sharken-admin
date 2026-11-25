@@ -1,7 +1,7 @@
 'use client';
 
-import { attendanceGate, canIntervene, canSetStatus, type ChatState, type Contact, type ContactStatus, type MemberProfile } from '@lps/domain';
-import { CheckCircle2, ChevronLeft, LockOpen, Paperclip, ShieldAlert, X } from 'lucide-react';
+import { attendanceGate, canIntervene, canSetStatus, type Contact, type ContactStatus, type MemberProfile } from '@lps/domain';
+import { CheckCircle2, ChevronLeft, Loader2, LockOpen, Paperclip, ShieldAlert, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
@@ -10,6 +10,7 @@ import { Button, ErrorNote, Select } from '@/components/ui';
 import { crmHref, STATUS_LABEL } from '@/lib/crm';
 import { Avatar } from './avatar';
 import { Composer, type QuickReplyItem, type Template, type Variable } from './composer';
+import { replaceChatUrl, useChatUrl } from './use-chat-url';
 import { messageLabel, Thread, type LegacyLine, type ThreadMessage, type ThreadPeople } from './thread';
 
 const MANUAL_STATUSES: ContactStatus[] = ['novo', 'contatado', 'follow_up', 'em_conversa', 'perdido', 'nao_contatar'];
@@ -22,7 +23,6 @@ export type ConversationProps = {
   draft: string;
   templates: Template[];
   blockReason: string | null;
-  backHref: string;
   stopRequest: boolean;
   dailyCount: number;
   dailyLimit: number;
@@ -34,19 +34,18 @@ export type ConversationProps = {
   isMember: boolean;
   /** Perfil de quem enviou mensagens nesta conversa, por usuário. */
   profiles: Record<string, MemberProfile>;
-  /** Aba aberta na lista. A aba acompanha o estado do atendimento desta conversa. */
-  tab: ChatState;
-  /** Com busca a lista mostra todas as abas: não troca de aba. */
-  searching: boolean;
 };
 
-export function Conversation({ contact, messages, legacy, now, draft, templates, blockReason, backHref, stopRequest, dailyCount, dailyLimit, quickReplies, variables, me, responsibleName, isMember, profiles, tab, searching }: ConversationProps) {
+export function Conversation({ contact, messages, legacy, now, draft, templates, blockReason, stopRequest, dailyCount, dailyLimit, quickReplies, variables, me, responsibleName, isMember, profiles }: ConversationProps) {
   const router = useRouter();
+  const { tab, filters, search, closing } = useChatUrl();
   const [optimistic, setOptimistic] = useState<ThreadMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<ThreadMessage | null>(null);
   const [dropped, setDropped] = useState<{ file: File; n: number } | null>(null);
+  /** Abrindo ou fechando o atendimento. */
+  const [changing, setChanging] = useState(false);
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
   const [intervening, setIntervening] = useState(false);
@@ -63,23 +62,28 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
   }, [serverIds]);
   const shown = useMemo(() => [...messages, ...optimistic.filter((m) => !serverIds.has(m.client_message_id))], [messages, optimistic, serverIds]);
 
-  // A aba segue o estado: enviou num fechado (vira aberto), fechou, reabriu, chegou mensagem.
+  // A aba segue o estado quando ele muda (enviou num fechado, fechou, reabriu, chegou mensagem). Fora isso a pessoa
+  // troca de aba à vontade com a conversa aberta.
+  const followed = useRef<string | null>(null);
   useEffect(() => {
-    if (searching || contact.chat_state === tab) return;
-    router.replace(crmHref(contact.chat_state, { contato: contact.id }), { scroll: false });
-  }, [contact.id, contact.chat_state, tab, searching, router]);
+    const state = contact.chat_state;
+    if (followed.current === state) return;
+    followed.current = state;
+    if (search || closing || state === tab) return;
+    replaceChatUrl(state, { contato: contact.id, filters });
+  }, [contact.id, contact.chat_state, tab, search, closing, filters]);
 
   async function closeChat() {
-    const out = await closeChatAction(contact.id);
+    setChanging(true);
+    const out = await closeChatAction(contact.id).finally(() => setChanging(false));
     if (!out.ok) return setError(out.error);
     setReplyTo(null);
-    router.replace(crmHref('fechado', { contato: contact.id }), { scroll: false });
   }
 
   async function openChat() {
-    const out = await openChatAction(contact.id);
+    setChanging(true);
+    const out = await openChatAction(contact.id).finally(() => setChanging(false));
     if (!out.ok) return setError(out.error);
-    router.replace(crmHref('aberto', { contato: contact.id }), { scroll: false });
   }
 
   async function takeOver() {
@@ -177,7 +181,7 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
   return (
     <section
       aria-label="Conversa"
-      className="relative flex min-h-0 flex-col"
+      className="relative flex min-h-0 animate-page-in flex-col"
       onDragEnter={(e: DragEvent) => { if (!e.dataTransfer.types.includes('Files')) return; dragDepth.current++; setDragging(true); }}
       onDragOver={(e: DragEvent) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
       onDragLeave={() => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); }}
@@ -197,9 +201,9 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
           <p className="text-xs text-muted-foreground">O texto do campo vai como legenda.</p>
         </div>
       )}
-      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border px-4">
         <div className="flex min-w-0 items-center gap-3">
-          <Link href={backHref} aria-label="Voltar" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground lg:hidden"><ChevronLeft className="size-4" />Voltar</Link>
+          <Link href={crmHref(tab, { q: search, filters })} aria-label="Voltar" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground lg:hidden"><ChevronLeft className="size-4" />Voltar</Link>
           <Avatar name={contact.name} src={contact.avatar_url} seed={contact.id} size={40} />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{contact.name}</p>
@@ -217,9 +221,9 @@ export function Conversation({ contact, messages, legacy, now, draft, templates,
           options={[...(contact.status === 'fechado' ? (['fechado'] as const) : []), ...options].map((s) => ({ value: s, label: STATUS_LABEL[s].label }))}
         />
         {contact.chat_state !== 'aberto' ? (
-          <Button variant="outline" onClick={() => void openChat()} data-tip="Abrir atendimento"><LockOpen />Abrir</Button>
+          <Button key="abrir" variant="outline" className="animate-fade-in" disabled={changing} onClick={() => void openChat()} data-tip="Abrir atendimento">{changing ? <Loader2 className="animate-spin" /> : <LockOpen />}Abrir</Button>
         ) : (
-          <Button variant="secondary" onClick={() => void closeChat()} data-tip="Fechar atendimento"><CheckCircle2 />Fechar</Button>
+          <Button key="fechar" variant="secondary" className="animate-fade-in" disabled={changing} onClick={() => void closeChat()} data-tip="Fechar atendimento">{changing ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}Fechar</Button>
         )}
         </div>
       </header>

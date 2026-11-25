@@ -1,18 +1,18 @@
-import { looksLikeStopRequest, type ChatState, type Contact } from '@lps/domain';
-import type { ChatCounts } from '@lps/db';
+'use client';
+
+import { looksLikeStopRequest, type ChatState } from '@lps/domain';
 import { Check, Search, X } from 'lucide-react';
+import Form from 'next/form';
 import Link from 'next/link';
-import { crmHref, isFollowUpDue, listTime } from '@/lib/crm';
+import { useEffect, useMemo, useState } from 'react';
+import { CHAT_TABS, crmHref, FILTER_KEYS, isFollowUpDue, listTime, matchesChatFilters, type ChatRow } from '@/lib/crm';
 import type { Member } from '@/lib/members';
+import { AnimatedList } from './animated-list';
 import { Avatar } from './avatar';
+import { ChatFilter, type ConnectionOption } from './chat-filter';
+import { ChatTabs } from './chat-tabs';
 import { ResponsibleAvatar } from './member-avatar';
-
-export const TABS: { key: ChatState; label: string }[] = [
-  { key: 'aberto', label: 'Abertos' },
-  { key: 'pendente', label: 'Pendentes' },
-  { key: 'fechado', label: 'Fechados' },
-];
-
+import { useChatView } from './use-chat-view';
 
 export type ConnectionInfo = { state: 'conectado' | 'desconectado' | 'conectando' | null; phone: string | null };
 
@@ -20,14 +20,14 @@ function Disconnected({ connection }: { connection: ConnectionInfo }) {
   if (connection.state === 'conectado') return null;
   const connecting = connection.state === 'conectando';
   return (
-    <Link href="/painel/configuracoes?aba=whatsapp" className={`mx-3 mt-3 flex items-center justify-between gap-2 rounded-md px-3 py-2 text-xs ${connecting ? 'bg-warning-subtle text-warning' : 'bg-destructive-subtle text-destructive'}`}>
+    <Link href="/painel/configuracoes?aba=whatsapp" className={`mx-3 mt-3 flex shrink-0 items-center justify-between gap-2 rounded-md px-3 py-2 text-xs ${connecting ? 'bg-warning-subtle text-warning' : 'bg-destructive-subtle text-destructive'}`}>
       <span className="flex items-center gap-2"><span className={`size-1.5 rounded-full ${connecting ? 'bg-warning' : 'bg-destructive'}`} />{connecting ? 'WhatsApp conectando…' : 'WhatsApp desconectado'}</span>
       <span className="font-medium underline-offset-2 hover:underline">{connecting ? 'Ver' : 'Conectar'}</span>
     </Link>
   );
 }
 
-function Preview({ contact, now }: { contact: Contact; now: Date }) {
+function Preview({ contact, now }: { contact: ChatRow; now: Date }) {
   const outbound = !!contact.last_message_at && contact.last_outbound_at === contact.last_message_at;
   const stop = !outbound && contact.last_message_preview && looksLikeStopRequest(contact.last_message_preview);
   const followUp = isFollowUpDue(contact, now);
@@ -42,59 +42,78 @@ function Preview({ contact, now }: { contact: Contact; now: Date }) {
   );
 }
 
-export function ContactList({ contacts, counts, tab, selectedId, search, now, connection, members }: {
-  contacts: Contact[];
-  counts: ChatCounts;
-  tab: ChatState;
+/** Conexões já usadas e, para cada uma, as conversas com envio por ela. */
+export type ConnectionUse = { connections: ConnectionOption[]; byConnection: Record<string, string[]> };
+
+/** Vem depois da lista: não segura a tela. Enquanto a nova não chega, vale a anterior. */
+function useConnectionUse(promise: Promise<ConnectionUse>) {
+  const [use, setUse] = useState<ConnectionUse | null>(null);
+  useEffect(() => {
+    let live = true;
+    void promise.then((v) => { if (live) setUse(v); });
+    return () => { live = false; };
+  }, [promise]);
+  return useMemo(() => {
+    const byContact = new Map<string, string[]>();
+    for (const [phone, ids] of Object.entries(use?.byConnection ?? {})) for (const id of ids) byContact.set(id, [...(byContact.get(id) ?? []), phone]);
+    return { connections: use?.connections ?? [], byContact, ready: !!use };
+  }, [use]);
+}
+
+export function ContactList({ contacts, counts, selectedId, connectionUse, now, connection, members }: {
+  /** Todas as abas (ou o resultado da busca). Aba e filtros são aplicados aqui, sem ir ao servidor. */
+  contacts: ChatRow[];
+  counts: Record<ChatState, number>;
   selectedId: string | null;
-  search: string;
+  connectionUse: Promise<ConnectionUse>;
   now: Date;
   connection: ConnectionInfo;
   members: Member[];
 }) {
+  const { view: { tab, filters }, change, search } = useChatView();
+  const { connections, byContact, ready } = useConnectionUse(connectionUse);
+  const matching = useMemo(
+    () => contacts.filter((c) => matchesChatFilters(c, ready ? filters : { ...filters, conexao: [] }, { current: connection.phone, byContact })),
+    [contacts, filters, ready, byContact, connection.phone],
+  );
+  const shown = search ? matching : matching.filter((c) => c.chat_state === tab);
+  const filtered = FILTER_KEYS.some((k) => filters[k].length > 0);
+  const shownCounts = filtered ? { aberto: 0, pendente: 0, fechado: 0 } : counts;
+  if (filtered) for (const c of matching) shownCounts[c.chat_state]++;
   return (
     <section aria-label="Conversas" className="flex min-h-0 flex-col border-r border-border">
+      <div className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-3">
+      <Form action="/painel/crm" className="relative min-w-0 flex-1">
+        <input type="hidden" name="aba" value={tab} />
+        {FILTER_KEYS.map((k) => filters[k].length > 0 && <input key={k} type="hidden" name={k} value={filters[k].join(',')} />)}
+        {selectedId && <input type="hidden" name="contato" value={selectedId} />}
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <input key={search} name="q" defaultValue={search} placeholder="Buscar nome ou telefone" aria-label="Buscar nome ou telefone" className="h-9 w-full rounded-lg border border-transparent bg-secondary pl-9 pr-8 text-sm outline-none placeholder:text-muted-foreground focus:border-neutral-500" />
+        {search && <Link href={crmHref(tab, { filters, contato: selectedId ?? undefined })} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="size-4" /></Link>}
+      </Form>
+        <ChatFilter filters={filters} onChange={(next) => change({ filters: next })} connections={connections} members={members} />
+      </div>
+
       <Disconnected connection={connection} />
 
-      <form action="/painel/crm" className="relative mx-3 mb-3 mt-3">
-        <input type="hidden" name="aba" value={tab} />
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <input name="q" defaultValue={search} placeholder="Buscar nome ou telefone" aria-label="Buscar nome ou telefone" className="h-9 w-full rounded-lg border border-transparent bg-secondary pl-9 pr-8 text-sm outline-none placeholder:text-muted-foreground focus:border-neutral-500" />
-        {search && <Link href={crmHref(tab)} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="size-4" /></Link>}
-      </form>
+      {!search && <ChatTabs tab={tab} counts={shownCounts} onChange={(next) => change({ tab: next })} />}
+      {search && <p className="px-6 py-3 text-xs text-muted-foreground">{shown.length} resultado{shown.length === 1 ? '' : 's'} {filtered ? 'com os filtros' : 'em todas as conversas'}</p>}
 
-      {!search && (
-        <nav className="mx-3 mb-2 grid grid-cols-3 gap-1 rounded-lg bg-secondary p-1" aria-label="Estado do atendimento">
-          {TABS.map((t) => {
-            const active = t.key === tab;
-            const n = counts[t.key] ?? 0;
-            const alert = t.key === 'pendente' && n > 0;
-            return (
-              <Link key={t.key} href={crmHref(t.key)} aria-current={active ? 'page' : undefined} className={`flex h-8 items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors ${active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-                {t.label}
-                <span className={`min-w-5 rounded-full px-1.5 text-center text-[10px] leading-4 ${alert ? 'bg-success text-background' : active ? 'bg-secondary text-foreground' : 'text-muted-foreground'}`}>{n}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      )}
-      {search && <p className="px-4 pb-2 text-xs text-muted-foreground">{contacts.length} resultado{contacts.length === 1 ? '' : 's'} em todas as conversas</p>}
-
-      <ul className="min-h-0 flex-1 overflow-y-auto">
-        {contacts.length === 0 && (
-          <li className="px-6 py-12 text-center text-sm text-muted-foreground">
-            {search ? 'Nenhum contato encontrado.' : tab === 'pendente' ? 'Nenhum atendimento pendente.' : tab === 'aberto' ? 'Nenhum atendimento aberto.' : 'Nenhum atendimento fechado.'}
+      <AnimatedList view={search ? 'busca' : tab} index={CHAT_TABS.findIndex((t) => t.key === tab)} keepId={selectedId} className="relative min-h-0 flex-1 space-y-0.5 overflow-y-auto pb-3 [scrollbar-color:#ffffff26_transparent] [scrollbar-width:thin]">
+        {shown.length === 0 && (
+          <li data-empty="" className="animate-fade-in px-6 py-12 text-center text-sm text-muted-foreground">
+            {filtered ? 'Nenhuma conversa com esses filtros.' : search ? 'Nenhum contato encontrado.' : tab === 'pendente' ? 'Nenhum atendimento pendente.' : tab === 'aberto' ? 'Nenhum atendimento aberto.' : 'Nenhum atendimento fechado.'}
           </li>
         )}
-        {contacts.map((c) => {
+        {shown.map((c) => {
           const responsible = members.find((m) => m.id === c.responsible_id);
           const selected = c.id === selectedId;
           return (
-            <li key={c.id}>
+            <li key={c.id} data-id={c.id}>
               <Link
-                href={crmHref(search ? c.chat_state : tab, { contato: c.id, q: search })}
+                href={crmHref(search ? c.chat_state : tab, { contato: c.id, q: search, filters })}
                 aria-current={selected ? 'true' : undefined}
-                className={`mx-1.5 flex items-center gap-3 rounded-lg px-2.5 py-2.5 transition-colors ${selected ? 'bg-accent' : 'hover:bg-accent/50'}`}
+                className={`mx-3 flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${selected ? 'bg-accent' : 'hover:bg-accent/50'}`}
               >
                 <Avatar name={c.name} src={c.avatar_url} seed={c.id} size={44} />
                 <span className="min-w-0 flex-1">
@@ -114,7 +133,7 @@ export function ContactList({ contacts, counts, tab, selectedId, search, now, co
             </li>
           );
         })}
-      </ul>
+      </AnimatedList>
     </section>
   );
 }

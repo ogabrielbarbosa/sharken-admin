@@ -4,7 +4,7 @@ import { ChevronDown, FileText, Image as ImageIcon, Loader2, Lock, LockOpen, Mic
 import { fillVariables, matchesQuickReply, type AttendanceGate } from '@lps/domain';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ErrorNote } from '@/components/ui';
+import { cx, ErrorNote } from '@/components/ui';
 
 export type Template = { label: string; text: string };
 export type QuickReplyItem = { shortcut: string; title: string; text: string };
@@ -109,6 +109,15 @@ export function Composer(props: Props) {
   const note = mode === 'nota';
   const blocked = !note && !!blockReason;
   const gated = !note && !!gate;
+  // O bloqueio some com fade: continua na tela por um instante depois de liberado.
+  const [lastGate, setLastGate] = useState<AttendanceGate | null>(null);
+  if (gated && gate !== lastGate) setLastGate(gate);
+  useEffect(() => {
+    if (gated || !lastGate) return;
+    const timer = setTimeout(() => setLastGate(null), 240);
+    return () => clearTimeout(timer);
+  }, [gated, lastGate]);
+  const shownGate = gated ? gate : note ? null : lastGate;
   const canAttach = !note && !blocked && !gated;
 
   // Arquivo solto em cima da conversa vira anexo.
@@ -441,20 +450,20 @@ export function Composer(props: Props) {
 
         </div>
         {/* Bloqueio da mensagem, no molde do LíderHub. As abas Mensagem / Nota seguem vivas em cima. */}
-        {gated && (
-          <div className="absolute inset-0 z-40 flex animate-overlay-in flex-col items-center justify-center gap-2 rounded-b-xl bg-card/85 px-4 backdrop-blur-[2px]">
-            <p className="flex max-w-full items-center gap-1.5 text-center text-xs text-muted-foreground"><Lock className="size-3.5 shrink-0" />{gateText(gate!, responsibleName)}</p>
+        {shownGate && (
+          <div inert={!gated} className={cx('absolute inset-0 z-40 flex animate-overlay-in flex-col items-center justify-center gap-2 rounded-b-xl bg-card/85 px-4 backdrop-blur-[2px] transition-opacity duration-200', !gated && 'opacity-0')}>
+            <p className="flex max-w-full items-center gap-1.5 text-center text-xs text-muted-foreground"><Lock className="size-3.5 shrink-0" />{gateText(shownGate, responsibleName)}</p>
             <div className="flex flex-wrap items-center justify-center gap-2">
-              {(gate !== 'outro_responsavel' || props.canTakeOver) && (
+              {(shownGate !== 'outro_responsavel' || props.canTakeOver) && (
                 <button
                   type="button"
                   disabled={acting}
-                  data-tip={gate === 'outro_responsavel' ? 'Passa este atendimento para você' : 'Abre o atendimento com você como responsável'}
-                  onClick={async () => { setActing(true); try { await (gate === 'outro_responsavel' ? props.onTakeOver() : props.onOpen()); } finally { setActing(false); } }}
+                  data-tip={shownGate === 'outro_responsavel' ? 'Passa este atendimento para você' : 'Abre o atendimento com você como responsável'}
+                  onClick={async () => { setActing(true); try { await (shownGate === 'outro_responsavel' ? props.onTakeOver() : props.onOpen()); } finally { setActing(false); } }}
                   className="press inline-flex h-8 cursor-pointer items-center gap-2 rounded-lg bg-brand px-3 text-sm font-medium text-white hover:bg-brand-bright disabled:cursor-wait disabled:opacity-70"
                 >
-                  {acting ? <Loader2 className="size-4 animate-spin" /> : gate === 'outro_responsavel' ? <UserPlus className="size-4" /> : <LockOpen className="size-4" />}
-                  {gate === 'outro_responsavel' ? 'Alterar responsável' : 'Abrir atendimento'}
+                  {acting ? <Loader2 className="size-4 animate-spin" /> : shownGate === 'outro_responsavel' ? <UserPlus className="size-4" /> : <LockOpen className="size-4" />}
+                  {shownGate === 'outro_responsavel' ? 'Alterar responsável' : 'Abrir atendimento'}
                 </button>
               )}
               {props.canIntervene && (

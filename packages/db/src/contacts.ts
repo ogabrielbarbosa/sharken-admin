@@ -118,6 +118,39 @@ export async function listChats(db: Db, opts: { state: ChatState | null; search?
   return data as Contact[];
 }
 
+export type ChatConnection = { phone: string; name: string | null };
+
+/** Conexões já usadas para enviar, pelo que ficou gravado nas mensagens. Uma consulta por número. */
+export async function listSentConnections(db: Db): Promise<ChatConnection[]> {
+  const found: ChatConnection[] = [];
+  while (found.length < 20) {
+    const base = db.from('messages').select('connection_phone, connection_name').not('connection_phone', 'is', null);
+    const query = found.length ? base.not('connection_phone', 'in', `(${found.map((c) => `"${c.phone}"`).join(',')})`) : base;
+    const { data, error } = await query.order('at', { ascending: false }).limit(1);
+    if (error) throw new Error(error.message);
+    const row = (data as { connection_phone: string; connection_name: string | null }[])[0];
+    if (!row) break;
+    found.push({ phone: row.connection_phone, name: row.connection_name });
+  }
+  return found;
+}
+
+/** Conversas que já tiveram envio por cada conexão. */
+export async function contactsByConnection(db: Db, phones: string[]): Promise<Record<string, string[]>> {
+  const lists = await Promise.all(phones.map(async (phone) => {
+    const { data, error } = await db
+      .from('contacts')
+      .select('id, messages!inner(id)')
+      .eq('messages.connection_phone', phone)
+      .limit(1, { referencedTable: 'messages' })
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .limit(LIST_LIMIT * 2);
+    if (error) throw new Error(error.message);
+    return [phone, (data as { id: string }[]).map((c) => c.id)] as const;
+  }));
+  return Object.fromEntries(lists);
+}
+
 export async function countChats(db: Db): Promise<ChatCounts> {
   const { data, error } = await db.rpc('crm_chat_counts', { p_workspace: workspaceOf(db) });
   if (error) throw new Error(error.message);

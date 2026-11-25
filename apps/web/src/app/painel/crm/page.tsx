@@ -2,11 +2,13 @@ import {
   clientByContact,
   FOLLOW_UP_LIMIT_MESSAGE,
   countChats,
+  contactsByConnection,
   firstContactsToday,
   getBatch,
   getContact,
   getLead,
   listChats,
+  listSentConnections,
   listEvents,
   listResponsibleEvents,
   listCatalog,
@@ -17,11 +19,12 @@ import {
   markStalePending,
   outreachCount,
 } from '@lps/db';
-import { batchName, closeDealDefaults, firstContactText, followUpText, outreachKind, phoneMatchCandidates, sendBlockReason, type ChatState, type Contact, type CloseDealInput } from '@lps/domain';
+import { batchName, closeDealDefaults, firstContactText, followUpText, outreachKind, phoneMatchCandidates, sendBlockReason, type Contact, type CloseDealInput } from '@lps/domain';
+import { after } from 'next/server';
 import { MessageCircle } from 'lucide-react';
 import { AvatarRefresher } from '@/components/crm/avatar-refresher';
 import { CloseDealDrawer } from '@/components/crm/close-deal-drawer';
-import { ContactList, type ConnectionInfo } from '@/components/crm/contact-list';
+import { ContactList, type ConnectionInfo, type ConnectionUse } from '@/components/crm/contact-list';
 import { ContactPanel, type HistoryItem } from '@/components/crm/contact-panel';
 import { Conversation } from '@/components/crm/conversation';
 import type { Template, Variable } from '@/components/crm/composer';
@@ -30,13 +33,12 @@ import { NewContactDialog } from '@/components/crm/new-contact-dialog';
 import { CrmRealtime } from '@/components/crm/use-crm-realtime';
 import { Topbar } from '@/components/layout/topbar';
 import { authedDb, getSession, workspaceProfile } from '@/lib/auth';
-import { composerDraft, chatLogLabel, crmHref, eventLabel, responsibleLabel, stopRequestPending } from '@/lib/crm';
+import { CHAT_TABS, composerDraft, chatLogLabel, crmHref, eventLabel, formatPhone, parseChatFilters, parseChatTab, toChatRow, responsibleLabel, stopRequestPending } from '@/lib/crm';
 import { listMembers } from '@/lib/members';
 import { flowLabel } from '@/lib/lead-labels';
 
 const MESSAGE_LIMIT = 200;
-const TABS: ChatState[] = ['aberto', 'pendente', 'fechado'];
-type Params = { aba?: string; contato?: string; texto?: string; q?: string; fechar?: string };
+type Params = { aba?: string; contato?: string; texto?: string; q?: string; fechar?: string; conexao?: string; responsavel?: string; status?: string };
 
 async function mediaUrls(db: Awaited<ReturnType<typeof authedDb>>, messages: ThreadMessage[]) {
   const paths = messages.map((m) => m.media_path).filter((p): p is string => !!p);
@@ -45,16 +47,36 @@ async function mediaUrls(db: Awaited<ReturnType<typeof authedDb>>, messages: Thr
   return new Map((data ?? []).flatMap((d) => (d.path && d.signedUrl ? [[d.path, d.signedUrl] as const] : [])));
 }
 
+/** Sem esperar na página: o filtro de conexão completa quando isto chega. */
+async function loadConnectionUse(db: Awaited<ReturnType<typeof authedDb>>, phone: string | null, name: string | null): Promise<ConnectionUse> {
+  const option = (c: { phone: string; name: string | null }) => ({ value: c.phone, label: c.name || formatPhone(c.phone), phone: formatPhone(c.phone), current: c.phone === phone });
+  const current = phone ? [option({ phone, name })] : [];
+  try {
+    const sent = await listSentConnections(db);
+    return {
+      connections: [...current, ...sent.filter((c) => c.phone !== phone).map(option)],
+      byConnection: await contactsByConnection(db, sent.map((c) => c.phone)),
+    };
+  } catch (err) {
+    console.error('conexoes_falharam', (err as Error).message);
+    return { connections: current, byConnection: {} };
+  }
+}
+
 export default async function CrmPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  const tab = TABS.find((t) => t === params.aba) ?? 'aberto';
+  const tab = parseChatTab(params.aba);
   const search = params.q?.trim() ?? '';
   const db = await authedDb();
   const now = new Date();
 
-  await markStalePending(db, new Date(now.getTime() - 2 * 60_000));
-  const [contacts, counts, firstToday, connectionRow, selected] = await Promise.all([
-    listChats(db, { state: search ? null : tab, search }),
+  // Não segura a tela: se marcar alguma, o Realtime recarrega.
+  after(() => markStalePending(db, new Date(now.getTime() - 2 * 60_000)).catch((err) => console.error('pendentes_falharam', (err as Error).message)));
+  const { user, workspace } = await getSession();
+  const [members, lists, counts, firstToday, connectionRow, selected] = await Promise.all([
+    listMembers(workspace.id),
+    // Todas as abas de uma vez: trocar de aba e filtrar acontece no navegador.
+    Promise.all(search ? [listChats(db, { state: null, search })] : CHAT_TABS.map((t) => listChats(db, { state: t.key }))),
     countChats(db),
     firstContactsToday(db, now),
     db.from('whatsapp_connection').select('state, phone, profile_name, profile_pic_url').maybeSingle(),
@@ -65,30 +87,30 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
     phone: (connectionRow.data?.phone as string | null | undefined) ?? null,
   };
   const connection = connectionInfo.state;
-  const base = crmHref(tab, { q: search });
-  const { user, workspace } = await getSession();
+  const contacts = lists.flat();
+  const connectionUse = loadConnectionUse(db, connectionInfo.phone, (connectionRow.data?.profile_name as string | null | undefined) ?? null);
+  const filters = parseChatFilters((key) => params[key]);
   const profile = workspaceProfile(workspace);
-  const members = await listMembers(workspace.id);
   const dailyLimit = profile.dailyLimit;
 
   const list = (
-    <ContactList contacts={contacts} counts={counts} tab={tab} selectedId={selected?.id ?? null} search={search} now={now} connection={connectionInfo} members={members} />
+    <ContactList contacts={contacts.map(toChatRow)} counts={counts} selectedId={selected?.id ?? null} connectionUse={connectionUse} now={now} connection={connectionInfo} members={members} />
   );
   const shell = (children: React.ReactNode) => (
     <div className="flex h-[calc(100vh-1rem)] flex-col max-lg:h-screen">
       <Topbar crumbs={[{ label: 'Atendimento' }, { label: 'Conversas' }]} actions={<NewContactDialog />} />
       <CrmRealtime contactId={selected?.id ?? null} />
-      <AvatarRefresher ids={contacts.map((c) => c.id)} enabled={connection === 'conectado'} />
+      <AvatarRefresher ids={(search ? contacts : contacts.filter((c) => c.chat_state === tab)).map((c) => c.id)} enabled={connection === 'conectado'} />
       <div className="grid min-h-0 flex-1 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_320px]">{children}</div>
     </div>
   );
-  const listCol = (hide: boolean) => <div className={`flex min-h-0 flex-col [&>*]:min-h-0 [&>*]:flex-1 ${hide ? 'max-lg:hidden' : ''}`}>{list}</div>;
+  const listCol = (hide: boolean) => <div key="lista" className={`flex min-h-0 flex-col [&>*]:min-h-0 [&>*]:flex-1 ${hide ? 'max-lg:hidden' : ''}`}>{list}</div>;
 
   if (!selected) {
     return shell(
       <>
         {listCol(false)}
-        <div className="col-span-full hidden min-h-0 flex-col items-center justify-center gap-2 text-center lg:col-span-1 lg:flex xl:col-span-2">
+        <div key="vazio" className="col-span-full hidden animate-fade-in min-h-0 flex-col items-center justify-center gap-2 text-center lg:col-span-1 lg:flex xl:col-span-2">
           <span className="mb-1 rounded-full bg-secondary p-4"><MessageCircle className="size-7 text-muted-foreground" /></span>
           <p className="text-sm font-medium">{counts.pendente > 0 ? `${counts.pendente} atendimento${counts.pendente === 1 ? '' : 's'} pendente${counts.pendente === 1 ? '' : 's'}` : 'Escolha uma conversa'}</p>
           <p className="max-w-xs text-xs text-muted-foreground">Clicar num pendente só mostra a conversa; abra o atendimento para responder. Cada envio é um clique seu.</p>
@@ -177,9 +199,9 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
 
   return shell(
     <>
-      {closeDefaults && <CloseDealDrawer contactName={selected.name} defaults={closeDefaults} existingClient={!!existingClient} closeHref={`${base}&contato=${selected.id}`} catalog={await listCatalog(db, { onlyActive: true })} />}
+      {closeDefaults && <CloseDealDrawer key="fechar" contactName={selected.name} defaults={closeDefaults} existingClient={!!existingClient} closeHref={crmHref(tab, { q: search, filters, contato: selected.id })} catalog={await listCatalog(db, { onlyActive: true })} />}
       {listCol(true)}
-      <div className="flex min-h-0 flex-col [&>*]:min-h-0 [&>*]:flex-1">
+      <div key="conversa" className="flex min-h-0 flex-col [&>*]:min-h-0 [&>*]:flex-1">
         <Conversation
           key={selected.id}
           contact={selected}
@@ -189,7 +211,6 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           draft={composerDraft({ contact: selected, lead, link, texto: params.texto, now, signer: profile.signer })}
           templates={templates}
           blockReason={blockReason}
-          backHref={base}
           stopRequest={stopRequestPending(messages)}
           dailyCount={firstToday}
           dailyLimit={dailyLimit}
@@ -199,18 +220,15 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
           responsibleName={selected.responsible_id ? nameOf(selected.responsible_id) : null}
           isMember={members.some((m) => m.id === user.id)}
           profiles={Object.fromEntries(profiles)}
-          tab={tab}
-          searching={!!search}
         />
       </div>
-      <div className="hidden min-h-0 flex-col xl:flex [&>*]:min-h-0 [&>*]:flex-1">
+      <div key="painel" className="hidden min-h-0 animate-fade-in flex-col xl:flex [&>*]:min-h-0 [&>*]:flex-1">
         <ContactPanel
           contact={selected}
           lead={lead}
           origin={origin}
           flowLabel={flow}
           history={history}
-          closeHref={`${base}&contato=${selected.id}&fechar=1`}
           connectionName={me.connectionName}
           media={mediaMessages}
           notes={notes}

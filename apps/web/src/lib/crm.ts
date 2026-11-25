@@ -1,9 +1,50 @@
-import { firstContactText, followUpText, looksLikeStopRequest, type Contact, type ContactStatus, type ChatLog, type Lead, type Message } from '@lps/domain';
+import { firstContactText, followUpText, looksLikeStopRequest, type ChatState, type Contact, type ContactStatus, type ChatLog, type Lead, type Message } from '@lps/domain';
 import type { Tone } from '@/components/ui';
 
-export function crmHref(tab: 'aberto' | 'pendente' | 'fechado', extra: { contato?: string; q?: string } = {}) {
+export const CHAT_TABS: { key: ChatState; label: string }[] = [
+  { key: 'aberto', label: 'Abertos' },
+  { key: 'pendente', label: 'Pendentes' },
+  { key: 'fechado', label: 'Fechados' },
+];
+
+/** Filtros da lista de conversas, como ficam na URL (valores separados por vírgula). */
+export type ChatFilters = { conexao: string[]; responsavel: string[]; status: string[] };
+export const FILTER_KEYS = ['conexao', 'responsavel', 'status'] as const;
+
+export function parseChatTab(value: string | null | undefined): ChatState {
+  return CHAT_TABS.find((t) => t.key === value)?.key ?? 'aberto';
+}
+
+/** Ordena e tira repetidos, para a mesma escolha dar sempre a mesma URL. */
+export function parseChatFilters(get: (key: keyof ChatFilters) => string | null | undefined): ChatFilters {
+  const list = (key: keyof ChatFilters) => [...new Set((get(key) ?? '').split(',').filter(Boolean))].sort();
+  return { conexao: list('conexao'), responsavel: list('responsavel'), status: list('status').filter((v) => v in STATUS_LABEL) };
+}
+
+/** O que a lista usa de cada conversa. */
+export type ChatRow = Pick<Contact, 'id' | 'name' | 'avatar_url' | 'status' | 'chat_state' | 'responsible_id' | 'unread_count' | 'last_message_at' | 'last_message_preview' | 'last_outbound_at' | 'follow_up_at' | 'created_at'>;
+
+export function toChatRow(c: Contact): ChatRow {
+  const { id, name, avatar_url, status, chat_state, responsible_id, unread_count, last_message_at, last_message_preview, last_outbound_at, follow_up_at, created_at } = c;
+  return { id, name, avatar_url, status, chat_state, responsible_id, unread_count, last_message_at, last_message_preview, last_outbound_at, follow_up_at, created_at };
+}
+
+/**
+ * Filtros da lista: dentro de cada um vale qualquer valor; entre eles, todos. A mensagem recebida não grava conexão:
+ * a conversa sem envio registrado conta na conexão atual, que é por onde ela seria respondida.
+ */
+export function matchesChatFilters(c: Pick<ChatRow, 'id' | 'status' | 'responsible_id'>, filters: ChatFilters, use: { current: string | null; byContact: ReadonlyMap<string, readonly string[]> }): boolean {
+  if (filters.status.length && !filters.status.includes(c.status)) return false;
+  if (filters.responsavel.length && !(c.responsible_id && filters.responsavel.includes(c.responsible_id))) return false;
+  if (!filters.conexao.length) return true;
+  const phones = use.byContact.get(c.id) ?? (use.current ? [use.current] : []);
+  return phones.some((p) => filters.conexao.includes(p));
+}
+
+export function crmHref(tab: 'aberto' | 'pendente' | 'fechado', extra: { contato?: string; q?: string; filters?: ChatFilters } = {}) {
   const p = new URLSearchParams({ aba: tab });
   if (extra.q) p.set('q', extra.q);
+  for (const key of FILTER_KEYS) if (extra.filters?.[key].length) p.set(key, extra.filters[key].join(','));
   if (extra.contato) p.set('contato', extra.contato);
   return `/painel/crm?${p}`;
 }
@@ -17,6 +58,8 @@ export const STATUS_LABEL: Record<ContactStatus, { label: string; tone: Tone }> 
   perdido: { label: 'Perdido', tone: 'danger' },
   nao_contatar: { label: 'Não contatar', tone: 'danger' },
 };
+
+export const TONE_DOT: Record<Tone, string> = { neutral: 'bg-neutral-500', brand: 'bg-brand-soft', warning: 'bg-warning', success: 'bg-success', danger: 'bg-destructive' };
 
 export function isFollowUpDue(c: Pick<Contact, 'status' | 'follow_up_at'>, now: Date): boolean {
   return !!c.follow_up_at && new Date(c.follow_up_at).getTime() <= now.getTime() && c.status !== 'perdido' && c.status !== 'nao_contatar' && c.status !== 'fechado';

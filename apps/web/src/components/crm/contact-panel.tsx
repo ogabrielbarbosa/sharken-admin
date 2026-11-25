@@ -2,7 +2,7 @@
 
 import { canSetStatus, type ChatState, type Contact, type ContactStatus, type Lead } from '@lps/domain';
 import {
-  Ban, CalendarDays, Check, CircleDot, Clock3, Copy, Gauge, Handshake, History, Image as ImageIcon, Layers, MessageCircle, MessageSquareText,
+  Ban, CalendarDays, Check, CircleDot, Clock3, Copy, Gauge, Handshake, History, Image as ImageIcon, Layers, MessageSquareText,
   Phone, Plug, Route, StickyNote, Tag, ThumbsDown, User, UserCheck,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -10,11 +10,12 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import { closeChatAction, renameContactAction, openChatAction, setChatResponsibleAction, saveLeadCommentAction, setStatusAction } from '@/app/painel/crm/actions';
 import { ErrorNote, type Tone } from '@/components/ui';
-import { ago, crmHref, formatPhone, STATUS_LABEL } from '@/lib/crm';
+import { ago, crmHref, formatPhone, STATUS_LABEL, TONE_DOT } from '@/lib/crm';
 import type { Member } from '@/lib/members';
 import { Avatar } from './avatar';
 import { FollowUpBlock } from './follow-up-block';
 import { LinksBlock } from './links-block';
+import { useChatUrl } from './use-chat-url';
 import { MemberAvatar } from './member-avatar';
 import { InlineSelect, Row, Section, Value } from './panel-parts';
 import type { ThreadMessage } from './thread';
@@ -26,7 +27,6 @@ export type PanelProps = {
   origin: { label: string; href: string | null };
   flowLabel: string | null;
   history: HistoryItem[];
-  closeHref: string;
   connectionName: string | null;
   media: ThreadMessage[];
   notes: ThreadMessage[];
@@ -39,16 +39,15 @@ const TZ = 'America/Sao_Paulo';
 const MANUAL_STATUSES: ContactStatus[] = ['novo', 'contatado', 'follow_up', 'em_conversa', 'perdido', 'nao_contatar'];
 const CHAT_LABEL: Record<ChatState, string> = { aberto: 'Aberto', pendente: 'Pendente', fechado: 'Fechado' };
 const CHAT_DOT: Record<ChatState, string> = { aberto: 'bg-success', pendente: 'bg-warning', fechado: 'bg-neutral-500' };
-const TONE_DOT: Record<Tone, string> = { neutral: 'bg-neutral-500', brand: 'bg-brand-soft', warning: 'bg-warning', success: 'bg-success', danger: 'bg-destructive' };
 
 const when = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: TZ });
 const day = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: TZ }).replace(/\./g, '');
 
 function TabButton({ active, label, onClick, children, count }: { active: boolean; label: string; onClick: () => void; children: ReactNode; count?: number }) {
   return (
-    <button type="button" data-tip={label} aria-label={label} aria-pressed={active} onClick={onClick} className={`relative inline-flex h-11 flex-1 cursor-pointer items-center justify-center border-b-2 transition-colors [&_svg]:size-[18px] ${active ? 'border-brand-soft text-brand-light' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+    <button type="button" data-tip={label} aria-label={label} aria-pressed={active} onClick={onClick} className={`relative inline-flex h-full flex-1 cursor-pointer items-center justify-center border-b-2 transition-colors [&_svg]:size-[18px] ${active ? 'border-brand-soft text-brand-light' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
       {children}
-      {!!count && <span className="absolute right-2 top-2 min-w-4 rounded-full bg-secondary px-1 text-[10px] leading-4 text-foreground">{count}</span>}
+      {!!count && <span className="absolute right-2 top-4 min-w-4 rounded-full bg-secondary px-1 text-[10px] leading-4 text-foreground">{count}</span>}
     </button>
   );
 }
@@ -124,7 +123,9 @@ function EditableName({ contactId, name }: { contactId: string; name: string }) 
   );
 }
 
-export function ContactPanel({ contact, lead, origin, flowLabel, history, closeHref, connectionName, media, notes, now: nowIso, members }: PanelProps) {
+export function ContactPanel({ contact, lead, origin, flowLabel, history, connectionName, media, notes, now: nowIso, members }: PanelProps) {
+  const { tab: listTab, filters, search } = useChatUrl();
+  const closeHref = `${crmHref(listTab, { q: search, filters, contato: contact.id })}&fechar=1`;
   const router = useRouter();
   const now = new Date(nowIso);
   const [tab, setTab] = useState<Tab>('contato');
@@ -144,8 +145,8 @@ export function ContactPanel({ contact, lead, origin, flowLabel, history, closeH
     run(() => setStatusAction(contact.id, to));
   };
   const changeChat = (to: ChatState) => {
-    if (to === 'fechado') run(() => closeChatAction(contact.id), () => router.push(crmHref('aberto')));
-    else run(() => openChatAction(contact.id), () => router.replace(crmHref('aberto', { contato: contact.id }), { scroll: false }));
+    if (to === 'fechado') run(() => closeChatAction(contact.id), () => router.push(crmHref('aberto', { filters })));
+    else run(() => openChatAction(contact.id));
   };
   const copy = async () => {
     try { await navigator.clipboard.writeText(formatPhone(contact.phone_e164)); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* sem permissão */ }
@@ -157,7 +158,7 @@ export function ContactPanel({ contact, lead, origin, flowLabel, history, closeH
 
   return (
     <aside aria-label="Contato" className="flex min-h-0 flex-col border-l border-border">
-      <nav className="flex shrink-0 items-center border-b border-border px-2" aria-label="Painel do contato">
+      <nav className="flex h-16 shrink-0 items-stretch border-b border-border px-2" aria-label="Painel do contato">
         <TabButton active={tab === 'contato'} label="Contato" onClick={() => setTab('contato')}><User /></TabButton>
         <TabButton active={tab === 'historico'} label="Histórico" onClick={() => setTab('historico')}><History /></TabButton>
         <TabButton active={tab === 'midia'} label="Mídia e arquivos" onClick={() => setTab('midia')} count={media.length}><ImageIcon /></TabButton>
@@ -165,10 +166,7 @@ export function ContactPanel({ contact, lead, origin, flowLabel, history, closeH
       </nav>
 
       <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
-        <span className="relative">
-          <Avatar name={contact.name} src={contact.avatar_url} seed={contact.id} size={36} />
-          <span className="absolute -bottom-0.5 -right-0.5 inline-flex size-4 items-center justify-center rounded-full bg-success ring-2 ring-background"><MessageCircle className="size-2.5 text-background" /></span>
-        </span>
+        <Avatar name={contact.name} src={contact.avatar_url} seed={contact.id} size={36} />
         <EditableName key={contact.id} contactId={contact.id} name={contact.name} />
         <button type="button" onClick={() => void copy()} data-tip="Copiar telefone" aria-label="Copiar telefone" className="cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">
           {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
